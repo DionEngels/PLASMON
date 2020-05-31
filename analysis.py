@@ -25,11 +25,11 @@ def ROI_finder(Image, ROI_size):
     threshold = [ 0.005 ,0.75 ]
     
     eng = matlab.engine.start_matlab()
-    time.sleep(1)
     
     ImageList = Image.tolist()
     ImageMatlab = matlab.double(ImageList)
     
+    time.sleep(3)
     
     [Corrected, Background] = BackgroundCorrection_WaveletSet(ImageMatlab,4,eng)
     Image = Image - Background

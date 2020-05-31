@@ -9,13 +9,12 @@ MBx Python Data Analysis
 
 ----------------------------
 
-v0.1, 2D Gaussian fitting: 
+v0.1, Loading & ROIs & Saving: 31/05/2020
+ 
 """
 
 ## GENERAL IMPORTS
 import os # to get standard usage
-import csv # to save to csv
-import scipy.io as sio #to export for MATLAB
 import math # for generic math
 
 ## Numpy and matplotlib, for linear algebra and plotting respectively
@@ -33,6 +32,8 @@ from pims import ND2_Reader # reader of ND2 files
 
 ## Own code
 import analysis
+import gaussian_fitting
+import tools
 
 #%% Initialization
 ROI_size = 9
@@ -66,25 +67,29 @@ for name in filenames:
         
         ROI_locations = analysis.ROI_finder(frames[0],ROI_size)
         
+        ## Fit Gaussians
+        
+        for index, frame in enumerate(frames):
+            pass
         
         ## Plot frames
-        for index, frame in enumerate(frames):
-            plt.matshow(frame,fignum=index)
-            plt.title("Frame number: " + str(index))
-            plt.show()
+        # for index, frame in enumerate(frames):
+        #     plt.matshow(frame,fignum=index)
+        #     plt.title("Frame number: " + str(index))
+        #     plt.show()
 
         
-        ## filter and save metadata
+        ## filter metadata
         metadata_filtered = {k:v for k,v in metadata.items() if v is not None}
         del metadata_filtered['time_start']
         del metadata_filtered['time_start_utc']
-        with open(directory + "/"+'metadata.csv', mode ='w') as csv_file:
-            fieldnames = [k[0] for k in metadata_filtered.items()]
-            writer = csv.DictWriter(csv_file, fieldnames = fieldnames)
-            
-            writer.writeheader()
-            writer.writerow(metadata_filtered)
-            
-        sio.savemat(directory + "/"+'metadata.mat',metadata_filtered)
+        
+        ## ROI_locations dict
+        ROI_locations_dict = dict(zip(['x','y'], ROI_locations.T))
+        
+#%% save everything
+        tools.SaveToCsvMat('metadata', metadata_filtered, directory)
+        tools.SaveToCsvMat('ROI_locations', ROI_locations_dict, directory)
         
     
+
