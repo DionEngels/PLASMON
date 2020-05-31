@@ -16,6 +16,7 @@ v0.1, 2D Gaussian fitting:
 import os # to get standard usage
 import csv # to save to csv
 import scipy.io as sio #to export for MATLAB
+import math # for generic math
 
 ## Numpy and matplotlib, for linear algebra and plotting respectively
 import numpy as np
@@ -28,6 +29,14 @@ from tkinter.filedialog import askopenfilenames # for popup that asks to select 
 ## ND2 related
 from pims import ND2_Reader # reader of ND2 files
 
+
+
+## Own code
+import analysis
+
+#%% Initialization
+ROI_size = 9
+ROI_size_1D = math.trunc(ROI_size-1)/2
 
 filetypes=[("ND2", ".nd2")]
 
@@ -53,7 +62,12 @@ for name in filenames:
         frames = ND2
         metadata = ND2.metadata
         
+        ## Find ROIs
         
+        ROI_locations = analysis.ROI_finder(frames[0],ROI_size)
+        
+        
+        ## Plot frames
         for index, frame in enumerate(frames):
             plt.matshow(frame,fignum=index)
             plt.title("Frame number: " + str(index))

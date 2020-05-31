@@ -130,3 +130,7 @@ dmypy.json
 
 # Raw data
 .nd2  
+
+# pycache
+.pyc
+__pycache__/**
