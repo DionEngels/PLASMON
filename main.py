@@ -37,7 +37,8 @@ import tools
 
 #%% Initialization
 ROI_size = 9
-ROI_size_1D = math.trunc(ROI_size-1)/2
+wavelength = 637 #nm
+threshold = 5 # X*sigma
 
 filetypes=[("ND2", ".nd2")]
 
@@ -65,12 +66,18 @@ for name in filenames:
         
         ## Find ROIs
         
-        ROI_locations = analysis.ROI_finder(frames[0],ROI_size)
+        #ROI_locations = analysis.ROI_finder(frames[0],ROI_size)
+        ROI_locations = np.array([[1, 2], [3, 4]])
+
         
         ## Fit Gaussians
         
-        for index, frame in enumerate(frames):
-            pass
+        rainSTORM = gaussian_fitting.rainSTORM_Dion(metadata, ROI_size, wavelength)
+        rainSTORM.determine_threshold(frames[0], ROI_locations, threshold)
+        rainSTORM.main(ROI_locations,frames)
+        
+        
+        
         
         ## Plot frames
         # for index, frame in enumerate(frames):
