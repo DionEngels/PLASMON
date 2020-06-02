@@ -67,7 +67,8 @@ for name in filenames:
         ## Find ROIs
         
         #ROI_locations = analysis.ROI_finder(frames[0],ROI_size)
-        ROI_locations = np.array([[1, 2], [3, 4]])
+        ROI_locations = np.load('ROI_locations.npy')
+        #ROI_locations = np.array([[1, 2], [3, 4]])
 
         
         ## Fit Gaussians

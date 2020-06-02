@@ -69,6 +69,8 @@ class rainSTORM_Dion():
             frame_result = self.main_loop(frame, frame_index)
             self.result.append(frame_result)
             
+            return self.result
+            
         
     def main_loop(self, frame, frame_index):
         
@@ -112,7 +114,106 @@ class rainSTORM_Dion():
         
     
     def fitter(self, frame_index, frame, peaks):
-        pass
+        initX0 = 0
+        index = 0
+        Nfails = 0
+        
+        frame_result = []
+        
+        for peak_index, peak in enumerate(peaks):
+            myRow = int(peak[0])
+            myColumn = int(peak[1])
+            myROI = frame[myRow-self.ROI_size_1D:myRow+self.ROI_size_1D+1,myColumn-self.ROI_size_1D:myColumn+self.ROI_size_1D+1]
+            myROI_min = np.amin(myROI)
+            myROI_bg = np.mean(np.append(np.append(np.append(myROI[:,0],myROI[:,-1]),np.transpose(myROI[0,1:-2])), np.transpose(myROI[-1,1:-2])))
+            myROI = myROI - myROI_bg
+            flagRow = False
+            flagCol = False
+            
+            xx = np.transpose(range(-self.ROI_size_1D,self.ROI_size_1D+1))
+            yy = np.transpose(range(-self.ROI_size_1D,self.ROI_size_1D+1))
+            yRows = np.sum(myROI,axis=1)
+            yCols = np.transpose(np.sum(myROI,axis=0))
+            
+            x0 = initX0
+            sigX = self.initSig
+            C = yRows[self.ROI_size_1D]
+            for i in range(0,self.maxIts):
+                fofX = C*np.exp(-np.square(xx-x0)/(2*sigX**2))
+                beta = yRows - fofX
+                A = np.append(np.append(fofX/C,fofX* (xx-x0/sigX**2)),fofX*(np.square(xx-x0)/sigX**3))
+                b = np.matmul(np.transpose(A),beta)
+                a = np.matmul(np.transpose(A),A)
+                RC= np.linalg.cond(a)
+                if math.isnan(RC) or RC < 1e-12:
+                    break
+                dL = np.matmul(a,np.linalg.inv(b))
+                C = C+dL[0]
+                x0 = x0+dL[1]
+                sigX = sigX +dL[2]
+                
+                if abs(x0) > self.allowX or sigX < self.allowSig[0] or sigX > self.allowSig[1]:
+                    break
+            
+                residueRows = np.sum(np.square(beta))/np.sum(np.square(yRows))
+                if residueRows < self.mintol and abs(x0) > self.allowX and sigX < self.allowSig[0] and sigX > self.allowSig[1]:
+                    break
+            
+            if residueRows < self.maxtol and abs(x0) > self.allowX and sigX < self.allowSig[0] and sigX > self.allowSig[1]:
+                fitRowPos = float(myRow) + x0 - 0.5
+                flagRow = True
+            
+            if flagRow:
+                y0 = initX0
+                sigY = sigX
+                C = yCols[self.ROI_size_1D]
+                for i in range(0,self.maxIts):
+                    fofX = C*np.exp(-np.square(yy-y0)/(2*sigY**2))
+                    beta = yCols - fofX
+                    A = np.append(np.append(fofX/C,fofX* (yy-y0/sigY**2)),fofX*(np.square(yy-y0)/sigY**3))
+                    b = np.matmul(np.transpose(A),beta)
+                    a = np.matmul(np.transpose(A),A)
+                    RC= np.linalg.cond(a)
+                    if math.isnan(RC) or RC < 1e-12:
+                        break
+                    dL = np.matmul(a,np.linalg.inv(b))
+                    C = C+dL[0]
+                    y0 = y0+dL[1]
+                    sigY = sigY +dL[2]
+                    
+                    if abs(y0) > self.allowX or sigY < self.allowSig[0] or sigY > self.allowSig[1]:
+                        break
+                
+                    residueCols = np.sum(np.square(beta))/np.sum(np.square(yRows))
+                    if residueCols < self.mintol and abs(y0) > self.allowX and sigY < self.allowSig[0] and sigY > self.allowSig[1]:
+                        break
+                
+                if residueCols < self.maxtol and abs(y0) > self.allowX and sigY < self.allowSig[0] and sigY > self.allowSig[1]:
+                    fitColPos = float(myCol) + y0 - 0.5
+                    flagCol = True
+                
+            
+            if flagRow and flagCol:
+                frame_result[index,0] = frame_index
+                frame_result[index,1] = peak_index
+                frame_result[index,2] = fitRowPos
+                frame_result[index,3] = fitColPos
+                frame_result[index,4] = peak[2]
+                frame_result[index,5] = sigX
+                frame_result[index,6] = sigY
+                frame_result[index,7] = (residueRows + residueCols) / 2
+                frame_result[index,8] = residueRows
+                frame_result[index,9] = residueCols
+                
+                index +=1
+            else:
+                Nfails +=1
+                
+        
+        
+        return frame_result
+        
+        
         
 
 
