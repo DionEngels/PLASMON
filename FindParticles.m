@@ -25,8 +25,8 @@ Objects = Population.Location;
           text(Objects(i_Beads,1)+0.5*(ROI_size_gauss+3),Objects(i_Beads,2)-1,num2str(i_Beads),'Color','white','FontSize',8,'FontWeight','bold');
       end   
       title({'The localized particles'});
-      print(gcf,[folder 'The localized particles.png'],'-dpng','-r300','-opengl') %save file as png
-      saveas(gcf,[folder 'The localized particles.fig'],'fig') %save file as matlab fig
+      %print(gcf,[folder 'The localized particles.png'],'-dpng','-r300','-opengl') %save file as png
+      %saveas(gcf,[folder 'The localized particles.fig'],'fig') %save file as matlab fig
 
 
 

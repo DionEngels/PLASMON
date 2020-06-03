@@ -133,4 +133,7 @@ dmypy.json
 
 # pycache
 .pyc
-__pycache__/**
+__pycache__/
+
+# testing
+1nMimager_newGNRs_100mW/

@@ -22,7 +22,7 @@ import time # to sleep to ensure that matlab licence is registered
 
 def ROI_finder(Image, ROI_size):
     
-    threshold = [ 0.005 ,0.75 ]
+    threshold = [ 0.05 ,0.75 ]
     
     eng = matlab.engine.start_matlab()
     

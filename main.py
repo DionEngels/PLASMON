@@ -10,12 +10,14 @@ MBx Python Data Analysis
 ----------------------------
 
 v0.1, Loading & ROIs & Saving: 31/05/2020
+v0.2, rainSTORM inspired v1: 03/06/2020
  
 """
 
 ## GENERAL IMPORTS
 import os # to get standard usage
 import math # for generic math
+import time # for timekeeping
 
 ## Numpy and matplotlib, for linear algebra and plotting respectively
 import numpy as np
@@ -63,31 +65,42 @@ for name in filenames:
         ## parse ND2 info
         frames = ND2
         metadata = ND2.metadata
-        
+        frames = frames[0:10]
         ## Find ROIs
+        
+        print('Starting to find ROIs')
         
         #ROI_locations = analysis.ROI_finder(frames[0],ROI_size)
         ROI_locations = np.load('ROI_locations.npy')
         #ROI_locations = np.array([[1, 2], [3, 4]])
+        
+        plt.matshow(frames[0],fignum=0)
+        plt.scatter(ROI_locations[:,0],ROI_locations[:,1], s = 2,c = 'red', marker='x', alpha=0.5)
+        plt.title("ROI locations")
+        plt.show()
 
         
         ## Fit Gaussians
-        
+        print('Starting to prepare fitting')
         rainSTORM = gaussian_fitting.rainSTORM_Dion(metadata, ROI_size, wavelength)
         rainSTORM.determine_threshold(frames[0], ROI_locations, threshold)
-        rainSTORM.main(ROI_locations,frames)
+        print('Starting fitting')
+        start = time.time()
+        results = rainSTORM.main(ROI_locations,frames, metadata)
+        print('Time taken: ' + str(round(time.time() - start,3)) + ' s. Fits done: ' + str(results.shape[0]))
         
+        print('Starting saving')
         
-        
-        
-        ## Plot frames
-        # for index, frame in enumerate(frames):
-        #     plt.matshow(frame,fignum=index)
-        #     plt.title("Frame number: " + str(index))
-        #     plt.show()
+        #%% Plot frames
+        for index, frame in enumerate(frames):
+            toPlot = results[results[:,0] == index]
+            plt.matshow(frame,fignum=index)
+            plt.scatter(toPlot[:,2],toPlot[:,3], s = 2,c = 'red', marker='x', alpha=0.5)
+            plt.title("Frame number: " + str(index))
+            plt.show()
 
         
-        ## filter metadata
+        #%% filter metadata
         metadata_filtered = {k:v for k,v in metadata.items() if v is not None}
         del metadata_filtered['time_start']
         del metadata_filtered['time_start_utc']
@@ -95,9 +108,13 @@ for name in filenames:
         ## ROI_locations dict
         ROI_locations_dict = dict(zip(['x','y'], ROI_locations.T))
         
+        ## Localization dict
+        results_dict = {'Localizations': results}
+        
 #%% save everything
         tools.SaveToCsvMat('metadata', metadata_filtered, directory)
         tools.SaveToCsvMat('ROI_locations', ROI_locations_dict, directory)
+        tools.SaveToCsvMat('Localications', results_dict,directory)
         
     
 
