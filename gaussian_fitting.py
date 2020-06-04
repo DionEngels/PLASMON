@@ -11,225 +11,288 @@ Gaussian fitting
 
 v0.1: Setup: 31/05/2020
 v0.2: Bugged rainSTORM inspired: 03/06/2020
+v1.0: rainSTORM slow, but working: 04/06/2020
 
 """
 #%% Imports
 import math
 import numpy as np
-from scipy import signal
 
 #%% Code
 
 def doastorm_3D():
+    """
+    3D Daostorm inspired fitting
+
+    https://github.com/ZhuangLab/storm-analysis/tree/master/storm_analysis/daostorm_3d
+
+    Returns
+    -------
+    None.
+
+    """
     pass
 
-#https://github.com/ZhuangLab/storm-analysis/tree/master/storm_analysis/daostorm_3d
-    
 class rainSTORM_Dion():
-    
-    def __init__(self, metadata, ROI_size, wavelength):
+    """
+    rainSTORM class
+
+    """
+
+    def __init__(self, metadata, ROI_size, wavelength, threshold, ROI_locations):
+        """
+        Init of rainSTORM
+
+        Parameters
+        ----------
+        metadata : metadata of ND2
+        ROI_size : ROI size
+        wavelength : laser wavelength
+        threshold : # of standard deviations for threhsold
+        ROI_locations : found ROIs
+
+        Returns
+        -------
+        None.
+
+        """
         self.result = []
         self.ROI_size = ROI_size
         self.ROI_size_1D = int((self.ROI_size-1)/2)
-        self.allowSig = [0.25, self.ROI_size_1D+1]
-        self.maxIts = 60
+        self.allow_sig = [0.25, self.ROI_size_1D+1]
+        self.max_its = 60
         self.maxtol = 0.2
-        self.mintol = 0.2
-        self.allowX = 1
-        self.initSig = wavelength/(2*metadata['NA']*math.sqrt(8*math.log(2)))/(metadata['calibration_um']*1000)
-        
-        
-    def determine_threshold(self, frame, ROI_locations, threshold):
-        boolean = np.ones(frame.shape,dtype=int)
-        
-        for x,y in ROI_locations:
-            if x < self.ROI_size_1D:
-                x_min = 0
-            else:
-                x_min = int(x-self.ROI_size_1D)
-            if x > frame.shape[0]-self.ROI_size_1D:
-                x_max = frame.shape[0]
-            else:
-                x_max = int(x+self.ROI_size_1D)
-            if y < self.ROI_size_1D:
-                y_min = 0
-            else:
-                y_min = int(y-self.ROI_size_1D)
-            if y > frame.shape[1]-self.ROI_size_1D:
-                y_max = frame.shape[0]
-            else:
-                y_max = int(y+self.ROI_size_1D)
-            boolean[x_min:x_max,y_min:y_max]  =np.zeros([x_max-x_min,y_max-y_min])
-        self.ROI_zones = np.array(np.ones(boolean.shape)-boolean,dtype=bool)
-        self.bg_mean = np.mean(frame[boolean==1])
-        self.threshold = self.bg_mean + threshold*math.sqrt(self.bg_mean)
-            
-    
-    def main(self, ROI_locations, frames, metadata):
+        self.mintol = 0.06
+        self.allow_x = 1
+        self.init_sig = wavelength/(2*metadata['NA']*math.sqrt(8*math.log(2)))/(metadata['calibration_um']*1000)
+        self.threshold_sigma = threshold
+        self.ROI_locations = ROI_locations
+
+
+    def main(self, frames, metadata):
+        """
+        Main for rainSTORM, calls other functions and returns all fits
+
+        Parameters
+        ----------
+        frames : All frames of .nd2 video
+        metadata : Metadata of .nd2 video
+
+        Returns
+        -------
+        All localizations
+
+        """
         for frame_index, frame in enumerate(frames):
             frame_result = self.main_loop(frame, frame_index)
             if frame_index == 0:
                 self.result = frame_result
             else:
-                self.result = np.vstack((self.result,frame_result))
-                
+                self.result = np.vstack((self.result, frame_result))
+
             print('Done fitting frame '+str(frame_index)+' of ' + str(metadata['sequence_count']))
-            
+
         return self.result
-            
-        
+
+
     def main_loop(self, frame, frame_index):
-        
-        peaks = self.find_peaks(frame)
-        peaks = peaks[peaks[:,2]> self.threshold]
-        
+        """
+        Loop for every frame
+
+        Parameters
+        ----------
+        frame : The frame to be fitted
+        frame_index : Index of frame
+
+        Returns
+        -------
+        Fits of this frame
+
+        """
+        peaks = self.find_peaks_v2(frame)
         return self.fitter(frame_index, frame, peaks)
-        
-        
-        
-    def find_peaks(self, frame):
-        kernel = np.array([[1,1,1],
-                   [1,1,1],
-                   [1,1,1]]) 
-        
-        out = signal.convolve2d(frame, kernel, boundary='fill', mode='same')/kernel.sum()
-        
-        row_min = self.ROI_size_1D
-        row_max = frame.shape[0]-self.ROI_size_1D
-        column_min = self.ROI_size_1D
-        column_max = frame.shape[1]-self.ROI_size_1D
-        
-        maxima = np.zeros((frame.shape[0], frame.shape[1],8), dtype=bool)
-        
-        maxima[row_min:row_max,column_min:column_max,0] = out[row_min:row_max, column_min:column_max] > out[row_min:row_max,column_min+1:column_max+1]
-        maxima[row_min:row_max,column_min:column_max,1] = out[row_min:row_max, column_min:column_max] >= out[row_min:row_max,column_min-1:column_max-1]
-        maxima[row_min:row_max,column_min:column_max,2] = out[row_min:row_max, column_min:column_max] > out[row_min+1:row_max+1,column_min:column_max]
-        maxima[row_min:row_max,column_min:column_max,3] = out[row_min:row_max, column_min:column_max] >= out[row_min-1:row_max-1,column_min:column_max]
-        maxima[row_min:row_max,column_min:column_max,4] = out[row_min:row_max, column_min:column_max] >= out[row_min-1:row_max-1,column_min-1:column_max-1]
-        maxima[row_min:row_max,column_min:column_max,5] = out[row_min:row_max, column_min:column_max] >= out[row_min-1:row_max-1,column_min+1:column_max+1]
-        maxima[row_min:row_max,column_min:column_max,6] = out[row_min:row_max, column_min:column_max] > out[row_min+1:row_max+1,column_min-1:column_max-1]
-        maxima[row_min:row_max,column_min:column_max,7] = out[row_min:row_max, column_min:column_max] >= out[row_min+1:row_max+1,column_min+1:column_max+1]
-        
-        mask = maxima.all(axis=2)
-        mask = mask*self.ROI_zones
-        indices = np.where(mask == True)
-        indices = np.asarray([x for x in zip(indices[0],indices[1])])
-        values = [[value] for value in frame[mask]]
-        
-        return np.append(indices,values, axis=1)
-        
-    
-    def fitter(self, frame_index, frame, peaks):
-        initX0 = 0
-        Nfails = 0
-        
-        frame_result = np.zeros([peaks.shape[0], 12])
-        
-        for peak_index, peak in enumerate(peaks):
-            myRow = int(peak[0])
-            myColumn = int(peak[1])
-            myROI = frame[myRow-self.ROI_size_1D:myRow+self.ROI_size_1D+1,myColumn-self.ROI_size_1D:myColumn+self.ROI_size_1D+1]
-            #myROI_min = np.amin(myROI)
-            myROI_bg = np.mean(np.append(np.append(np.append(myROI[:,0],myROI[:,-1]),np.transpose(myROI[0,1:-2])), np.transpose(myROI[-1,1:-2])))
-            myROI = myROI - myROI_bg
-            flagRow = False
-            flagCol = False
-            
-            xx = np.transpose(range(-self.ROI_size_1D,self.ROI_size_1D+1))
-            yy = np.transpose(range(-self.ROI_size_1D,self.ROI_size_1D+1))
-            yRows = np.sum(myROI,axis=1)
-            yCols = np.transpose(np.sum(myROI,axis=0))
-            
-            x0 = initX0
-            sigX = self.initSig
-            C = yCols[self.ROI_size_1D]
-            for i in range(0,self.maxIts):
-                fofX = C*np.exp(-np.square(xx-x0)/(2*sigX**2))
-                beta = yCols - fofX
-                A = np.vstack((fofX/C,fofX* (xx-x0/sigX**2),fofX*(np.square(xx-x0)/sigX**3)))
-                b = np.matmul(A,beta)
-                a = np.matmul(A,np.transpose(A))
-                rc= np.linalg.cond(a)
-                if math.isnan(rc) or rc < 1e-12:
-                    residueCols = 0
-                    break
-                
-                if abs(x0) > self.allowX or sigX < self.allowSig[0] or sigX > self.allowSig[1]:
-                    residueCols = 0
-                    break
-            
-                residueCols = np.sum(np.square(beta))/np.sum(np.square(yCols))
-                if residueCols < self.mintol and abs(x0) < self.allowX and sigX > self.allowSig[0] and sigX < self.allowSig[1]:
-                    break
-                
-                dL = np.matmul(a,1/b)
-                C = C+dL[0]
-                x0 = x0+dL[1]/10
-                sigX = sigX +dL[2]/10
-            
-            if residueCols < self.maxtol and abs(x0) < self.allowX and sigX > self.allowSig[0] and sigX < self.allowSig[1]:
-                fitColPos = float(myColumn) + x0 - 0.5
-                flagCol = True
-            
-            if flagCol:
-                y0 = initX0
-                sigY = sigX
-                C = yRows[self.ROI_size_1D]
-                for j in range(0,self.maxIts):
-                    fofX = C*np.exp(-np.square(yy-y0)/(2*sigY**2))
-                    beta = yRows - fofX
-                    A = np.vstack((fofX/C,fofX* (yy-y0/sigY**2),fofX*(np.square(yy-y0)/sigY**3)))
-                    b = np.matmul(A,beta)
-                    a = np.matmul(A,np.transpose(A))
-                    rc= np.linalg.cond(a)
-                    if math.isnan(rc) or rc < 1e-12:
-                        residueRows = 0
-                        break
-                    
-                    if abs(y0) > self.allowX or sigY < self.allowSig[0] or sigY > self.allowSig[1]:
-                        residueRows = 0
-                        break
-                
-                    residueRows = np.sum(np.square(beta))/np.sum(np.square(yRows))
-                    if residueRows < self.mintol and abs(x0) < self.allowX and sigY > self.allowSig[0] and sigY < self.allowSig[1]:
-                        break
-                    
-                    dL = np.matmul(a,1/b)
-                    C = C+dL[0]
-                    y0 = y0+dL[1]/10
-                    sigY = sigY +dL[2]/10
-                
-                if residueRows < self.maxtol and abs(x0) < self.allowX and sigY > self.allowSig[0] and sigY < self.allowSig[1]:
-                    fitRowPos = float(myRow) + y0 - 0.5
-                    flagRow = True
-                
-            
-            if flagRow and flagCol:
-                frame_result[peak_index,0] = frame_index
-                frame_result[peak_index,1] = peak_index
-                frame_result[peak_index,2] = fitRowPos
-                frame_result[peak_index,3] = fitColPos
-                frame_result[peak_index,4] = peak[2]
-                frame_result[peak_index,5] = sigY
-                frame_result[peak_index,6] = sigX
-                frame_result[peak_index,7] = (residueRows + residueCols) / 2
-                frame_result[peak_index,8] = residueRows
-                frame_result[peak_index,9] = residueCols
-                frame_result[peak_index,10] = j
-                frame_result[peak_index,11] = i
-                
+
+
+    def find_peaks_v2(self, frame):
+        """
+        Find peaks in a single frame
+
+        Parameters
+        ----------
+        frame : Frame
+
+        Returns
+        -------
+        peaks : All peaks in frame
+
+        """
+        peaks = []
+        for ROI in self.ROI_locations:
+            y = int(ROI[0])
+            x = int(ROI[1])
+            myROI = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
+            myROI_bg = np.mean(np.append(np.append(np.append(myROI[:, 0], myROI[:, -1]), np.transpose(myROI[0, 1:-2])), np.transpose(myROI[-1, 1:-2])))
+            threshold = myROI_bg + math.sqrt(myROI_bg)*self.threshold_sigma
+
+            maximum = np.max(myROI)
+            if maximum < threshold:
+                continue
+            indices = np.where(myROI == maximum)
+
+            indices = np.asarray([x for x in zip(indices[0], indices[1])])
+            indices = indices[0, :]
+            indices[0] = indices[0]-self.ROI_size_1D+y
+            indices[1] = indices[1]-self.ROI_size_1D+x
+
+            peak = np.append(indices, [maximum])
+            if peaks == []:
+                peaks = peak
             else:
-                Nfails +=1
-                
-        
-        frame_result=frame_result[frame_result[:,4]>0]
+                try:
+                    peaks = np.vstack((peaks, peak))
+                except:
+                    pass
+
+        return peaks
+
+    def fitter(self, frame_index, frame, peaks):
+        """
+        Fits all peaks
+
+        Parameters
+        ----------
+        frame_index : Index of frame
+        frame : frame
+        peaks : all peaks
+
+        Returns
+        -------
+        frame_result : fits of each frame
+
+        """
+        init_x0 = 0
+        n_fails = 0
+
+        frame_result = np.zeros([peaks.shape[0], 12])
+
+        for peak_index, peak in enumerate(peaks):
+            y = int(peak[0])
+            x = int(peak[1])
+            myROI = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
+            #myROI_min = np.amin(myROI)
+            myROI_bg = np.mean(np.append(np.append(np.append(myROI[:, 0],myROI[:, -1]), np.transpose(myROI[0, 1:-2])), np.transpose(myROI[-1, 1:-2])))
+            myROI = myROI - myROI_bg
+            flag_y = False
+            flag_x = False
+
+            xx = np.transpose(range(-self.ROI_size_1D, self.ROI_size_1D+1))
+            yy = np.transpose(range(-self.ROI_size_1D, self.ROI_size_1D+1))
+            xSum = np.sum(myROI, axis=1)
+            ySum = np.transpose(np.sum(myROI, axis=0))
+
+            y0 = init_x0
+            sig_y = self.init_sig
+            C = xSum[self.ROI_size_1D]
+            for i in range(0, self.max_its):
+                fit = C*np.exp(-np.square(yy-y0)/(2*sig_y**2))
+                beta = xSum - fit
+                A = np.vstack((fit/C, fit* (yy-y0/sig_y**2), fit*(np.square(yy-y0)/sig_y**3)))
+                b = np.matmul(A, beta)
+                a = np.matmul(A, np.transpose(A))
+
+                if abs(y0) > self.allow_x or sig_y < self.allow_sig[0] or sig_y > self.allow_sig[1]:
+                    residue_y = 0
+                    break
+
+                residue_y = np.sum(np.square(beta))/np.sum(np.square(xSum))
+                if residue_y < self.mintol and abs(y0) < self.allow_x and sig_y > self.allow_sig[0] and sig_y < self.allow_sig[1]:
+                    break
+
+                try:
+                    dL = np.matmul(a, 1/b)
+                    C = C+dL[0]
+                    y_change = dL[1]
+                    if abs(y_change) > 0.1:
+                        y_change = y_change/abs(y_change)*0.1
+                    y0 = y0+y_change
+                    sig_change = dL[2]
+                    if abs(sig_change) > 0.1:
+                        sig_change = sig_change/abs(sig_change)*0.1
+                    sig_y = sig_y +sig_change
+                except:
+                    residue_y = 0
+                    break
+
+            if residue_y < self.maxtol and abs(y0) < self.allow_x and sig_y > self.allow_sig[0] and sig_y < self.allow_sig[1]:
+                fit_y = float(y) + y0 + 0.5
+                flag_y = True
+
+            if flag_y:
+                x0 = init_x0
+                sig_x = sig_y
+                C = ySum[self.ROI_size_1D]
+                for j in range(0, self.max_its):
+                    fit = C*np.exp(-np.square(xx-x0)/(2*sig_x**2))
+                    beta = ySum - fit
+                    A = np.vstack((fit/C, fit*(xx-x0/sig_x**2), fit*(np.square(xx-x0)/sig_x**3)))
+                    b = np.matmul(A, beta)
+                    a = np.matmul(A, np.transpose(A))
+
+                    if abs(x0) > self.allow_x or sig_x < self.allow_sig[0] or sig_x > self.allow_sig[1]:
+                        residue_x = 0
+                        break
+
+                    residue_x = np.sum(np.square(beta))/np.sum(np.square(ySum))
+                    if residue_x < self.mintol and abs(x0) < self.allow_x and sig_x > self.allow_sig[0] and sig_x < self.allow_sig[1]:
+                        break
+
+                    try:
+                        dL = np.matmul(a, 1/b)
+                        C = C+dL[0]/50
+                        x0 = x0+dL[1]/50
+                        sig_x = sig_x +dL[2]/50
+                    except:
+                        residue_x = 0
+                        break
+
+                if residue_x < self.maxtol and abs(x0) < self.allow_x and sig_x > self.allow_sig[0] and sig_x < self.allow_sig[1]:
+                    fit_x = float(x) + x0 + 0.5
+                    flag_x = True
+
+
+            if flag_y and flag_x:
+                frame_result[peak_index, 0] = frame_index
+                frame_result[peak_index, 1] = peak_index
+                frame_result[peak_index, 2] = fit_y
+                frame_result[peak_index, 3] = fit_x
+                frame_result[peak_index, 4] = peak[2]
+                frame_result[peak_index, 5] = sig_y
+                frame_result[peak_index, 6] = sig_x
+                frame_result[peak_index, 7] = (residue_y + residue_x) / 2
+                frame_result[peak_index, 8] = residue_y
+                frame_result[peak_index, 9] = residue_x
+                frame_result[peak_index, 10] = i
+                frame_result[peak_index, 11] = j
+
+            else:
+                n_fails += 1
+
+
+        frame_result = frame_result[frame_result[:, 4] > 0]
 
         return frame_result
-        
-        
-        
 
 
-def MaxBergkamp():
+
+
+
+def max_bergkamp():
+    """
+    Max Bergkamp inspired fitting
+
+    Returns
+    -------
+    None.
+
+    """
     pass
-

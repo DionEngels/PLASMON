@@ -10,20 +10,52 @@ Tools
 ----------------------------
 
 v1: Save to CSV & Mat: 31/05/2020
+v2: also switch array: 04/06/2020
 
 """
 
 import csv # to save to csv
 import scipy.io as sio #to export for MATLAB
+import numpy as np
 
-def SaveToCsvMat(name,values, directory):
-    with open(directory + "/"+ name + '.csv', mode='w') as csv_file:
+def save_to_csv_mat(name, values, directory):
+    """
+
+    Parameters
+    ----------
+    name : name to save to
+    values : values to save
+    directory : directory to save
+
+    Returns
+    -------
+    None.
+
+    """
+    with open(directory + "/" + name + '.csv', mode='w') as csv_file:
         fieldnames = [k[0] for k in values.items()]
-        writer = csv.DictWriter(csv_file, fieldnames = fieldnames)
-        
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+
         writer.writeheader()
         writer.writerow(values)
-        
-        sio.savemat(directory + "/"+ name + '.mat',values)
-    
-    
+
+        sio.savemat(directory + "/" + name + '.mat', values)
+
+
+
+def switch(array):
+    """
+
+    Parameters
+    ----------
+    array : array to switch
+
+    Returns
+    -------
+    new : switched array
+
+    """
+    new = np.zeros(array.shape)
+    new[:, 1] = array[:, 0]
+    new[:, 0] = array[:, 1]
+    return new

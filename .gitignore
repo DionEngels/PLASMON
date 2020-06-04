@@ -1,5 +1,6 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
+.pylint.d/
 *.py[cod]
 *$py.class
 
@@ -137,3 +138,4 @@ __pycache__/
 
 # testing
 1nMimager_newGNRs_100mW/
+*.stats
