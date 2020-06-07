@@ -50,6 +50,8 @@ FILETYPES = [("ND2", ".nd2")]
 
 filenames = ("C:/Users/s150127/Downloads/_MBx dataset/1nMimager_newGNRs_100mW.nd2",)
 
+METHOD = "ScipyLeastSquares"
+
 #%% Main loop cell
 
 for name in filenames:
@@ -88,11 +90,21 @@ for name in filenames:
 
         ## Fit Gaussians
         print('Starting to prepare fitting')
-        rainSTORM = gaussian_fitting.rainSTORM_Dion(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations)
-
-        print('Starting fitting')
         start = time.time()
-        results = rainSTORM.main(frames, metadata)
+
+        if METHOD == "Sum":
+            summation = gaussian_fitting.summation(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations)
+            results = summation.main(frames,metadata)
+        elif METHOD == "rainSTORM":
+            rainSTORM = gaussian_fitting.rainSTORM_Dion(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations)
+            results = rainSTORM.main(frames, metadata)
+        elif METHOD == "PhasorOnly":
+            phasor_only = gaussian_fitting.phasor_only(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations)
+            results = phasor_only.main(frames, metadata)
+        elif METHOD == "ScipyLeastSquares":
+            scipy_least_squares = gaussian_fitting.scipy_least_squares(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations)
+            results = scipy_least_squares.main(frames, metadata)
+
         print('Time taken: ' + str(round(time.time() - start, 3)) + ' s. Fits done: ' + str(results.shape[0]))
 
 

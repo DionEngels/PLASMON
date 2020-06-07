@@ -14,26 +14,114 @@ v0.2: Bugged rainSTORM inspired: 03/06/2020
 v1.0: rainSTORM slow, but working: 04/06/2020
 
 """
-#%% Imports
+#%% Generic imports
 import math
 import numpy as np
 
-#%% Code
+#%% Main
 
-def doastorm_3D():
+class main_localizer():
     """
-    3D Daostorm inspired fitting
-
-    https://github.com/ZhuangLab/storm-analysis/tree/master/storm_analysis/daostorm_3d
-
-    Returns
-    -------
-    None.
-
+    class that everything else inherits from, has ROI finders in it.
     """
-    pass
 
-class rainSTORM_Dion():
+    def __init__(self, metadata, ROI_size, wavelength, threshold, ROI_locations):
+        """
+
+        Parameters
+        ----------
+        metadata : metadata of ND2
+        ROI_size : ROI size
+        wavelength : laser wavelength
+        threshold : # of standard deviations for threhsold
+        ROI_locations : found ROIs
+
+        Returns
+        -------
+        None.
+
+        """
+
+        self.result = []
+        self.ROI_size = ROI_size
+        self.ROI_size_1D = int((self.ROI_size-1)/2)
+        self.ROI_locations = ROI_locations
+        self.init_sig = wavelength/(2*metadata['NA']*math.sqrt(8*math.log(2)))/(metadata['calibration_um']*1000)
+        self.threshold_sigma = threshold
+
+    def find_peaks_v2(self, frame):
+        """
+        Find peaks in a single frame
+
+        Parameters
+        ----------
+        frame : Frame
+
+        Returns
+        -------
+        peaks : All peaks in frame
+
+        """
+        peaks = []
+        for ROI_index, ROI in enumerate(self.ROI_locations):
+            y = int(ROI[0])
+            x = int(ROI[1])
+            myROI = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
+            myROI_bg = np.mean(np.append(np.append(np.append(myROI[:, 0], myROI[:, -1]), np.transpose(myROI[0, 1:-2])), np.transpose(myROI[-1, 1:-2])))
+            threshold = myROI_bg + math.sqrt(myROI_bg)*self.threshold_sigma
+
+            maximum = np.max(myROI)
+            if maximum < threshold:
+                continue
+            indices = np.where(myROI == maximum)
+
+            indices = np.asarray([x for x in zip(indices[0], indices[1])])
+            indices = indices[0, :]
+            indices[0] = indices[0]-self.ROI_size_1D+y
+            indices[1] = indices[1]-self.ROI_size_1D+x
+
+            peak = np.append(indices, [maximum, ROI_index])
+            if peaks == []:
+                peaks = peak
+            else:
+                try:
+                    peaks = np.vstack((peaks, peak))
+                except:
+                    pass
+
+        return peaks
+
+    def main(self, frames, metadata):
+        """
+        Main for every fitter method, calls fitter function and returns fits
+
+        Parameters
+        ----------
+        frames : All frames of .nd2 video
+        metadata : Metadata of .nd2 video
+
+        Returns
+        -------
+        All localizations
+
+        """
+        for frame_index, frame in enumerate(frames):
+            peaks = self.find_peaks_v2(frame)
+            frame_result = self.fitter(frame_index, frame, peaks)
+            if frame_index == 0:
+                self.result = frame_result
+            else:
+                self.result = np.vstack((self.result, frame_result))
+
+            print('Done fitting frame '+str(frame_index)+' of ' + str(metadata['sequence_count']))
+
+        return self.result
+
+
+#%% rainSTORM
+
+
+class rainSTORM_Dion(main_localizer):
     """
     rainSTORM class
 
@@ -56,108 +144,16 @@ class rainSTORM_Dion():
         None.
 
         """
-        self.result = []
-        self.ROI_size = ROI_size
-        self.ROI_size_1D = int((self.ROI_size-1)/2)
+        super().__init__(metadata, ROI_size, wavelength, threshold, ROI_locations)
         self.allow_sig = [0.25, self.ROI_size_1D+1]
         self.max_its = 60
         self.maxtol = 0.2
         self.mintol = 0.06
         self.allow_x = 1
-        self.init_sig = wavelength/(2*metadata['NA']*math.sqrt(8*math.log(2)))/(metadata['calibration_um']*1000)
-        self.threshold_sigma = threshold
-        self.ROI_locations = ROI_locations
-
-
-    def main(self, frames, metadata):
-        """
-        Main for rainSTORM, calls other functions and returns all fits
-
-        Parameters
-        ----------
-        frames : All frames of .nd2 video
-        metadata : Metadata of .nd2 video
-
-        Returns
-        -------
-        All localizations
-
-        """
-        for frame_index, frame in enumerate(frames):
-            frame_result = self.main_loop(frame, frame_index)
-            if frame_index == 0:
-                self.result = frame_result
-            else:
-                self.result = np.vstack((self.result, frame_result))
-
-            print('Done fitting frame '+str(frame_index)+' of ' + str(metadata['sequence_count']))
-
-        return self.result
-
-
-    def main_loop(self, frame, frame_index):
-        """
-        Loop for every frame
-
-        Parameters
-        ----------
-        frame : The frame to be fitted
-        frame_index : Index of frame
-
-        Returns
-        -------
-        Fits of this frame
-
-        """
-        peaks = self.find_peaks_v2(frame)
-        return self.fitter(frame_index, frame, peaks)
-
-
-    def find_peaks_v2(self, frame):
-        """
-        Find peaks in a single frame
-
-        Parameters
-        ----------
-        frame : Frame
-
-        Returns
-        -------
-        peaks : All peaks in frame
-
-        """
-        peaks = []
-        for ROI in self.ROI_locations:
-            y = int(ROI[0])
-            x = int(ROI[1])
-            myROI = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
-            myROI_bg = np.mean(np.append(np.append(np.append(myROI[:, 0], myROI[:, -1]), np.transpose(myROI[0, 1:-2])), np.transpose(myROI[-1, 1:-2])))
-            threshold = myROI_bg + math.sqrt(myROI_bg)*self.threshold_sigma
-
-            maximum = np.max(myROI)
-            if maximum < threshold:
-                continue
-            indices = np.where(myROI == maximum)
-
-            indices = np.asarray([x for x in zip(indices[0], indices[1])])
-            indices = indices[0, :]
-            indices[0] = indices[0]-self.ROI_size_1D+y
-            indices[1] = indices[1]-self.ROI_size_1D+x
-
-            peak = np.append(indices, [maximum])
-            if peaks == []:
-                peaks = peak
-            else:
-                try:
-                    peaks = np.vstack((peaks, peak))
-                except:
-                    pass
-
-        return peaks
 
     def fitter(self, frame_index, frame, peaks):
         """
-        Fits all peaks
+        Fits all peaks with 2D gaussian, iterative solver self-build
 
         Parameters
         ----------
@@ -224,7 +220,7 @@ class rainSTORM_Dion():
                     break
 
             if residue_y < self.maxtol and abs(y0) < self.allow_x and sig_y > self.allow_sig[0] and sig_y < self.allow_sig[1]:
-                fit_y = float(y) + y0 + 0.5
+                fit_y = float(y) + y0 + 0.5 # add half for indexing of pixels
                 flag_y = True
 
             if flag_y:
@@ -256,13 +252,13 @@ class rainSTORM_Dion():
                         break
 
                 if residue_x < self.maxtol and abs(x0) < self.allow_x and sig_x > self.allow_sig[0] and sig_x < self.allow_sig[1]:
-                    fit_x = float(x) + x0 + 0.5
+                    fit_x = float(x) + x0 + 0.5 # add half for indexing of pixels
                     flag_x = True
 
 
             if flag_y and flag_x:
                 frame_result[peak_index, 0] = frame_index
-                frame_result[peak_index, 1] = peak_index
+                frame_result[peak_index, 1] = peak[3]
                 frame_result[peak_index, 2] = fit_y
                 frame_result[peak_index, 3] = fit_x
                 frame_result[peak_index, 4] = peak[2]
@@ -282,17 +278,237 @@ class rainSTORM_Dion():
 
         return frame_result
 
+#%% Summation
 
-
-
-
-def max_bergkamp():
+class summation(main_localizer):
     """
-    Max Bergkamp inspired fitting
+    Summation fitter
+
+    """
+
+    def __init__(self, metadata, ROI_size, wavelength, threshold, ROI_locations):
+        """
+
+
+        Parameters
+        ----------
+        metadata : metadata of ND2
+        ROI_size : ROI size
+        wavelength : laser wavelength
+        threshold : # of standard deviations for threhsold
+        ROI_locations : found ROIs
+
+        Returns
+        -------
+        None.
+
+        """
+        super().__init__(metadata, ROI_size, wavelength, threshold, ROI_locations)
+
+    def fitter(self, frame_index, frame, peaks):
+        """
+        Fits all peaks by summing them
+
+        Parameters
+        ----------
+        frame_index : Index of frame
+        frame : frame
+        peaks : all peaks
+
+        Returns
+        -------
+        frame_result : fits of each frame
+
+        """
+
+        frame_result = np.zeros([peaks.shape[0], 6])
+
+        for peak_index, peak in enumerate(peaks):
+
+            y = int(peak[0])
+            x = int(peak[1])
+
+            myROI = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
+
+            total = np.sum(myROI)
+
+            frame_result[peak_index, 0] = frame_index
+            frame_result[peak_index, 1] = peak[3]
+            frame_result[peak_index, 2] = y
+            frame_result[peak_index, 3] = x
+            frame_result[peak_index, 4] = peak[2]
+            frame_result[peak_index, 5] = total
+
+
+        return frame_result
+
+
+#%% Phasor
+
+from scipy.fftpack import ifftn
+from math import pi
+import cmath
+
+class phasor_only(main_localizer):
+    """
+    Max Bergkamp inspired phasor fitting
 
     Returns
     -------
-    None.
+    frame_result : fits of each frame
 
     """
-    pass
+    def __init__(self, metadata, ROI_size, wavelength, threshold, ROI_locations):
+        """
+
+
+        Parameters
+        ----------
+        metadata : metadata of ND2
+        ROI_size : ROI size
+        wavelength : laser wavelength
+        threshold : # of standard deviations for threhsold
+        ROI_locations : found ROIs
+
+        Returns
+        -------
+        None.
+
+        """
+        super().__init__(metadata, ROI_size, wavelength, threshold, ROI_locations)
+
+    def fitter(self, frame_index, frame, peaks):
+        """
+        Fits all peaks by phasor fitting
+
+        Parameters
+        ----------
+        frame_index : Index of frame
+        frame : frame
+        peaks : all peaks
+
+        Returns
+        -------
+        frame_result : fits of each frame
+
+        """
+
+        frame_result = np.zeros([peaks.shape[0], 5])
+
+        for peak_index, peak in enumerate(peaks):
+
+            y = int(peak[0])
+            x = int(peak[1])
+
+            my_roi = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
+
+            fft_values = ifftn(my_roi)
+
+            roi_size = float(self.ROI_size)
+            ang_x = cmath.phase(fft_values[0, 1])
+            if ang_x>0:
+                ang_x=ang_x-2*pi
+
+            pos_x = roi_size - abs(ang_x)/(2*pi/roi_size)
+
+            ang_y = cmath.phase(fft_values[1,0])
+
+            if ang_y >0:
+                ang_y = ang_y - 2*pi
+
+            pos_y = roi_size - abs(ang_y)/(2*pi/roi_size)
+
+            frame_result[peak_index, 0] = frame_index
+            frame_result[peak_index, 1] = peak[3]
+            #start position plus from center in ROI + half for indexing of pixels
+            frame_result[peak_index, 2] = y+pos_y-self.ROI_size_1D+0.5
+            frame_result[peak_index, 3] = x+pos_x-self.ROI_size_1D+0.5
+            frame_result[peak_index, 4] = peak[2]
+
+        return frame_result
+
+#%% Fully build-in option
+
+from scipy import optimize
+
+class scipy_least_squares(main_localizer):
+
+    """
+    Build-in scipy least squares fitting, using centroid fitting as initial guess
+
+    Returns
+    -------
+    frame_result : fits of each frame
+    """
+
+    def gaussian(self, height, center_x, center_y, width_x, width_y):
+        """Returns a gaussian function with the given parameters"""
+        width_x = float(width_x)
+        width_y = float(width_y)
+        return lambda x,y: height*np.exp(
+                    -(((center_x-x)/width_x)**2+((center_y-y)/width_y)**2)/2)
+
+    def moments(self, data):
+        """Returns (height, x, y, width_x, width_y)
+        the gaussian parameters of a 2D distribution by calculating its
+        moments """
+        total = data.sum()
+        X, Y = np.indices(data.shape)
+        x = (X*data).sum()/total
+        y = (Y*data).sum()/total
+        col = data[:, int(y)]
+        width_x = np.sqrt(np.abs((np.arange(col.size)-y)**2*col).sum()/col.sum())
+        row = data[int(x), :]
+        width_y = np.sqrt(np.abs((np.arange(row.size)-x)**2*row).sum()/row.sum())
+        height = data.max()
+        return height, x, y, width_x, width_y
+
+    def fitgaussian(self, data):
+        """Returns (height, x, y, width_x, width_y)
+        the gaussian parameters of a 2D distribution found by a fit"""
+        params = self.moments(data)
+        errorfunction = lambda p: np.ravel(self.gaussian(*p)(*np.indices(data.shape)) -
+                                     data)
+        p = optimize.least_squares(errorfunction, params)
+
+        return [p.x, p.nfev]
+
+    def fitter(self, frame_index, frame, peaks):
+        """
+        Fits all peaks by scipy least squares fitting
+
+        Parameters
+        ----------
+        frame_index : Index of frame
+        frame : frame
+        peaks : all peaks
+
+        Returns
+        -------
+        frame_result : fits of each frame
+
+        """
+
+        frame_result = np.zeros([peaks.shape[0], 8])
+
+        for peak_index, peak in enumerate(peaks):
+
+            y = int(peak[0])
+            x = int(peak[1])
+
+            my_roi = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
+
+            result, its = self.fitgaussian(my_roi)
+
+            frame_result[peak_index, 0] = frame_index
+            frame_result[peak_index, 1] = peak[3]
+            #start position plus from center in ROI + half for indexing of pixels
+            frame_result[peak_index, 2] = result[1]+y-self.ROI_size_1D+0.5
+            frame_result[peak_index, 3] = result[2]+x-self.ROI_size_1D+0.5
+            frame_result[peak_index, 4] = result[0]
+            frame_result[peak_index, 5] = result[3]
+            frame_result[peak_index, 6] = result[4]
+            frame_result[peak_index, 7] = its
+
+        return frame_result
+
