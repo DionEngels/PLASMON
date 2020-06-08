@@ -9,6 +9,8 @@ import numpy as np
 from math import pi
 import math
 import cmath
+import matplotlib.pyplot as plt
+
 
 def makeGaussian(size, fwhm = 3, center=None):
     """ Make a square gaussian kernel.
@@ -46,6 +48,11 @@ def build_in(roi):
         ang_y = ang_y - 2*pi
 
     pos_y = roi_size - abs(ang_y)/(2*pi/roi_size)
+
+    if pos_x > 8.5:
+        pos_x -= roi_size
+    if pos_y > 8.5:
+        pos_y -= roi_size
 
     return [pos_x, pos_y]
 
@@ -97,7 +104,7 @@ def self_made(roi):
 
 
 
-roi = makeGaussian(9, center=[4, 4])
+roi = makeGaussian(9, center=[3, 3])
 
 loops = list(range(0, 1))
 
@@ -108,3 +115,9 @@ for loop in loops:
 for loop in loops:
     [pos_x2, pos_y2] = self_made(roi)
 
+
+
+plt.imshow(roi, extent=[0,roi.shape[0],roi.shape[0],0], aspect='auto')
+plt.scatter(pos_x1+.5, pos_y1+.5, s=500, c='red', marker='x', alpha=0.5)
+plt.title("Test")
+plt.show()

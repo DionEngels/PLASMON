@@ -30,6 +30,7 @@ from tkinter.filedialog import askopenfilenames # for popup that asks to select 
 
 ## ND2 related
 from pims import ND2_Reader # reader of ND2 files
+#from pims import Frame # for converting ND2 generator to one numpy array
 
 
 
@@ -50,7 +51,7 @@ FILETYPES = [("ND2", ".nd2")]
 
 filenames = ("C:/Users/s150127/Downloads/_MBx dataset/1nMimager_newGNRs_100mW.nd2",)
 
-METHOD = "ScipyLeastSquares"
+METHOD = "ScipyPhasorGuessROILoop"
 
 #%% Main loop cell
 
@@ -76,12 +77,15 @@ for name in filenames:
         ROI_locations = np.load('ROI_locations.npy')
         #ROI_locations = np.array([[1, 2], [3, 4]])
 
+        ROI_locations = ROI_locations - 1
+
 
         ## switch array columns since MATLAB gives x,y. Python likes y,x
         ROI_locations = tools.switch(ROI_locations)
 
 
-        plt.matshow(frames[0], fignum=0)
+        plt.imshow(frames[0], extent=[0,frames[0].shape[0],frames[0].shape[0],0], aspect='auto')
+        #plt.matshow(frames[0], fignum=0)
         #takes x,y hence the switched order
         plt.scatter(ROI_locations[:,1], ROI_locations[:,0], s=2, c='red', marker='x', alpha=0.5)
         plt.title("ROI locations")
@@ -104,15 +108,23 @@ for name in filenames:
         elif METHOD == "ScipyLeastSquares":
             scipy_least_squares = gaussian_fitting.scipy_least_squares(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations)
             results = scipy_least_squares.main(frames, metadata)
+        elif METHOD == "ScipyPhasorGuess":
+            scipy_phasor_guess = gaussian_fitting.scipy_phasor_guess(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations)
+            results = scipy_phasor_guess.main(frames, metadata)
+        elif METHOD == "ScipyPhasorGuessROILoop":
+            scipy_phashor_guess_roi_loop = gaussian_fitting.scipy_phashor_guess_roi_loop(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations)
+            results = scipy_phashor_guess_roi_loop.main(frames, metadata)
 
         print('Time taken: ' + str(round(time.time() - start, 3)) + ' s. Fits done: ' + str(results.shape[0]))
+
+
 
 
         print('Starting saving')
         #%% Plot frames
         for index, frame in enumerate(frames):
             toPlot = results[results[:, 0] == index]
-            plt.matshow(frame, fignum=index)
+            plt.imshow(frame, extent=[0,frame.shape[0],frame.shape[0],0], aspect='auto')
             #takes x,y hence the switched order
             plt.scatter(toPlot[:,3], toPlot[:,2], s=2, c='red', marker='x', alpha=0.5)
             plt.title("Frame number: " + str(index))
