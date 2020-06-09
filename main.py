@@ -51,7 +51,7 @@ FILETYPES = [("ND2", ".nd2")]
 
 filenames = ("C:/Users/s150127/Downloads/_MBx dataset/1nMimager_newGNRs_100mW.nd2",)
 
-METHOD = "ScipyPhasorGuessROILoop"
+METHOD = "ScipyLastFitGuessROILoopParallel"
 
 #%% Main loop cell
 
@@ -78,6 +78,7 @@ for name in filenames:
         #ROI_locations = np.array([[1, 2], [3, 4]])
 
         ROI_locations = ROI_locations - 1
+        ROI_locations = ROI_locations[0:2,:]
 
 
         ## switch array columns since MATLAB gives x,y. Python likes y,x
@@ -114,6 +115,12 @@ for name in filenames:
         elif METHOD == "ScipyPhasorGuessROILoop":
             scipy_phashor_guess_roi_loop = gaussian_fitting.scipy_phashor_guess_roi_loop(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations)
             results = scipy_phashor_guess_roi_loop.main(frames, metadata)
+        elif METHOD == "ScipyLastFitGuessROILoop":
+            scipy_last_fit_guess_roi_loop = gaussian_fitting.scipy_last_fit_guess_roi_loop(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations)
+            results = scipy_last_fit_guess_roi_loop.main(frames, metadata)
+        elif METHOD == "ScipyLastFitGuessROILoopParallel":
+            scipy_last_fit_guess_roi_loop_parallel = gaussian_fitting.scipy_last_fit_guess_roi_loop_parallel(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations)
+            results = scipy_last_fit_guess_roi_loop_parallel.main(frames, metadata)
 
         print('Time taken: ' + str(round(time.time() - start, 3)) + ' s. Fits done: ' + str(results.shape[0]))
 
