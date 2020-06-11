@@ -557,7 +557,7 @@ class scipy_phashor_guess_roi_loop(scipy_phasor_guess):
     """
     def main(self, frames, metadata):
         """
-        Main for every fitter method, calls fitter function and returns fits
+        Main for every fitter method, calls fitter function and returns fits. Loops over ROIs
 
         Parameters
         ----------
@@ -661,98 +661,14 @@ class scipy_last_fit_guess_roi_loop(scipy_phashor_guess_roi_loop):
 
         return [p.x, p.nfev, p.success]
 
-
-#%% Parallel fitter based on last fit
-
-import concurrent.futures
+#%% Parallel proccessed version
+import time
 
 class scipy_last_fit_guess_roi_loop_parallel(scipy_last_fit_guess_roi_loop):
     """
-    Build-in scipy least squares fitting, using last fit as initial guess, now looping first of ROIs, then frames. Parallel.
+    Build-in scipy least squares fitting, using last fit as initial guess, now looping first of ROIs, then frames, parallel processed
     """
 
-    def main(self, frames, metadata):
-        """
-        Main for every fitter method, calls main loop function and returns fits
-
-        Parameters
-        ----------
-        frames : All frames of .nd2 video
-        metadata : Metadata of .nd2 video
-
-        Returns
-        -------
-        All localizations
-
-        """
-
-        frame_stack_total = Frame(frames)
-        ran = False
-        if ran == False:
-            ran = True
-            with concurrent.futures.ProcessPoolExecutor() as executor:
-                results = [executor.submit(self.main_loop, frame_stack_total, roi) for roi in self.ROI_locations]
-
-                for f in concurrent.futures.as_completed(results):
-                    if self.result == []:
-                        self.result = f.results()
-                    else:
-                        self.result = np.vstack((self.result, f.results()))
-
-            return self.result
-
-
-    def main_loop(self, frame_stack_total, roi):
-        """
-        Main loop for every fitter method, calls fitter function and returns fits
-
-        Parameters
-        ----------
-        frame_stack_total : stack of roi frames of .nd2 video
-        roi : roi to be processed
-
-        Returns
-        -------
-        All localizations of single roi
-
-        """
-        y = int(roi[0])
-        x = int(roi[1])
-        frame_stack = frame_stack_total[:,y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
-        params = []
-        result = []
-
-        for frame_index, frame in enumerate(frame_stack):
-            my_roi_bg = np.mean(np.append(np.append(np.append(frame[:, 0],frame[:, -1]), np.transpose(frame[0, 1:-2])), np.transpose(frame[-1, 1:-2])))
-            my_roi = frame - my_roi_bg
-
-            threshold = math.sqrt(my_roi_bg)*self.threshold_sigma
-            maximum = np.max(my_roi)
-
-            if maximum < threshold:
-                continue
-            frame_result = self.fitter(frame_index, my_roi, roi, 1, params)
-            if frame_result == []:
-                continue
-            if result == []:
-                result = frame_result
-            else:
-                result = np.vstack((result, frame_result))
-
-        print('Done fitting ROI '+str(1)+' of ' + str(self.ROI_locations.shape[0]))
-
-        return result
-
-    def fitgaussian(self, data, params):
-        """
-        Fits gausian to data and returns fit parameters, number of its and success parameter
-        """
-        if params == []:
-            params = self.phasor_guess(data)
-        errorfunction = lambda p: np.ravel(self.gaussian(*p)(*np.indices(data.shape)) -
-         data)
-        p = optimize.least_squares(errorfunction, params)
-
-        params = p.x
-
-        return [p.x, p.nfev, p.success]
+    def main(self, frames, metadata, q):
+        q.put(super().main(frames, metadata))
+        time.sleep(0.1)

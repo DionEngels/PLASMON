@@ -139,3 +139,6 @@ __pycache__/
 # testing
 1nMimager_newGNRs_100mW/
 *.stats
+
+## PyCharm
+.idea/
