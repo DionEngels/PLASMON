@@ -142,3 +142,5 @@ __pycache__/
 
 ## PyCharm
 .idea/
+*.mat
+*.Result

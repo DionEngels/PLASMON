@@ -19,11 +19,50 @@ v2.0: optimilzations after initial speed check: 17/06/2020
 import math
 import numpy as np
 
+#%% Base Phasor
+
+from math import pi
+import cmath
+
+class base_phasor():
+    
+    def phasor_fit(self, data):
+        """
+        Parameters
+        ----------
+        data : input ROI
+        
+        return: pos x, pos y
+        """
+        
+        fft_values = np.fft.fft2(data)
+
+        roi_size = self.ROI_size
+        ang_x = cmath.phase(fft_values[0, 1])
+        if ang_x>0:
+            ang_x=ang_x-2*pi
+
+        pos_x = abs(ang_x)/(2*pi/roi_size)
+
+        ang_y = cmath.phase(fft_values[1,0])
+
+        if ang_y >0:
+            ang_y = ang_y - 2*pi
+
+        pos_y = abs(ang_y)/(2*pi/roi_size)
+
+        if pos_x > 8.5:
+            pos_x -= roi_size
+        if pos_y > 8.5:
+            pos_y -= roi_size
+            
+        return pos_x, pos_y
+
 #%% Main
 
 class main_localizer():
     """
-    class that everything else inherits from, has ROI finders in it.
+    class that everything else inherits from.
     """
 
     def __init__(self, metadata, ROI_size, wavelength, threshold, ROI_locations, METHOD):
@@ -47,52 +86,11 @@ class main_localizer():
         self.ROI_size = ROI_size
         self.ROI_size_1D = int((self.ROI_size-1)/2)
         self.ROI_locations = ROI_locations
-        self.init_sig = wavelength/(2*metadata['NA']*math.sqrt(8*math.log(2)))/(metadata['calibration_um']*1000)
+        self.init_sig = wavelength/(2*metadata['NA']*math.sqrt(8*math.log(2)))/(metadata['calibration_um']*1000)*2 #*2 for better guess
         self.threshold_sigma = threshold
         self.__name__ = METHOD
-
-    def find_peaks_v2(self, frame):
-        """
-        Find peaks in a single frame
-
-        Parameters
-        ----------
-        frame : Frame
-
-        Returns
-        -------
-        peaks : All peaks in frame
-
-        """
-        peaks = []
-        for ROI_index, ROI in enumerate(self.ROI_locations):
-            y = int(ROI[0])
-            x = int(ROI[1])
-            myROI = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
-            myROI_bg = np.mean(np.append(np.append(np.append(myROI[:, 0], myROI[:, -1]), np.transpose(myROI[0, 1:-2])), np.transpose(myROI[-1, 1:-2])))
-            threshold = myROI_bg + math.sqrt(myROI_bg)*self.threshold_sigma
-
-            maximum = np.max(myROI)
-            if maximum < threshold and self.__name__ != 'PhasorOnly':
-                continue
-            indices = np.where(myROI == maximum)
-
-            indices = np.asarray([x for x in zip(indices[0], indices[1])])
-            indices = indices[0, :]
-            indices[0] = indices[0]-self.ROI_size_1D+y
-            indices[1] = indices[1]-self.ROI_size_1D+x
-
-            peak = np.append(indices, [maximum, ROI_index])
-            if peaks == []:
-                peaks = peak
-            else:
-                try:
-                    peaks = np.vstack((peaks, peak))
-                except:
-                    pass
-
-        return peaks
-
+   
+    
     def main(self, frames, metadata):
         """
         Main for every fitter method, calls fitter function and returns fits
@@ -107,22 +105,33 @@ class main_localizer():
         All localizations
 
         """
+        tot_fits = 0
+        
         for frame_index, frame in enumerate(frames):
-            peaks = self.find_peaks_v2(frame)
-            frame_result = self.fitter(frame_index, frame, peaks)
             if frame_index == 0:
-                self.result = frame_result
+                frame_result = self.fitter(frame_index, frame, self.ROI_locations)
+                n_fits = frame_result.shape[0]
+                width = frame_result.shape[1]
+                height = len(frames)*self.ROI_locations.shape[0]
+                self.result = np.zeros((height, width))
+                self.result[tot_fits:tot_fits+n_fits,:] = frame_result
+                tot_fits += n_fits
             else:
-                self.result = np.vstack((self.result, frame_result))
+                frame_result = self.fitter(frame_index, frame, self.ROI_locations)
+                n_fits = frame_result.shape[0]
+                self.result[tot_fits:tot_fits+n_fits,:] = frame_result
+                tot_fits += n_fits
 
-            if frame_index % (metadata['sequence_count']/10) == 0:
+            if frame_index % (round(metadata['sequence_count']/10,0)) == 0:
                 print('Done fitting frame '+str(frame_index)+' of ' + str(metadata['sequence_count']))
+            #print('Done fitting frame '+str(frame_index)+' of ' + str(metadata['sequence_count']))
+        
+        self.result = np.delete(self.result, range(tot_fits,len(frames)*self.ROI_locations.shape[0]), axis=0)
 
         return self.result
 
 
 #%% rainSTORM
-
 
 class rainSTORM_Dion(main_localizer):
     """
@@ -181,6 +190,11 @@ class rainSTORM_Dion(main_localizer):
             #myROI_min = np.amin(myROI)
             myROI_bg = np.mean(np.append(np.append(np.append(myROI[:, 0],myROI[:, -1]), np.transpose(myROI[0, 1:-2])), np.transpose(myROI[-1, 1:-2])))
             myROI = myROI - myROI_bg
+            
+            if np.max(myROI) < math.sqrt(myROI_bg)*self.threshold_sigma:
+                n_fails+= 1
+                continue
+            
             flag_y = False
             flag_x = False
 
@@ -261,10 +275,10 @@ class rainSTORM_Dion(main_localizer):
 
             if flag_y and flag_x:
                 frame_result[peak_index, 0] = frame_index
-                frame_result[peak_index, 1] = peak[3]
+                frame_result[peak_index, 1] = peak_index
                 frame_result[peak_index, 2] = fit_y
                 frame_result[peak_index, 3] = fit_x
-                frame_result[peak_index, 4] = peak[2]
+                frame_result[peak_index, 4] = np.max(myROI)
                 frame_result[peak_index, 5] = sig_y
                 frame_result[peak_index, 6] = sig_x
                 frame_result[peak_index, 7] = (residue_y + residue_x) / 2
@@ -313,14 +327,18 @@ class summation(main_localizer):
             x = int(peak[1])
 
             myROI = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
+            myROI_bg = np.mean(np.append(np.append(np.append(myROI[:, 0],myROI[:, -1]), np.transpose(myROI[0, 1:-2])), np.transpose(myROI[-1, 1:-2])))
+            
+            if np.max(myROI) < myROI_bg + math.sqrt(myROI_bg)*self.threshold_sigma:
+                continue
 
             total = np.sum(myROI)
 
             frame_result[peak_index, 0] = frame_index
-            frame_result[peak_index, 1] = peak[3]
+            frame_result[peak_index, 1] = peak_index
             frame_result[peak_index, 2] = y
             frame_result[peak_index, 3] = x
-            frame_result[peak_index, 4] = peak[2]
+            frame_result[peak_index, 4] = np.max(myROI)-myROI_bg
             frame_result[peak_index, 5] = total
 
 
@@ -329,11 +347,7 @@ class summation(main_localizer):
 
 #%% Phasor
 
-from scipy.fftpack import ifftn
-from math import pi
-import cmath
-
-class phasor_only(main_localizer):
+class phasor_only(main_localizer, base_phasor):
     """
     Max Bergkamp inspired phasor fitting
 
@@ -342,6 +356,7 @@ class phasor_only(main_localizer):
     frame_result : fits of each frame
 
     """
+    
     def fitter(self, frame_index, frame, peaks):
         """
         Fits all peaks by phasor fitting
@@ -366,49 +381,30 @@ class phasor_only(main_localizer):
             x = int(peak[1])
 
             my_roi = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
-
-            fft_values = ifftn(my_roi)
-
-            roi_size = float(self.ROI_size)
-            ang_x = cmath.phase(fft_values[0, 1])
-            if ang_x>0:
-                ang_x=ang_x-2*pi
-
-            pos_x = roi_size - abs(ang_x)/(2*pi/roi_size)
-
-            ang_y = cmath.phase(fft_values[1,0])
-
-            if ang_y >0:
-                ang_y = ang_y - 2*pi
-
-            pos_y = roi_size - abs(ang_y)/(2*pi/roi_size)
-
-            if pos_x > 8.5:
-                pos_x -= roi_size
-            if pos_y > 8.5:
-                pos_y -= roi_size
+            my_roi_bg = np.mean(np.append(np.append(np.append(my_roi[:, 0],my_roi[:, -1]), np.transpose(my_roi[0, 1:-2])), np.transpose(my_roi[-1, 1:-2])))
+            
+            if np.max(my_roi) < my_roi_bg + math.sqrt(my_roi_bg)*self.threshold_sigma:
+                continue
+        
+            pos_x, pos_y = self.phasor_fit(my_roi)
 
             frame_result[peak_index, 0] = frame_index
-            frame_result[peak_index, 1] = peak[3]
+            frame_result[peak_index, 1] = peak_index
             #start position plus from center in ROI + half for indexing of pixels
             frame_result[peak_index, 2] = y+pos_y-self.ROI_size_1D+0.5
             frame_result[peak_index, 3] = x+pos_x-self.ROI_size_1D+0.5
-            frame_result[peak_index, 4] = peak[2]
+            frame_result[peak_index, 4] = np.max(my_roi) - my_roi_bg
 
         return frame_result
 
-#%% Fully build-in option
+#%% Build in using phasor as first estimate
 
 from scipy import optimize
 
-class scipy_least_squares(main_localizer):
+class scipy_phasor(main_localizer, base_phasor):
 
     """
-    Build-in scipy least squares fitting, using centroid fitting as initial guess
-
-    Returns
-    -------
-    frame_result : fits of each frame
+    Build-in scipy least squares fitting, using phasor fitting as initial guess
     """
 
     def gaussian(self, height, center_x, center_y, width_x, width_y):
@@ -417,37 +413,21 @@ class scipy_least_squares(main_localizer):
         width_y = float(width_y)
         return lambda x,y: height*np.exp(
                     -(((center_x-x)/width_x)**2+((center_y-y)/width_y)**2)/2)
-
-    def moments(self, data):
-        """Returns (height, x, y, width_x, width_y)
-        the gaussian parameters of a 2D distribution by calculating its
-        moments """
-        success = 1
-        total = data.sum()
-        X, Y = np.indices(data.shape)
-        x = (X*data).sum()/total
-        y = (Y*data).sum()/total
-        if y > 9 or x > 9 or x < 0 or y < 0:
-            success = 0
-            return 0, 0, 0, 0, 0, success
-
-        col = data[:, int(y)]
-        width_x = self.init_sig
-        row = data[int(x), :]
-        width_y = self.init_sig
-        height = data.max()
-        return height, x, y, width_x, width_y, success
+    
+    def phasor_guess(self, data):
+        """ Returns an initial guess based on phasor fitting"""
+        pos_x, pos_y = self.phasor_fit(data)
+        height = data[int(pos_y+0.5), int(pos_x+0.5)]-np.min(data)
+        
+        return height, pos_y, pos_x, self.init_sig, self.init_sig
+        
 
     def fitgaussian(self, data):
         """Returns (height, x, y, width_x, width_y)
         the gaussian parameters of a 2D distribution found by a fit"""
-        params = self.moments(data)
-        success = params[-1]
-        params = params[0:-1]
-        if success == 0:
-            return [0, 0, success]
+        params = self.phasor_guess(data)
         errorfunction = lambda p: np.ravel(self.gaussian(*p)(*np.indices(data.shape)) -
-                                     data)
+         data)
         p = optimize.least_squares(errorfunction, params)
 
         return [p.x, p.nfev, p.success]
@@ -485,7 +465,7 @@ class scipy_least_squares(main_localizer):
                 continue
 
             frame_result[peak_index, 0] = frame_index
-            frame_result[peak_index, 1] = peak[3]
+            frame_result[peak_index, 1] = peak_index
             #start position plus from center in ROI + half for indexing of pixels
             frame_result[peak_index, 2] = result[1]+y-self.ROI_size_1D+0.5
             frame_result[peak_index, 3] = result[2]+x-self.ROI_size_1D+0.5
@@ -498,66 +478,15 @@ class scipy_least_squares(main_localizer):
 
         return frame_result
 
-#%% Build in using phasor as first estimate
-
-class scipy_phasor_guess(scipy_least_squares):
-    """
-    Build-in scipy least squares fitting, using phasor fitting as initial guess
-    """
-
-    def phasor_guess(self, data):
-        """
-        Parameters
-        ----------
-        data : input ROI
-
-        Returns
-        -------
-        height of gaussian, x position, y position, sigma_x and sigma_y
-        """
-        fft_values = ifftn(data)
-
-        roi_size = self.ROI_size
-        ang_x = cmath.phase(fft_values[0, 1])
-        if ang_x>0:
-            ang_x=ang_x-2*pi
-
-        pos_x = roi_size - abs(ang_x)/(2*pi/roi_size)
-
-        ang_y = cmath.phase(fft_values[1,0])
-
-        if ang_y >0:
-            ang_y = ang_y - 2*pi
-
-        pos_y = roi_size - abs(ang_y)/(2*pi/roi_size)
-
-        if pos_x > 8.5:
-            pos_x -= roi_size
-        if pos_y > 8.5:
-            pos_y -= roi_size
-
-
-        height = data[int(pos_y+0.5), int(pos_x+0.5)]-np.min(data)
-
-        return height, pos_y, pos_x, self.init_sig, self.init_sig
-
-
-    def fitgaussian(self, data):
-        params = self.phasor_guess(data)
-        errorfunction = lambda p: np.ravel(self.gaussian(*p)(*np.indices(data.shape)) -
-         data)
-        p = optimize.least_squares(errorfunction, params)
-
-        return [p.x, p.nfev, p.success]
-
 #%% ROI loops
 
 from pims import Frame # for converting ND2 generator to one numpy array
 
-class scipy_phashor_guess_roi_loop(scipy_phasor_guess):
+class main_localizer_roi_loop(main_localizer):
     """
-    Build-in scipy least squares fitting, using phasor fitting as initial guess, now looping first of ROIs, then frames
+    Class that every looping over ROI fitter inherits from
     """
+    
     def main(self, frames, metadata):
         """
         Main for every fitter method, calls fitter function and returns fits. Loops over ROIs
@@ -572,7 +501,6 @@ class scipy_phashor_guess_roi_loop(scipy_phasor_guess):
         All localizations
 
         """
-
         frame_stack_total = Frame(frames)
 
         for roi_index, roi in enumerate(self.ROI_locations):
@@ -601,7 +529,38 @@ class scipy_phashor_guess_roi_loop(scipy_phasor_guess):
             print('Done fitting ROI '+str(roi_index)+' of ' + str(self.ROI_locations.shape[0]))
 
         return self.result
+        
+#%% ROI phasor guess    
 
+class scipy_phasor_guess_roi(main_localizer_roi_loop, base_phasor):
+    """
+    Build-in scipy least squares fitting, using phasor fitting as initial guess, now looping first of ROIs, then frames
+    """
+    def gaussian(self, height, center_x, center_y, width_x, width_y):
+        """Returns a gaussian function with the given parameters"""
+        width_x = float(width_x)
+        width_y = float(width_y)
+        return lambda x,y: height*np.exp(
+                    -(((center_x-x)/width_x)**2+((center_y-y)/width_y)**2)/2)
+    
+    def phasor_guess(self, data):
+        """ Returns an initial guess based on phasor fitting"""
+        pos_x, pos_y = self.phasor_fit(data)
+        height = data[int(pos_y+0.5), int(pos_x+0.5)]-np.min(data)
+        
+        return height, pos_y, pos_x, self.init_sig, self.init_sig
+        
+
+    def fitgaussian(self, data, params):
+        """Returns (height, x, y, width_x, width_y)
+        the gaussian parameters of a 2D distribution found by a fit"""
+        params = self.phasor_guess(data)
+        errorfunction = lambda p: np.ravel(self.gaussian(*p)(*np.indices(data.shape)) -
+         data)
+        p = optimize.least_squares(errorfunction, params)
+
+        return [p.x, p.nfev, p.success]
+    
     def fitter(self, frame_index, my_roi, roi, roi_index, params):
         """
         Fits all peaks by scipy least squares fitting
@@ -623,7 +582,7 @@ class scipy_phashor_guess_roi_loop(scipy_phasor_guess):
         y = int(roi[0])
         x = int(roi[1])
 
-        result, its, success = self.fitgaussian(my_roi)
+        result, its, success = self.fitgaussian(my_roi, params)
 
         if success == 0:
             return []
@@ -644,7 +603,7 @@ class scipy_phashor_guess_roi_loop(scipy_phasor_guess):
 
 #%% Fitter based on last fit
 
-class scipy_last_fit_guess_roi_loop(scipy_phashor_guess_roi_loop):
+class scipy_last_fit_guess_roi(scipy_phasor_guess_roi):
     """
     Build-in scipy least squares fitting, using last fit as initial guess, now looping first of ROIs, then frames
     """

@@ -10,7 +10,7 @@ from math import pi
 import math
 import cmath
 import matplotlib.pyplot as plt
-
+import time # for timekeeping
 
 def makeGaussian(size, fwhm = 3, center=None):
     """ Make a square gaussian kernel.
@@ -54,7 +54,7 @@ def build_in(roi):
     if pos_y > 8.5:
         pos_y -= roi_size
 
-    return [pos_x, pos_y]
+    return [pos_x, pos_y, fft_values]
 
 
 def self_made(roi):
@@ -102,19 +102,101 @@ def self_made(roi):
 
     return [pos_x, pos_y]
 
+def build_in_v2(roi):
+    
+    fft_values = np.fft.fft2(roi)
+    
+    roi_size = roi.shape[0];
+    ang_x = cmath.phase(fft_values[0, 1])
+    if ang_x>0:
+        ang_x=ang_x-2*pi
+
+    pos_x = abs(ang_x)/(2*pi/roi_size)
+
+    ang_y = cmath.phase(fft_values[1,0])
+
+    if ang_y >0:
+        ang_y = ang_y - 2*pi
+
+    pos_y = abs(ang_y)/(2*pi/roi_size)
+
+    if pos_x > 8.5:
+        pos_x -= roi_size
+    if pos_y > 8.5:
+        pos_y -= roi_size
+
+    return [pos_x, pos_y, fft_values]
+ 
+import pyfftw
+    
+def build_in_v3(roi):
+    
+    roi_bb = pyfftw.empty_aligned(roi.shape, dtype='float64')
+    roi_bf = pyfftw.empty_aligned((9,5), dtype='complex128')
+    fft_values = pyfftw.FFTW(roi_bb, roi_bf,axes=(0,1),flags=('FFTW_MEASURE',), direction='FFTW_FORWARD')
+    roi_bb=roi
+    fft_values = fft_values(roi_bb)
+    
+    roi_size = roi.shape[0];
+    ang_x = cmath.phase(fft_values[0, 1])
+    if ang_x>0:
+        ang_x=ang_x-2*pi
+
+    pos_x = abs(ang_x)/(2*pi/roi_size)
+
+    ang_y = cmath.phase(fft_values[1,0])
+
+    if ang_y >0:
+        ang_y = ang_y - 2*pi
+
+    pos_y = abs(ang_y)/(2*pi/roi_size)
+
+    if pos_x > 8.5:
+        pos_x -= roi_size
+    if pos_y > 8.5:
+        pos_y -= roi_size
+
+    
+    b = np.random.random((100, 256, 256))
+    bb = pyfftw.empty_aligned((100,256, 256), dtype='float64')
+    bf= pyfftw.empty_aligned((100,256, 129), dtype='complex128')
+    fft_object_b = pyfftw.FFTW(bb, bf,axes=(1,2),flags=('FFTW_MEASURE',), direction='FFTW_FORWARD')
+    bb=b
+    res = fft_object_b(bb)
+    
+    return [pos_x, pos_y, fft_values]
 
 
-roi = makeGaussian(9, center=[3, 3])
 
-loops = list(range(0, 1))
+roi = makeGaussian(9, center=[4, 4])
+
+loops = list(range(0, 1000))
+
+start = time.time()
 
 for loop in loops:
-    [pos_x1, pos_y1] = build_in(roi)
+    [pos_x1, pos_y1, fft_values1] = build_in(roi)
 
+print('Time taken build-in: ' + str(round(time.time() - start, 3)) + ' s. Loops: ' + str(len(loops)))
+#start = time.time()
 
+#for loop in loops:
+#    [pos_x2, pos_y2] = self_made(roi)
+    
+#print('Time taken self-built: ' + str(round(time.time() - start, 3)) + ' s. Loops: ' + str(len(loops)))
+start = time.time()
+    
 for loop in loops:
-    [pos_x2, pos_y2] = self_made(roi)
+    pos_x3, pos_y3, fft_values3 = build_in_v2(roi)
 
+print('Time taken build-in v2: ' + str(round(time.time() - start, 3)) + ' s. Loops: ' + str(len(loops)))
+
+start = time.time()
+    
+for loop in loops:
+    pos_x4, pos_y4, fft_values4 = build_in_v3(roi)
+
+print('Time taken build-in v3: ' + str(round(time.time() - start, 3)) + ' s. Loops: ' + str(len(loops)))
 
 
 plt.imshow(roi, extent=[0,roi.shape[0],roi.shape[0],0], aspect='auto')
