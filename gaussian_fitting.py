@@ -12,6 +12,7 @@ Gaussian fitting
 v0.1: Setup: 31/05/2020
 v0.2: Bugged rainSTORM inspired: 03/06/2020
 v1.0: rainSTORM slow, but working: 04/06/2020
+v2.0: optimilzations after initial speed check: 17/06/2020
 
 """
 #%% Generic imports
@@ -25,7 +26,7 @@ class main_localizer():
     class that everything else inherits from, has ROI finders in it.
     """
 
-    def __init__(self, metadata, ROI_size, wavelength, threshold, ROI_locations):
+    def __init__(self, metadata, ROI_size, wavelength, threshold, ROI_locations, METHOD):
         """
 
         Parameters
@@ -48,6 +49,7 @@ class main_localizer():
         self.ROI_locations = ROI_locations
         self.init_sig = wavelength/(2*metadata['NA']*math.sqrt(8*math.log(2)))/(metadata['calibration_um']*1000)
         self.threshold_sigma = threshold
+        self.__name__ = METHOD
 
     def find_peaks_v2(self, frame):
         """
@@ -71,7 +73,7 @@ class main_localizer():
             threshold = myROI_bg + math.sqrt(myROI_bg)*self.threshold_sigma
 
             maximum = np.max(myROI)
-            if maximum < threshold:
+            if maximum < threshold and self.__name__ != 'PhasorOnly':
                 continue
             indices = np.where(myROI == maximum)
 
@@ -113,7 +115,8 @@ class main_localizer():
             else:
                 self.result = np.vstack((self.result, frame_result))
 
-            print('Done fitting frame '+str(frame_index)+' of ' + str(metadata['sequence_count']))
+            if frame_index % (metadata['sequence_count']/10) == 0:
+                print('Done fitting frame '+str(frame_index)+' of ' + str(metadata['sequence_count']))
 
         return self.result
 
@@ -127,7 +130,7 @@ class rainSTORM_Dion(main_localizer):
 
     """
 
-    def __init__(self, metadata, ROI_size, wavelength, threshold, ROI_locations):
+    def __init__(self, metadata, ROI_size, wavelength, threshold, ROI_locations, METHOD):
         """
         Init of rainSTORM
 
@@ -144,7 +147,7 @@ class rainSTORM_Dion(main_localizer):
         None.
 
         """
-        super().__init__(metadata, ROI_size, wavelength, threshold, ROI_locations)
+        super().__init__(metadata, ROI_size, wavelength, threshold, ROI_locations, METHOD)
         self.allow_sig = [0.25, self.ROI_size_1D+1]
         self.max_its = 60
         self.maxtol = 0.2
@@ -620,7 +623,7 @@ class scipy_phashor_guess_roi_loop(scipy_phasor_guess):
         y = int(roi[0])
         x = int(roi[1])
 
-        result, its, success = self.fitgaussian(my_roi, params)
+        result, its, success = self.fitgaussian(my_roi)
 
         if success == 0:
             return []
@@ -660,15 +663,3 @@ class scipy_last_fit_guess_roi_loop(scipy_phashor_guess_roi_loop):
         self.params = p.x
 
         return [p.x, p.nfev, p.success]
-
-#%% Parallel proccessed version
-import time
-
-class scipy_last_fit_guess_roi_loop_parallel(scipy_last_fit_guess_roi_loop):
-    """
-    Build-in scipy least squares fitting, using last fit as initial guess, now looping first of ROIs, then frames, parallel processed
-    """
-
-    def main(self, frames, metadata, q):
-        q.put(super().main(frames, metadata))
-        time.sleep(0.1)

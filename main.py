@@ -35,17 +35,20 @@ from pims import ND2_Reader # reader of ND2 files
 ## Multiprocessing
 import multiprocessing as mp
 
-
+## comparison to other fitters
+import scipy.io
 
 ## Own code
 import analysis
 import gaussian_fitting
 import tools
 
-#%% Initialization
-ROI_SIZE = 9
+#%% Inputs
+ROI_SIZE = 9 
 WAVELENGTH = 637 #nm
 THRESHOLD = 5 # X*sigma
+
+#%% Initializations
 
 FILETYPES = [("ND2", ".nd2")]
 
@@ -54,7 +57,7 @@ FILETYPES = [("ND2", ".nd2")]
 
 filenames = ("C:/Users/s150127/Downloads/_MBx dataset/1nMimager_newGNRs_100mW.nd2",)
 
-METHOD = "ScipyLastFitGuessROILoopParallel"
+METHOD = "ScipyLeastSquares"
 #%% Main loop cell
 
 for name in filenames:
@@ -67,13 +70,24 @@ for name in filenames:
             os.mkdir(path)
         except:
             pass
-
+        
+        ## Load in MATLAB data
+        
+        frames = scipy.io.loadmat('Data_1000f_14_06_pure_matlab_bg_600')['frame']
+        frames = np.swapaxes(frames,1,2)
+        frames = np.swapaxes(frames,0,1)
+        
+        
+        
         ## parse ND2 info
-        frames = ND2
-        metadata = ND2.metadata
-        frames = frames[0:10]
+        # frames = ND2
+        # metadata = ND2.metadata
+        #frames = frames[0:10]
+        
+        metadata = {'NA' : 1, 'calibration_um' : 0.2, 'sequence_count' : frames.shape[0], 'time_start' : 3, 'time_start_utc': 3}
+        #frames = frames[0:10,:,:]
 
-        ## Find ROIs
+        #%% Find ROIs (for standard NP2 file)
         print('Starting to find ROIs')
         #ROI_locations = analysis.ROI_finder(frames[0],ROI_size)
         ROI_locations = np.load('ROI_locations.npy')
@@ -85,40 +99,53 @@ for name in filenames:
 
         ## switch array columns since MATLAB gives x,y. Python likes y,x
         ROI_locations = tools.switch(ROI_locations)
+        
+        #%% ROIs MATLAB data
+        
+        for i in range(20):
+            for j in range(10):
+                if i == 0 and j == 0:
+                    ROI_locations = [19, 19]
+                else:
+                    ROI_locations = np.vstack((ROI_locations, [19+j*20, 19+i*20]))
+        
+        ROI_y = [np.ones((1,10)) for i in range(11)]
+        
+        #ROI_locations = [19+j*40, 19+i*40 for i in range(11) for j in range(21)]
 
 
-        plt.imshow(frames[0], extent=[0,frames[0].shape[0],frames[0].shape[0],0], aspect='auto')
-        #plt.matshow(frames[0], fignum=0)
+        #plt.imshow(frames[0], extent=[0,frames[0].shape[0],frames[0].shape[0],0], aspect='auto')
+        plt.imshow(frames[0], extent=[0,frames[0].shape[1],frames[0].shape[0],0], aspect='auto')
         #takes x,y hence the switched order
         plt.scatter(ROI_locations[:,1], ROI_locations[:,0], s=2, c='red', marker='x', alpha=0.5)
         plt.title("ROI locations")
         plt.show()
 
 
-        ## Fit Gaussians
+        #%% Fit Gaussians
         print('Starting to prepare fitting')
         start = time.time()
 
         if METHOD == "Sum":
-            summation = gaussian_fitting.summation(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations)
+            summation = gaussian_fitting.summation(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
             results = summation.main(frames,metadata)
         elif METHOD == "rainSTORM":
-            rainSTORM = gaussian_fitting.rainSTORM_Dion(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations)
+            rainSTORM = gaussian_fitting.rainSTORM_Dion(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
             results = rainSTORM.main(frames, metadata)
         elif METHOD == "PhasorOnly":
-            phasor_only = gaussian_fitting.phasor_only(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations)
+            phasor_only = gaussian_fitting.phasor_only(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
             results = phasor_only.main(frames, metadata)
         elif METHOD == "ScipyLeastSquares":
-            scipy_least_squares = gaussian_fitting.scipy_least_squares(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations)
+            scipy_least_squares = gaussian_fitting.scipy_least_squares(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
             results = scipy_least_squares.main(frames, metadata)
         elif METHOD == "ScipyPhasorGuess":
-            scipy_phasor_guess = gaussian_fitting.scipy_phasor_guess(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations)
+            scipy_phasor_guess = gaussian_fitting.scipy_phasor_guess(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
             results = scipy_phasor_guess.main(frames, metadata)
         elif METHOD == "ScipyPhasorGuessROILoop":
-            scipy_phashor_guess_roi_loop = gaussian_fitting.scipy_phashor_guess_roi_loop(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations)
+            scipy_phashor_guess_roi_loop = gaussian_fitting.scipy_phashor_guess_roi_loop(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
             results = scipy_phashor_guess_roi_loop.main(frames, metadata)
         elif METHOD == "ScipyLastFitGuessROILoop":
-            scipy_last_fit_guess_roi_loop = gaussian_fitting.scipy_last_fit_guess_roi_loop(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations)
+            scipy_last_fit_guess_roi_loop = gaussian_fitting.scipy_last_fit_guess_roi_loop(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
             results = scipy_last_fit_guess_roi_loop.main(frames, metadata)
         elif METHOD == "ScipyLastFitGuessROILoopParallel":
             pass
@@ -131,13 +158,14 @@ for name in filenames:
 
         print('Starting saving')
         #%% Plot frames
-        for index, frame in enumerate(frames):
-            toPlot = results[results[:, 0] == index]
-            plt.imshow(frame, extent=[0,frame.shape[0],frame.shape[0],0], aspect='auto')
-            #takes x,y hence the switched order
-            plt.scatter(toPlot[:,3], toPlot[:,2], s=2, c='red', marker='x', alpha=0.5)
-            plt.title("Frame number: " + str(index))
-            plt.show()
+        # for index, frame in enumerate(frames):
+        #     toPlot = results[results[:, 0] == index]
+        #     #plt.imshow(frame, extent=[0,frame.shape[0],frame.shape[0],0], aspect='auto')
+        #     plt.imshow(frames[0], extent=[0,frame.shape[1],frame.shape[0],0], aspect='auto')
+        #     #takes x,y hence the switched order
+        #     plt.scatter(toPlot[:,3], toPlot[:,2], s=2, c='red', marker='x', alpha=0.5)
+        #     plt.title("Frame number: " + str(index))
+        #     plt.show()
         #%% filter metadata
         metadata_filtered = {k:v for k, v in metadata.items() if v is not None}
         del metadata_filtered['time_start']
@@ -152,4 +180,4 @@ for name in filenames:
 #%% save everything
         tools.save_to_csv_mat('metadata', metadata_filtered, directory)
         tools.save_to_csv_mat('ROI_locations', ROI_locations_dict, directory)
-        tools.save_to_csv_mat('Localications', results_dict, directory)
+        tools.save_to_csv_mat('Localizations', results_dict, directory)
