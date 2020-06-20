@@ -344,6 +344,8 @@ class summation(main_localizer):
             frame_result[peak_index, 5] = total
 
 
+        frame_result = frame_result[frame_result[:, 4] > 0]
+        
         return frame_result
 
 
@@ -398,63 +400,10 @@ class phasor_only(main_localizer, base_phasor):
             frame_result[peak_index, 4] = np.max(my_roi) - my_roi_bg # returns max peak
             frame_result[peak_index, 5] = my_roi_bg # background
 
-        return frame_result
-    
-#%% Phasor no-background
-
-class phasor_no_background(main_localizer, base_phasor):
-    """
-    Max Bergkamp inspired phasor fitting, with background correction
-
-    Returns
-    -------
-    frame_result : fits of each frame
-
-    """
-    
-    def fitter(self, frame_index, frame, peaks):
-        """
-        Fits all peaks by phasor fitting
-
-        Parameters
-        ----------
-        frame_index : Index of frame
-        frame : frame
-        peaks : all peaks
-
-        Returns
-        -------
-        frame_result : fits of each frame
-
-        """
-
-        frame_result = np.zeros([peaks.shape[0], 6])
-
-        for peak_index, peak in enumerate(peaks):
-
-            y = int(peak[0])
-            x = int(peak[1])
-
-            my_roi = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
-            my_roi_bg = np.mean(np.append(np.append(np.append(my_roi[:, 0],my_roi[:, -1]), np.transpose(my_roi[0, 1:-2])), np.transpose(my_roi[-1, 1:-2])))
-            
-            my_roi = my_roi - my_roi_bg
-            
-            if np.max(my_roi) < math.sqrt(my_roi_bg)*self.threshold_sigma:
-                continue
+        frame_result = frame_result[frame_result[:, 4] > 0]
         
-            pos_x, pos_y = self.phasor_fit(my_roi)
-
-            frame_result[peak_index, 0] = frame_index
-            frame_result[peak_index, 1] = peak_index
-            #start position plus from center in ROI + half for indexing of pixels
-            frame_result[peak_index, 2] = y+pos_y-self.ROI_size_1D+0.5
-            frame_result[peak_index, 3] = x+pos_x-self.ROI_size_1D+0.5
-            frame_result[peak_index, 4] = np.max(my_roi) - my_roi_bg # returns max peak
-            frame_result[peak_index, 5] = my_roi_bg # background
-
         return frame_result
-
+    
 #%% Build in using phasor as first estimate
 
 from scipy import optimize
@@ -486,7 +435,7 @@ class scipy_phasor(main_localizer, base_phasor):
         params = self.phasor_guess(data)
         errorfunction = lambda p: np.ravel(self.gaussian(*p)(*np.indices(data.shape)) -
          data)
-        p = optimize.least_squares(errorfunction, params)
+        p = optimize.least_squares(errorfunction, params)#, ftol=1e-2) # tolerance test
 
         return [p.x, p.nfev, p.success]
 

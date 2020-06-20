@@ -12,6 +12,8 @@ MBx Python Data Analysis
 v0.1, Loading & ROIs & Saving: 31/05/2020
 v0.2, rainSTORM inspired v1: 03/06/2020
 v0.3, rainSTORM inspired working v1: 04/06/2020
+v1.0, main working for .nd2 loading, no custom ROI fitting: 05/06/2020
+v1.1. MATLAB loading: 15/06/2020
 
 """
 
@@ -57,7 +59,7 @@ FILETYPES = [("ND2", ".nd2")]
 
 filenames = ("C:/Users/s150127/Downloads/_MBx dataset/1nMimager_newGNRs_100mW.nd2",)
 
-METHOD = "ScipyLastFitGuessROILoop"
+METHOD = "ScipyPhasorGuess"
 DATASET = "MATLAB" # "MATLAB" OR "YUYANG"
 #%% Main loop cell
 
@@ -79,12 +81,12 @@ for name in filenames:
             frames = np.swapaxes(frames,1,2)
             frames = np.swapaxes(frames,0,1)
             metadata = {'NA' : 1, 'calibration_um' : 0.2, 'sequence_count' : frames.shape[0], 'time_start' : 3, 'time_start_utc': 3}
-            #frames = frames[0:10,:,:]
+            frames = frames[0:100,:,:]
         elif DATASET == "YUYANG":
             ## parse ND2 info
             frames = ND2
             metadata = ND2.metadata
-            frames = frames[0:5]
+            frames = frames[0:10]
 
         #%% Find ROIs (for standard NP2 file)
         print('Starting to find ROIs')
@@ -136,9 +138,6 @@ for name in filenames:
         elif METHOD == "ScipyLastFitGuessROILoop":
             scipy_last_fit_guess_roi = gaussian_fitting.scipy_last_fit_guess_roi(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
             results = scipy_last_fit_guess_roi.main(frames, metadata)
-        elif METHOD == "PhasorNoBackground":
-            phasor_no_background = gaussian_fitting.phasor_no_background(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
-            results = phasor_no_background.main(frames, metadata)
         
         
 
