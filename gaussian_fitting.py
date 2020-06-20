@@ -12,7 +12,9 @@ Gaussian fitting
 v0.1: Setup: 31/05/2020
 v0.2: Bugged rainSTORM inspired: 03/06/2020
 v1.0: rainSTORM slow, but working: 04/06/2020
+v1.1: first set of solvers: 15/06/2020
 v2.0: optimilzations after initial speed check: 17/06/2020
+v2.1: ran second set of solver performance: 21/06/2020
 
 """
 #%% Generic imports
@@ -373,7 +375,7 @@ class phasor_only(main_localizer, base_phasor):
 
         """
 
-        frame_result = np.zeros([peaks.shape[0], 5])
+        frame_result = np.zeros([peaks.shape[0], 6])
 
         for peak_index, peak in enumerate(peaks):
 
@@ -393,7 +395,63 @@ class phasor_only(main_localizer, base_phasor):
             #start position plus from center in ROI + half for indexing of pixels
             frame_result[peak_index, 2] = y+pos_y-self.ROI_size_1D+0.5
             frame_result[peak_index, 3] = x+pos_x-self.ROI_size_1D+0.5
-            frame_result[peak_index, 4] = np.max(my_roi) - my_roi_bg
+            frame_result[peak_index, 4] = np.max(my_roi) - my_roi_bg # returns max peak
+            frame_result[peak_index, 5] = my_roi_bg # background
+
+        return frame_result
+    
+#%% Phasor no-background
+
+class phasor_no_background(main_localizer, base_phasor):
+    """
+    Max Bergkamp inspired phasor fitting, with background correction
+
+    Returns
+    -------
+    frame_result : fits of each frame
+
+    """
+    
+    def fitter(self, frame_index, frame, peaks):
+        """
+        Fits all peaks by phasor fitting
+
+        Parameters
+        ----------
+        frame_index : Index of frame
+        frame : frame
+        peaks : all peaks
+
+        Returns
+        -------
+        frame_result : fits of each frame
+
+        """
+
+        frame_result = np.zeros([peaks.shape[0], 6])
+
+        for peak_index, peak in enumerate(peaks):
+
+            y = int(peak[0])
+            x = int(peak[1])
+
+            my_roi = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
+            my_roi_bg = np.mean(np.append(np.append(np.append(my_roi[:, 0],my_roi[:, -1]), np.transpose(my_roi[0, 1:-2])), np.transpose(my_roi[-1, 1:-2])))
+            
+            my_roi = my_roi - my_roi_bg
+            
+            if np.max(my_roi) < math.sqrt(my_roi_bg)*self.threshold_sigma:
+                continue
+        
+            pos_x, pos_y = self.phasor_fit(my_roi)
+
+            frame_result[peak_index, 0] = frame_index
+            frame_result[peak_index, 1] = peak_index
+            #start position plus from center in ROI + half for indexing of pixels
+            frame_result[peak_index, 2] = y+pos_y-self.ROI_size_1D+0.5
+            frame_result[peak_index, 3] = x+pos_x-self.ROI_size_1D+0.5
+            frame_result[peak_index, 4] = np.max(my_roi) - my_roi_bg # returns max peak
+            frame_result[peak_index, 5] = my_roi_bg # background
 
         return frame_result
 
@@ -448,7 +506,7 @@ class scipy_phasor(main_localizer, base_phasor):
 
         """
 
-        frame_result = np.zeros([peaks.shape[0], 8])
+        frame_result = np.zeros([peaks.shape[0], 9])
 
         for peak_index, peak in enumerate(peaks):
 
@@ -472,7 +530,8 @@ class scipy_phasor(main_localizer, base_phasor):
             frame_result[peak_index, 4] = result[0]
             frame_result[peak_index, 5] = result[3]
             frame_result[peak_index, 6] = result[4]
-            frame_result[peak_index, 7] = its
+            frame_result[peak_index, 7] = my_roi_bg
+            frame_result[peak_index, 8] = its
 
         frame_result = frame_result[frame_result[:, 4] > 0]
 
@@ -502,6 +561,9 @@ class main_localizer_roi_loop(main_localizer):
 
         """
         frame_stack_total = Frame(frames)
+        
+        tot_fits = 0
+        created = 0
 
         for roi_index, roi in enumerate(self.ROI_locations):
             y = int(roi[0])
@@ -519,15 +581,27 @@ class main_localizer_roi_loop(main_localizer):
                 if maximum < threshold:
                     continue
                 frame_result = self.fitter(frame_index, my_roi, roi, roi_index, [])
+                
                 if frame_result == []:
                     continue
-                if self.result == []:
-                    self.result = frame_result
+                
+                if created == 0:
+                    n_fits = frame_result.shape[0]
+                    width = frame_result.shape[1]
+                    height = len(frames)*self.ROI_locations.shape[0]
+                    self.result = np.zeros((height, width))
+                    created = 1
+                    self.result[tot_fits:tot_fits+n_fits,:] = frame_result
+                    tot_fits += n_fits
                 else:
-                    self.result = np.vstack((self.result, frame_result))
+                    n_fits = frame_result.shape[0]
+                    self.result[tot_fits:tot_fits+n_fits,:] = frame_result
+                    tot_fits += n_fits
 
             print('Done fitting ROI '+str(roi_index)+' of ' + str(self.ROI_locations.shape[0]))
-
+            
+        self.result = np.delete(self.result, range(tot_fits,len(frames)*self.ROI_locations.shape[0]), axis=0)
+                                
         return self.result
         
 #%% ROI phasor guess    

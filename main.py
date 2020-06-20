@@ -57,8 +57,8 @@ FILETYPES = [("ND2", ".nd2")]
 
 filenames = ("C:/Users/s150127/Downloads/_MBx dataset/1nMimager_newGNRs_100mW.nd2",)
 
-METHOD = "PhasorOnly"
-DATASET = "YUYANG" # "MATLAB" OR "YUYANG"
+METHOD = "ScipyLastFitGuessROILoop"
+DATASET = "MATLAB" # "MATLAB" OR "YUYANG"
 #%% Main loop cell
 
 for name in filenames:
@@ -79,12 +79,12 @@ for name in filenames:
             frames = np.swapaxes(frames,1,2)
             frames = np.swapaxes(frames,0,1)
             metadata = {'NA' : 1, 'calibration_um' : 0.2, 'sequence_count' : frames.shape[0], 'time_start' : 3, 'time_start_utc': 3}
-            frames = frames[0:10,:,:]
+            #frames = frames[0:10,:,:]
         elif DATASET == "YUYANG":
             ## parse ND2 info
             frames = ND2
             metadata = ND2.metadata
-            frames = frames[0:10]
+            frames = frames[0:5]
 
         #%% Find ROIs (for standard NP2 file)
         print('Starting to find ROIs')
@@ -128,14 +128,18 @@ for name in filenames:
             phasor_only = gaussian_fitting.phasor_only(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
             results = phasor_only.main(frames, metadata)
         elif METHOD == "ScipyPhasorGuess":
-            scipy_phasor_guess = gaussian_fitting.scipy_phasor_guess(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
-            results = scipy_phasor_guess.main(frames, metadata)
+            scipy_phasor = gaussian_fitting.scipy_phasor(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
+            results = scipy_phasor.main(frames, metadata)
         elif METHOD == "ScipyPhasorGuessROILoop":
             scipy_phasor_guess_roi = gaussian_fitting.scipy_phasor_guess_roi(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
             results = scipy_phasor_guess_roi.main(frames, metadata)
         elif METHOD == "ScipyLastFitGuessROILoop":
             scipy_last_fit_guess_roi = gaussian_fitting.scipy_last_fit_guess_roi(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
             results = scipy_last_fit_guess_roi.main(frames, metadata)
+        elif METHOD == "PhasorNoBackground":
+            phasor_no_background = gaussian_fitting.phasor_no_background(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
+            results = phasor_no_background.main(frames, metadata)
+        
         
 
         print('Time taken: ' + str(round(time.time() - start, 3)) + ' s. Fits done: ' + str(results.shape[0]))
