@@ -81,7 +81,7 @@ for name in filenames:
             frames = np.swapaxes(frames,1,2)
             frames = np.swapaxes(frames,0,1)
             metadata = {'NA' : 1, 'calibration_um' : 0.2, 'sequence_count' : frames.shape[0], 'time_start' : 3, 'time_start_utc': 3}
-            frames = frames[0:100,:,:]
+            #frames = frames[0:100,:,:]
         elif DATASET == "YUYANG":
             ## parse ND2 info
             frames = ND2

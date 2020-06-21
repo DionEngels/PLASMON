@@ -59,6 +59,24 @@ class base_phasor():
             pos_y -= roi_size
             
         return pos_x, pos_y
+    
+#%% ROI mover
+
+class roi_mover():
+    """
+    class that is used to move ROIs if the fit moves away from center
+    """
+    
+    def move_roi(self, fit_y, fit_x, peak_index):
+        
+        if fit_y > 0.6:
+            self.ROI_locations[0, peak_index] += 1
+        elif fit_y < -0.6:
+            self.ROI_locations[0, peak_index] -= 1
+        elif fit_x < -0.6:
+            self.ROI_locations[1, peak_index] += 1
+        elif fit_x > 0.6:
+            self.ROI_locations[1, peak_index] -= 1  
 
 #%% Main
 
@@ -435,7 +453,7 @@ class scipy_phasor(main_localizer, base_phasor):
         params = self.phasor_guess(data)
         errorfunction = lambda p: np.ravel(self.gaussian(*p)(*np.indices(data.shape)) -
          data)
-        p = optimize.least_squares(errorfunction, params)#, ftol=1e-2) # tolerance test
+        p = optimize.least_squares(errorfunction, params)#, ftol=0.1) # tolerance test
 
         return [p.x, p.nfev, p.success]
 
