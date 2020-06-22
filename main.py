@@ -15,12 +15,13 @@ v0.3, rainSTORM inspired working v1: 04/06/2020
 v1.0, main working for .nd2 loading, no custom ROI fitting: 05/06/2020
 v1.1. MATLAB loading: 15/06/2020
 
-"""
+ """
 
 ## GENERAL IMPORTS
 import os # to get standard usage
 #import math # for generic math
 import time # for timekeeping
+#import cProfile # for profiler
 
 ## Numpy and matplotlib, for linear algebra and plotting respectively
 import numpy as np
@@ -59,7 +60,7 @@ FILETYPES = [("ND2", ".nd2")]
 
 filenames = ("C:/Users/s150127/Downloads/_MBx dataset/1nMimager_newGNRs_100mW.nd2",)
 
-METHOD = "ScipyPhasorGuess"
+METHOD = "ScipyLastFitGuessROILoopBackground"
 DATASET = "MATLAB" # "MATLAB" OR "YUYANG"
 #%% Main loop cell
 
@@ -81,7 +82,7 @@ for name in filenames:
             frames = np.swapaxes(frames,1,2)
             frames = np.swapaxes(frames,0,1)
             metadata = {'NA' : 1, 'calibration_um' : 0.2, 'sequence_count' : frames.shape[0], 'time_start' : 3, 'time_start_utc': 3}
-            #frames = frames[0:100,:,:]
+            frames = frames[0:10,:,:]
         elif DATASET == "YUYANG":
             ## parse ND2 info
             frames = ND2
@@ -121,26 +122,30 @@ for name in filenames:
         start = time.time()
 
         if METHOD == "Sum":
-            summation = gaussian_fitting.summation(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
-            results = summation.main(frames,metadata)
+            fitter = gaussian_fitting.summation(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
         elif METHOD == "rainSTORM":
-            rainSTORM = gaussian_fitting.rainSTORM_Dion(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
-            results = rainSTORM.main(frames, metadata)
+            fitter = gaussian_fitting.rainSTORM_Dion(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
         elif METHOD == "PhasorOnly":
-            phasor_only = gaussian_fitting.phasor_only(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
-            results = phasor_only.main(frames, metadata)
+            fitter = gaussian_fitting.phasor_only(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
         elif METHOD == "ScipyPhasorGuess":
-            scipy_phasor = gaussian_fitting.scipy_phasor(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
-            results = scipy_phasor.main(frames, metadata)
+            fitter = gaussian_fitting.scipy_phasor(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
         elif METHOD == "ScipyPhasorGuessROILoop":
-            scipy_phasor_guess_roi = gaussian_fitting.scipy_phasor_guess_roi(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
-            results = scipy_phasor_guess_roi.main(frames, metadata)
+            fitter = gaussian_fitting.scipy_phasor_guess_roi(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
         elif METHOD == "ScipyLastFitGuessROILoop":
-            scipy_last_fit_guess_roi = gaussian_fitting.scipy_last_fit_guess_roi(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
-            results = scipy_last_fit_guess_roi.main(frames, metadata)
-        
-        
+            fitter = gaussian_fitting.scipy_last_fit_guess_roi(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
+        elif METHOD == "PhasorOnlyROI":
+            fitter = gaussian_fitting.phasor_only_ROI_loop(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
+        elif METHOD == "PhasorOnlyROIDumb":
+            fitter = gaussian_fitting.phasor_only_ROI_loop_dumb(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
+        elif METHOD == "ScipyPhasorGuessROIMover":
+            fitter = gaussian_fitting.scipy_phasor_roi_updater(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
+        elif METHOD == "ScipyPhasorGuessLog":
+            fitter = gaussian_fitting.scipy_phasor_log(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
+        elif METHOD == "ScipyLastFitGuessROILoopBackground":
+            fitter = gaussian_fitting.scipy_last_fit_roi_background(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
 
+        results = fitter.main(frames, metadata) 
+        
         print('Time taken: ' + str(round(time.time() - start, 3)) + ' s. Fits done: ' + str(results.shape[0]))
 
 

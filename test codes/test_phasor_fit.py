@@ -210,7 +210,7 @@ def build_in_v4(roi, num_loop):
 
 roi = makeGaussian(9, center=[4, 4])
 
-num_loop = 100000
+num_loop = 1000
 
 loops = list(range(0, num_loop))
 
