@@ -61,7 +61,7 @@ FILETYPES = [("ND2", ".nd2")]
 filenames = ("C:/Users/s150127/Downloads/_MBx dataset/1nMimager_newGNRs_100mW.nd2",)
 
 METHOD = "ScipyLastFitGuessROILoopBackground"
-DATASET = "MATLAB" # "MATLAB" OR "YUYANG"
+DATASET = "MATLAB" # "MATLAB, "MATLAB_OFFSET" OR "YUYANG"
 #%% Main loop cell
 
 for name in filenames:
@@ -75,10 +75,14 @@ for name in filenames:
         except:
             pass
         
-        if DATASET == "MATLAB":
+        if DATASET == "MATLAB" or DATASET == "MATLAB_OFFSET":
             ## Load in MATLAB data
             
-            frames = scipy.io.loadmat('Data_1000f_14_06_pure_matlab_bg_600')['frame']
+            if DATASET == "MATLAB":
+                frames = scipy.io.loadmat('Data_1000f_14_06_pure_matlab_bg_600')['frame']
+            elif DATASET == "MATLAB_OFFSET":
+                frames = scipy.io.loadmat('Data_1000f_25_06_pure_matlab_bg_600_offset')['frame']
+                
             frames = np.swapaxes(frames,1,2)
             frames = np.swapaxes(frames,0,1)
             metadata = {'NA' : 1, 'calibration_um' : 0.2, 'sequence_count' : frames.shape[0], 'time_start' : 3, 'time_start_utc': 3}

@@ -144,3 +144,9 @@ __pycache__/
 .idea/
 *.mat
 *.Result
+
+# Fit comparison
+..Fit_comparison/rainSTORM_beun
+..Fit_comparison/Spectra_beun
+..Fit_comparison/v1
+..Fit_comparison/v2
