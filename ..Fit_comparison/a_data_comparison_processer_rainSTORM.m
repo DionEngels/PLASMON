@@ -17,19 +17,18 @@ mic_pixelsize = 200;
 pos_x = [pixel_spacing_x:pixel_spacing_x:number_x*pixel_spacing_x]*mic_pixelsize;
 pos_y = [pixel_spacing_y:pixel_spacing_y:number_y*pixel_spacing_y]*mic_pixelsize;
 
-pos_x = (pos_x - 0.5*mic_pixelsize)/1e9; % pixel adjust
-pos_y = (pos_y - 0.5*mic_pixelsize)/1e9; % pixel adjust
+pos_x = (pos_x - 0.5*mic_pixelsize); % pixel adjust
+pos_y = (pos_y - 0.5*mic_pixelsize); % pixel adjust
 
 n_frames = 1000;
 %% load in data
-load rainSTORM_GaussianLS
+load v1/rainSTORM_GaussianLS
 
 %% fit checker setup
 columns_not_fitted = [1,2,3 ,4,5,6];
 %x_column = 2; %what column has x-pos in the return data
 %y_column = 3; %what column has y-pos in the return data
 n_fits_per_frame = (number_x-size(columns_not_fitted,2))*number_y;
-i_fit = 1; % row index
 
 %% fit checker %% clear test
 clear res_precision res_accuracy 
@@ -37,9 +36,9 @@ clear res_precision res_accuracy
 % convert all to m
 
 data = SupResParams;
-temp = num2cell([SupResParams.x_coord].*mic_pixelsize/1e9);
+temp = num2cell([SupResParams.x_coord].*mic_pixelsize); % convert to nm
 [data.y_coord] = temp{:};
-temp = num2cell([SupResParams.y_coord].*mic_pixelsize/1e9);
+temp = num2cell([SupResParams.y_coord].*mic_pixelsize); % conver to nm
 [data.x_coord] = temp{:};
 
 total_fits = 0;
@@ -53,19 +52,32 @@ for i=1:number_x
 %         continue
 %     end
     
-    temp = data(([data.x_coord] > pos_x(i)-10*mic_pixelsize/1e9) & ([data.x_coord] < pos_x(i)+10*mic_pixelsize/1e9) & ([data.y_coord] > pos_y(j)-10*mic_pixelsize/1e9) & ([data.y_coord] < pos_y(j)+10*mic_pixelsize/1e9));
+    temp = data(([data.x_coord] > pos_x(i)-10*mic_pixelsize) & ([data.x_coord] < pos_x(i)+10*mic_pixelsize) & ([data.y_coord] > pos_y(j)-10*mic_pixelsize) & ([data.y_coord] < pos_y(j)+10*mic_pixelsize));
     
-    tracked(([tracked.x_coord] > pos_x(i)-10*mic_pixelsize/1e9) & ([tracked.x_coord] < pos_x(i)+10*mic_pixelsize/1e9) & ([tracked.y_coord] > pos_y(j)-10*mic_pixelsize/1e9) & ([tracked.y_coord] < pos_y(j)+10*mic_pixelsize/1e9)) =[];
+    tracked(([tracked.x_coord] > pos_x(i)-10*mic_pixelsize) & ([tracked.x_coord] < pos_x(i)+10*mic_pixelsize) & ([tracked.y_coord] > pos_y(j)-10*mic_pixelsize) & ([tracked.y_coord] < pos_y(j)+10*mic_pixelsize)) =[];
     
     fit_x = [temp.x_coord]';
     fit_y = [temp.y_coord]';
     
+    sigma_x = [temp.sig_x]'*mic_pixelsize;
+    sigma_y = [temp.sig_y]'*mic_pixelsize;
+    
+    sigma_x_mean = mean(sigma_x);
+    sigma_y_mean = mean(sigma_y);
+
+    sigma_x_std = sum((sigma_x - sigma_x_mean).^2)/(size(sigma_x,1)-1);
+    sigma_y_std = sum((sigma_y - sigma_y_mean).^2)/(size(sigma_y,1)-1);
+
+    sigma_mean = mean([sigma_x_mean sigma_y_mean]);
+    res_sigma_precision(i,j) = sqrt(sigma_x_std^2 + sigma_y_std^2);
+    res_sigma_accuracy(i,j) = sigma_mean - mic_pixelsize;
+    
     fit_x_mean = mean(fit_x);
     fit_y_mean = mean(fit_y);
-    sigma_x = sum((fit_x - fit_x_mean).^2)/(size(fit_x,1)-1);
-    sigma_y = sum((fit_y - fit_y_mean).^2)/(size(fit_y,1)-1);
-    res_precision(i,j) = sqrt(sigma_x^2 + sigma_y^2);
-    res_accuracy(i,j) = sqrt(sum(([pos_x(i) pos_y(j)] - [fit_x_mean fit_y_mean]).^2));
+    fit_x_std = sum((fit_x - fit_x_mean).^2)/(size(fit_x,1)-1);
+    fit_y_std = sum((fit_y - fit_y_mean).^2)/(size(fit_y,1)-1);
+    res_precision(i,j) = sqrt(fit_x_std^2 + fit_y_std^2);
+    res_accuracy(i,j) = norm([pos_x(i) pos_y(j)] - [fit_x_mean fit_y_mean]);
     
 %     figure
 %     scatter(fit_x, fit_y)
@@ -75,12 +87,9 @@ for i=1:number_x
     end
 end
 
-% convert all back to nm
-
-res_precision = res_precision*1e9;
-res_accuracy = res_accuracy*1e9;
-
-res_precision_mean = nanmean(res_precision,2);
-res_accuracy_mean = nanmean(res_accuracy,2);
+res_mean_precision = nanmean(res_precision,2);
+res_mean_accuracy = nanmean(res_accuracy,2);
+res_mean_sigma_precision = nanmean(res_sigma_precision,2);
+res_mean_sigma_accuracy = nanmean(res_sigma_accuracy,2);
 %% clear test
 %clear res_precision res_accuracy res_mean
