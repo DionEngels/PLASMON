@@ -17,6 +17,9 @@ v2.0: optimilzations after initial speed check: 17/06/2020
 v2.1: ran second set of solver performance: 21/06/2020
 v2.2: phasor fitter over ROI, dumb phasor fitter, 
       ROI mover, log gauss fitter, background fitting variable: 22/06/2020
+v3.0: optimization after second speed check. New fitters:
+      SettingsScipy, ScipyROIupdater, ScipyLog, ScipyFrameLastFit
+      ScipyROIloopBackground, PhasorROILoop, PhasorROILoopDumb
 
 """
 #%% Generic imports
@@ -456,9 +459,8 @@ class scipy_phasor(main_localizer, base_phasor):
         errorfunction = lambda p: np.ravel(self.gaussian(*p)(*np.indices(data.shape)) -
          data)
         
-        # test_method ='lm' # different method test
+        #test_method ='lm' # different method test
         # test_tol =0.1 # tolerance test
-        #test_bounds = {(-np.inf, np.inf), (params[1], params[1]), (params[2], params[2]), (-np.inf, np.inf), (-np.inf, np.inf)}
         #test_bounds = ([-np.inf, params[1]*0.99, params[2]*0.99, -np.inf, -np.inf], [np.inf, params[1]*1.01, params[2]*1.01, np.inf, np.inf])
         
         
@@ -595,12 +597,122 @@ class scipy_phasor_log(scipy_phasor):
         params = height, pos_y, pos_x, self.init_sig, self.init_sig
         errorfunction = lambda p: np.ravel(self.gaussian(*p)(*np.indices(data.shape)) -
          data)
-        p = optimize.least_squares(errorfunction, params)
+        p = optimize.least_squares(errorfunction, params)#, method='lm')
 
         return [p.x, p.nfev, p.success]
         
         
+#%% Scipy last fit guess 
+
+class scipy_last_fit_guess(scipy_phasor):
+    """
+    Build-in scipy least squares fitting, with last fit as initial guess
+    """
     
+    def fitgaussian(self, data, peak_index):
+        """Returns (height, x, y, width_x, width_y)
+        the gaussian parameters of a 2D distribution found by a fit"""
+    
+        if np.sum(self.params[peak_index, :]) == 0:
+            params = self.phasor_guess(data)
+        else:
+            params = self.params[peak_index, :]
+        errorfunction = lambda p: np.ravel(self.gaussian(*p)(*np.indices(data.shape)) -
+         data)    
+        p = optimize.least_squares(errorfunction, params)
+        
+        self.params[peak_index, :] = p.x
+        
+        return [p.x, p.nfev, p.success]
+        
+    def fitter(self, frame_index, frame, peaks):
+        """
+        Fits all peaks by scipy least squares fitting
+
+        Parameters
+        ----------
+        frame_index : Index of frame
+        frame : frame
+        peaks : all peaks
+
+        Returns
+        -------
+        frame_result : fits of each frame
+
+        """
+
+        frame_result = np.zeros([peaks.shape[0], 9])
+
+        for peak_index, peak in enumerate(peaks):
+
+            y = int(peak[0])
+            x = int(peak[1])
+
+            my_roi = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
+            my_roi_bg = np.mean(np.append(np.append(np.append(my_roi[:, 0],my_roi[:, -1]), np.transpose(my_roi[0, 1:-2])), np.transpose(my_roi[-1, 1:-2])))
+            my_roi = my_roi - my_roi_bg
+
+            result, its, success = self.fitgaussian(my_roi, peak_index)
+
+            if success == 0:
+                continue
+
+            frame_result[peak_index, 0] = frame_index
+            frame_result[peak_index, 1] = peak_index
+            #start position plus from center in ROI + half for indexing of pixels
+            frame_result[peak_index, 2] = result[1]+y-self.ROI_size_1D+0.5
+            frame_result[peak_index, 3] = result[2]+x-self.ROI_size_1D+0.5
+            frame_result[peak_index, 4] = result[0]
+            frame_result[peak_index, 5] = result[3]
+            frame_result[peak_index, 6] = result[4]
+            frame_result[peak_index, 7] = my_roi_bg
+            frame_result[peak_index, 8] = its
+
+        frame_result = frame_result[frame_result[:, 4] > 0]
+
+        return frame_result
+    
+    
+    def main(self, frames, metadata):
+        """
+        Main for every fitter method, calls fitter function and returns fits
+
+        Parameters
+        ----------
+        frames : All frames of .nd2 video
+        metadata : Metadata of .nd2 video
+
+        Returns
+        -------
+        All localizations
+
+        """
+        tot_fits = 0
+        
+        self.params = np.zeros((self.ROI_locations.shape[0],5))
+        
+        for frame_index, frame in enumerate(frames):
+            if frame_index == 0:
+                frame_result = self.fitter(frame_index, frame, self.ROI_locations)
+                n_fits = frame_result.shape[0]
+                width = frame_result.shape[1]
+                height = len(frames)*self.ROI_locations.shape[0]
+                self.result = np.zeros((height, width))
+                self.result[tot_fits:tot_fits+n_fits,:] = frame_result
+                tot_fits += n_fits
+            else:
+                frame_result = self.fitter(frame_index, frame, self.ROI_locations)
+                n_fits = frame_result.shape[0]
+                self.result[tot_fits:tot_fits+n_fits,:] = frame_result
+                tot_fits += n_fits
+
+            if frame_index % (round(metadata['sequence_count']/10,0)) == 0:
+                print('Done fitting frame '+str(frame_index)+' of ' + str(metadata['sequence_count']))
+            #print('Done fitting frame '+str(frame_index)+' of ' + str(metadata['sequence_count']))
+        
+        self.result = np.delete(self.result, range(tot_fits,len(frames)*self.ROI_locations.shape[0]), axis=0)
+
+        return self.result
 
 #%% ROI loops
 

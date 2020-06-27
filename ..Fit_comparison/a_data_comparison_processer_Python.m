@@ -22,7 +22,7 @@ pos_y = (pos_y - 0.5*mic_pixelsize); % pixel adjust, in nm
 
 n_frames = 1000;
 %% load in data
-load v2/Python_ScipyPhasor_Localizations
+load v3/Localizations_Scipy_LastFit
 
 %% fit checker setup
 x_column = 4; %what column has x-pos in the return data
@@ -89,7 +89,9 @@ end
 
 res_mean_precision = nanmean(res_precision,2);
 res_mean_accuracy = nanmean(res_accuracy,2);
-res_mean_sigma_precision = nanmean(res_sigma_precision,2);
-res_mean_sigma_accuracy = nanmean(res_sigma_accuracy,2);
+if sigma_check == 1
+    res_mean_sigma_precision = nanmean(res_sigma_precision,2);
+    res_mean_sigma_accuracy = nanmean(res_sigma_accuracy,2);
+end
 %% clear test
 %clear res_precision res_accuracy res_mean

@@ -86,7 +86,7 @@ for name in filenames:
             frames = np.swapaxes(frames,1,2)
             frames = np.swapaxes(frames,0,1)
             metadata = {'NA' : 1, 'calibration_um' : 0.2, 'sequence_count' : frames.shape[0], 'time_start' : 3, 'time_start_utc': 3}
-            frames = frames[0:10,:,:]
+            #frames = frames[0:10,:,:]
         elif DATASET == "YUYANG":
             ## parse ND2 info
             frames = ND2
@@ -147,7 +147,9 @@ for name in filenames:
             fitter = gaussian_fitting.scipy_phasor_log(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
         elif METHOD == "ScipyLastFitGuessROILoopBackground":
             fitter = gaussian_fitting.scipy_last_fit_roi_background(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
-
+        elif METHOD == "ScipyLastFitGuess":
+            fitter = gaussian_fitting.scipy_last_fit_guess(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
+            
         results = fitter.main(frames, metadata) 
         
         print('Time taken: ' + str(round(time.time() - start, 3)) + ' s. Fits done: ' + str(results.shape[0]))
