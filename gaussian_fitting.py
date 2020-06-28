@@ -19,7 +19,8 @@ v2.2: phasor fitter over ROI, dumb phasor fitter,
       ROI mover, log gauss fitter, background fitting variable: 22/06/2020
 v3.0: optimization after second speed check. New fitters:
       SettingsScipy, ScipyROIupdater, ScipyLog, ScipyFrameLastFit
-      ScipyROIloopBackground, PhasorROILoop, PhasorROILoopDumb
+      ScipyROIloopBackground, PhasorROILoop, PhasorROILoopDum: 27/06/2020
+v3.1: Last fit frame loop with new method: 28/06/2020
 
 """
 #%% Generic imports

@@ -60,7 +60,7 @@ FILETYPES = [("ND2", ".nd2")]
 
 filenames = ("C:/Users/s150127/Downloads/_MBx dataset/1nMimager_newGNRs_100mW.nd2",)
 
-METHOD = "ScipyLastFitGuessROILoopBackground"
+METHOD = "ScipyPhasorGuessLog"
 DATASET = "MATLAB" # "MATLAB, "MATLAB_OFFSET" OR "YUYANG"
 #%% Main loop cell
 
@@ -86,7 +86,7 @@ for name in filenames:
             frames = np.swapaxes(frames,1,2)
             frames = np.swapaxes(frames,0,1)
             metadata = {'NA' : 1, 'calibration_um' : 0.2, 'sequence_count' : frames.shape[0], 'time_start' : 3, 'time_start_utc': 3}
-            #frames = frames[0:10,:,:]
+            frames = frames[0:10,:,:]
         elif DATASET == "YUYANG":
             ## parse ND2 info
             frames = ND2

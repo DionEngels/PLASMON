@@ -22,7 +22,7 @@ pos_y = (pos_y - 0.5*mic_pixelsize); % pixel adjust, in nm
 
 n_frames = 1000;
 %% load in data
-load v3/Localizations_Scipy_LastFit
+load v3/Localizations_Scipy_Background
 
 %% fit checker setup
 x_column = 4; %what column has x-pos in the return data
