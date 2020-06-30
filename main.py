@@ -60,8 +60,8 @@ FILETYPES = [("ND2", ".nd2")]
 
 filenames = ("C:/Users/s150127/Downloads/_MBx dataset/1nMimager_newGNRs_100mW.nd2",)
 
-METHOD = "ScipyPhasorGuessLog"
-DATASET = "MATLAB" # "MATLAB, "MATLAB_OFFSET" OR "YUYANG"
+METHOD = "PhasorOnlyROI"
+DATASET = "MATLAB_v2" # "MATLAB, "MATLAB_v2" OR "YUYANG"
 #%% Main loop cell
 
 for name in filenames:
@@ -75,18 +75,20 @@ for name in filenames:
         except:
             pass
         
-        if DATASET == "MATLAB" or DATASET == "MATLAB_OFFSET":
+        if DATASET == "MATLAB" or DATASET == "MATLAB_v2":
             ## Load in MATLAB data
             
             if DATASET == "MATLAB":
                 frames = scipy.io.loadmat('Data_1000f_14_06_pure_matlab_bg_600')['frame']
-            elif DATASET == "MATLAB_OFFSET":
-                frames = scipy.io.loadmat('Data_1000f_25_06_pure_matlab_bg_600_offset')['frame']
+                metadata = {'NA' : 1, 'calibration_um' : 0.200, 'sequence_count' : frames.shape[0], 'time_start' : 3, 'time_start_utc': 3}
+            elif DATASET == "MATLAB_v2":
+                frames = scipy.io.loadmat('Data_1000f_06_30_pure_matlab_bg_600_v2')['frame']
+                metadata = {'NA' : 1, 'calibration_um' : 0.120, 'sequence_count' : frames.shape[0], 'time_start' : 3, 'time_start_utc': 3}
                 
             frames = np.swapaxes(frames,1,2)
             frames = np.swapaxes(frames,0,1)
-            metadata = {'NA' : 1, 'calibration_um' : 0.2, 'sequence_count' : frames.shape[0], 'time_start' : 3, 'time_start_utc': 3}
-            frames = frames[0:10,:,:]
+            
+            #frames = frames[0:10,:,:]
         elif DATASET == "YUYANG":
             ## parse ND2 info
             frames = ND2
@@ -96,13 +98,13 @@ for name in filenames:
         #%% Find ROIs (for standard NP2 file)
         print('Starting to find ROIs')
         
-        if DATASET == "MATLAB":
+        if DATASET == "MATLAB" or "MATLAB_v2":
             for i in range(20):
                 for j in range(10):
                     if i == 0 and j == 0:
                         ROI_locations = [19, 19]
                     else:
-                        ROI_locations = np.vstack((ROI_locations, [19+j*20, 19+i*20]))
+                        ROI_locations = np.vstack((ROI_locations, [19+j*20, 19+i*20]))          
         
         elif DATASET == "YUYANG":
             #ROI_locations = analysis.ROI_finder(frames[0],ROI_size)
@@ -129,24 +131,10 @@ for name in filenames:
             fitter = gaussian_fitting.summation(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
         elif METHOD == "rainSTORM":
             fitter = gaussian_fitting.rainSTORM_Dion(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
-        elif METHOD == "PhasorOnly":
-            fitter = gaussian_fitting.phasor_only(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
-        elif METHOD == "ScipyPhasorGuess":
-            fitter = gaussian_fitting.scipy_phasor(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
-        elif METHOD == "ScipyPhasorGuessROILoop":
-            fitter = gaussian_fitting.scipy_phasor_guess_roi(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
-        elif METHOD == "ScipyLastFitGuessROILoop":
-            fitter = gaussian_fitting.scipy_last_fit_guess_roi(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
         elif METHOD == "PhasorOnlyROI":
             fitter = gaussian_fitting.phasor_only_ROI_loop(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
         elif METHOD == "PhasorOnlyROIDumb":
             fitter = gaussian_fitting.phasor_only_ROI_loop_dumb(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
-        elif METHOD == "ScipyPhasorGuessROIMover":
-            fitter = gaussian_fitting.scipy_phasor_roi_updater(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
-        elif METHOD == "ScipyPhasorGuessLog":
-            fitter = gaussian_fitting.scipy_phasor_log(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
-        elif METHOD == "ScipyLastFitGuessROILoopBackground":
-            fitter = gaussian_fitting.scipy_last_fit_roi_background(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
         elif METHOD == "ScipyLastFitGuess":
             fitter = gaussian_fitting.scipy_last_fit_guess(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
             

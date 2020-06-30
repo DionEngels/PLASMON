@@ -23,6 +23,7 @@ pos_y = (pos_y - 0.5*mic_pixelsize); % pixel adjust
 n_frames = 1000;
 %% load in data
 load v1/SPectrA_GaussianLS
+load data_generation_info
 
 %% fit checker setup
 columns_not_fitted = [1];
