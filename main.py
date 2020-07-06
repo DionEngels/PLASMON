@@ -45,7 +45,6 @@ import scipy.io
 import analysis
 import gaussian_fitting
 import tools
-
 #%% Inputs
 ROI_SIZE = 9 
 WAVELENGTH = 637 #nm
@@ -91,7 +90,7 @@ for name in filenames:
                 
 
             
-            #frames = frames[0:10,:,:]
+            frames = frames[0:10,:,:]
         elif DATASET == "YUYANG":
             ## parse ND2 info
             frames = ND2
@@ -146,9 +145,6 @@ for name in filenames:
         results = fitter.main(frames, metadata) 
         
         print('Time taken: ' + str(round(time.time() - start, 3)) + ' s. Fits done: ' + str(results.shape[0]))
-
-
-
 
         print('Starting saving')
         #%% Plot frames
