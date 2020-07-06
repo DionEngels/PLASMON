@@ -1,7 +1,7 @@
 clear all
 %% setup
 
-load data_generation_info
+load data_generation_info_v4
 
 positions = saved.positions;
 
@@ -10,13 +10,13 @@ number_y = 10;
 
 n_frames = 1000;
 %% load in data
-load v4/Localizations_PhasorROI
+load v4/Localizations_Dion
 
 %% fit checker setup
 x_column = 4; %what column has x-pos in the return data
 y_column = 3; %what column has y-pos in the return data
 
-sigma_check = 0;
+sigma_check = 1;
 if sigma_check == 1
     sigma_x_column = 6;
     sigma_y_column = 7;
@@ -26,8 +26,8 @@ end
 clear res_precision res_accuracy
 
 data = Localizations;
-data(:,x_column) = (data(:, x_column)+0.5)*mic_pixelsize; % convert to nm, compensate for pixel offset MATLAB
-data(:,y_column) = (data(:, y_column)+0.5)*mic_pixelsize; % convert to nm, compensate for pixel offset MATLAB
+data(:,x_column) = (data(:, x_column))*mic_pixelsize; % convert to nm, compensate for pixel offset MATLAB
+data(:,y_column) = (data(:, y_column))*mic_pixelsize; % convert to nm, compensate for pixel offset MATLAB
 data = data(data(:,x_column)>0,:);
 
 total_fits = 0;
@@ -79,6 +79,7 @@ for i=1:size(positions,1)
     %     hold on
     %     scatter(pos_x(i),  pos_y(j), 'x','r', 'LineWidth',5)
     %     total_fits = total_fits + size(fit_x,1);
+    
 end
 
 res_mean_precision = nanmean(res_precision,2);

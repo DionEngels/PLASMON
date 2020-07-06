@@ -1,80 +1,91 @@
 clear all
 %% setup
+load data_generation_info_v4
+
+positions = saved.positions;
+
+pos_x = positions(:,1);
+pos_y = positions(:,2);
+
+mic_pixelsize = saved.pixelsize;
 number_x = 20;
 number_y = 10;
-n_objects = number_x*number_y; %# objects
-
-SNRs = [0.25, 0.5,  0.75, 1:1:10, 15, 20 30 40 60 80 100];
-
-pixel_spacing_x = 20;
-pixel_spacing_y = pixel_spacing_x;
-
-mic_pixels_x = (number_x+1)*pixel_spacing_x; %# pixels
-mic_pixels_y = (number_y+1)*pixel_spacing_y; %# pixels
-
-mic_pixelsize = 200;
-
-pos_x = [pixel_spacing_x:pixel_spacing_x:number_x*pixel_spacing_x]*mic_pixelsize;
-pos_y = [pixel_spacing_y:pixel_spacing_y:number_y*pixel_spacing_y]*mic_pixelsize;
-
-pos_x = (pos_x - 0.5*mic_pixelsize); % pixel adjust
-pos_y = (pos_y - 0.5*mic_pixelsize); % pixel adjust
 
 n_frames = 1000;
 %% load in data
-load v1/SPectrA_GaussianLS
-load data_generation_info
+load v4/SPectrA
 
 %% fit checker setup
 columns_not_fitted = [1];
-x_column = 3; %what column has x-pos in the return data
-y_column = 5; %what column has y-pos in the return data
 n_fits_per_frame = (number_x-size(columns_not_fitted,2))*number_y;
 i_fit = 1; % row index
-
+%% normal
+x_column = 3; %what column has x-pos in the return data
+y_column = 5; %what column has y-pos in the return data
 sigma_column = 4;
-
+%% log
+% x_column = 2; %what column has x-pos in the return data
+% y_column = 4; %what column has y-pos in the return data
+% sigma_column = 3;
 %% fit checker %% clear test
 clear res_precision res_accuracy 
 
 row = 0;
 column = 0;
 
-for i=1:(number_x-size(columns_not_fitted,1))*number_y
-    
-    if mod(i-1,number_x-size(columns_not_fitted,1)) == 0
-        row = row + 1;
-        column = size(columns_not_fitted,1);
-    end
-    column =  column + 1;
-    
-    %close all
+data = [];
+
+for i=1:size(ParticleFile,2)
     fit_x = (ParticleFile(i).newField.twoDGauss(:,x_column)+ParticleFile(i).newField.Location(1)-0.5)*mic_pixelsize; % convert to nm
     fit_y = (ParticleFile(i).newField.twoDGauss(:,y_column)+ParticleFile(i).newField.Location(2)-0.5)*mic_pixelsize; % convert to nm
     
     sigma = (ParticleFile(i).newField.twoDGauss(:,sigma_column))*mic_pixelsize; % convert to nm
     
-    sigma_mean = mean(sigma);
-
-    res_sigma_precision(column,row) = sum((sigma - sigma_mean).^2)/(size(sigma,1)-1);
-    res_sigma_accuracy(column,row) = sigma_mean - mic_pixelsize;
-
-    fit_x_mean = mean(fit_x);
-    fit_y_mean = mean(fit_y);
-    fit_x_std = sum((fit_x - fit_x_mean).^2)/(size(fit_x,1)-1);
-    fit_y_std = sum((fit_y - fit_y_mean).^2)/(size(fit_y,1)-1);
+    add = [fit_x fit_y sigma];
     
-    res_precision(column,row) = sqrt(fit_x_std^2 + fit_y_std^2);
-    res_accuracy(column,row) = sqrt(sum(([pos_x(column) pos_y(row)] - [fit_x_mean fit_y_mean]).^2));
-    if column == 19
-        continue
-    end
-    %figure
-    %scatter(fit_x, fit_y)
-    %hold on
-    %scatter(pos_x(column),  pos_y(row), 'x','r', 'LineWidth',5)
+    data = [data ; add];
+    
 end
 
+for i=1:size(positions,1)
+    pos_x = positions(i,1);
+    pos_y = positions(i,2);
+    row = floor((i-1)/10)+1;
+    y_val = mod(i,number_y);
+    if y_val == 0
+        y_val = y_val + number_y;
+    end
+    column = y_val;
+    
+    temp = data((data(:,1) > pos_x-10*mic_pixelsize) & (data(:,1) < pos_x+10*mic_pixelsize) & (data(:,2) > pos_y-10*mic_pixelsize) & (data(:,2) < pos_y+10*mic_pixelsize),:);
+    
+    fit_x = temp(:,1);
+    fit_y = temp(:,2);
+
+    sigma = temp(:,3);
+
+    sigma_mean = mean(sigma);
+
+    sigma_std = sum((sigma - sigma_mean).^2)/(size(sigma,1)-1);
+
+    res_sigma_precision(row,column) = sigma_std;
+    if res_sigma_precision(row,column) > 200
+        res_sigma_precision(row,column) = NaN;
+    end
+    res_sigma_accuracy(row,column) = sigma_mean - mic_pixelsize;
+    
+    fit_x_mean = mean(fit_x);
+    fit_y_mean = mean(fit_y);
+    
+    fit_x_std = sum((fit_x - fit_x_mean).^2)/(size(fit_x,1)-1);
+    fit_y_std = sum((fit_y - fit_y_mean).^2)/(size(fit_y,1)-1);
+    res_precision(row,column) = sqrt(fit_x_std^2 + fit_y_std^2);
+    if res_precision(row,column) > 200
+        res_precision(row,column) = NaN;
+    end
+    res_accuracy(row,column) = norm([pos_x pos_y] - [fit_x_mean fit_y_mean]);
+end
+%%
 res_mean_precision = nanmean(res_precision,2);
 res_mean_accuracy = nanmean(res_accuracy,2);
 res_mean_sigma_precision = nanmean(res_sigma_precision,2);

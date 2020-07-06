@@ -60,7 +60,7 @@ FILETYPES = [("ND2", ".nd2")]
 
 filenames = ("C:/Users/s150127/Downloads/_MBx dataset/1nMimager_newGNRs_100mW.nd2",)
 
-METHOD = "PhasorOnlyROI"
+METHOD = "DionsFitter"
 DATASET = "MATLAB_v2" # "MATLAB, "MATLAB_v2" OR "YUYANG"
 #%% Main loop cell
 
@@ -80,13 +80,16 @@ for name in filenames:
             
             if DATASET == "MATLAB":
                 frames = scipy.io.loadmat('Data_1000f_14_06_pure_matlab_bg_600')['frame']
+                frames = np.swapaxes(frames,1,2)
+                frames = np.swapaxes(frames,0,1)
                 metadata = {'NA' : 1, 'calibration_um' : 0.200, 'sequence_count' : frames.shape[0], 'time_start' : 3, 'time_start_utc': 3}
             elif DATASET == "MATLAB_v2":
                 frames = scipy.io.loadmat('Data_1000f_06_30_pure_matlab_bg_600_v2')['frame']
+                frames = np.swapaxes(frames,1,2)
+                frames = np.swapaxes(frames,0,1)
                 metadata = {'NA' : 1, 'calibration_um' : 0.120, 'sequence_count' : frames.shape[0], 'time_start' : 3, 'time_start_utc': 3}
                 
-            frames = np.swapaxes(frames,1,2)
-            frames = np.swapaxes(frames,0,1)
+
             
             #frames = frames[0:10,:,:]
         elif DATASET == "YUYANG":
@@ -137,7 +140,9 @@ for name in filenames:
             fitter = gaussian_fitting.phasor_only_ROI_loop_dumb(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
         elif METHOD == "ScipyLastFitGuess":
             fitter = gaussian_fitting.scipy_last_fit_guess(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
-            
+        elif METHOD == "DionsFitter":
+            fitter = gaussian_fitting.dions_fitter(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
+
         results = fitter.main(frames, metadata) 
         
         print('Time taken: ' + str(round(time.time() - start, 3)) + ' s. Fits done: ' + str(results.shape[0]))
