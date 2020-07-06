@@ -23,6 +23,7 @@ v3.0: optimization after second speed check. New fitters:
 v3.1: Last fit frame loop with new method: 28/06/2020
 v4.0: removed all unneeded fitters
 v4.1: Dions fitter v1
+v4.2: Dions fitter v2
 
 """
 #%% Generic imports
@@ -804,6 +805,8 @@ class phasor_only_ROI_loop_dumb(phasor_only_ROI_loop):
         return roi_result  
     
 #%% Dion fitter method
+from numpy import inner, max, diag, eye, Inf, dot
+from numpy.linalg import norm, solve
 
 class dions_fitter(base_phasor, main_localizer):
     
@@ -844,73 +847,93 @@ class dions_fitter(base_phasor, main_localizer):
         return lambda x,y: height*np.exp(
                     -(((center_x-x)/width_x)**2+((center_y-y)/width_y)**2)/2)
     
+    def fJ(self, pars, x, y = 0):
+        "Calculation of function and Jacobian for one-dimensional Gaussian."
+        A, m, s, offs = pars[0:4]
+        f = A*np.exp( - (x-m)**2 / (2*s**2))
+        if 1:
+            J = np.empty(shape = (4,)+x.shape, dtype = np.float_)
+            J[0] = 1.0/A * f
+            J[1] = f*(x-m)/s**2
+            J[2] = f*(x-m)**2/s**3
+            J[3] = 1
+            return f + (offs - y), J
+        return f + (offs - y) 
+    
+    def LM(self, fun, pars, args, 
+           tau = 1e-2, eps1 = 1e-6, eps2 = 1e-6, kmax = 20):
+        """Implementation of the Levenberg-Marquardt algorithm in pure
+        Python. Solves the normal equations."""
+        
+        p = pars
+        f, J = fun(p, *args)
+    
+        A = inner(J,J)
+        g = inner(J,f)
+    
+        I = eye(len(p))
+        
+        success = True
+    
+        k = 0; nu = 2
+        mu = tau * max(diag(A))
+        stop = norm(g, Inf) < eps1
+        while not stop and k < kmax:
+            k += 1
+    
+            try:
+                d = solve( A + mu*I, -g)
+            except np.linalg.LinAlgError:
+                stop = True
+                success = False
+                break
+    
+            if norm(d) < eps2*(norm(p) + eps2):
+                stop = True
+                break
+    
+            pnew = p + d
+    
+            fnew, Jnew = fun(pnew, *args)
+            rho = (norm(f)**2 - norm(fnew)**2)/inner(d, mu*d - g)
+            
+            if rho > 0:
+                p = pnew
+                A = inner(Jnew, Jnew)
+                g = inner(Jnew, fnew)
+                f = fnew
+                J = Jnew
+                if (norm(g, Inf) < eps1): # or norm(fnew) < eps3):
+                    stop = True
+                    break
+                mu = mu * max([1.0/3, 1.0 - (2*rho - 1)**3])
+                nu = 2.0
+            else:
+                mu = mu * nu
+                nu = 2*nu
+    
+        else:
+            success = False
+        
+        return p, k, success
+        
     def find_sigma(self, roi, pos_x, pos_y, init_sigma):
-        
-        flag_y = False
-        flag_x = False
-        
+            
         xx = np.transpose(range(0, self.ROI_size_1D*2+1))
         yy = np.transpose(range(0, self.ROI_size_1D*2+1))
-        xSum = np.sum(roi, axis=1)
-        ySum = np.transpose(np.sum(roi, axis=0))
+        x_sum = np.sum(roi, axis=1)
+        y_sum = np.transpose(np.sum(roi, axis=0))
         
-        sig_y = init_sigma
-        C = np.max(xSum)
-        for i in range(0, self.max_its):
-            fit = C*np.exp(-np.square(yy-pos_y)/(2*sig_y**2))
-            beta = xSum - fit
-            A = np.vstack((fit/C, fit* (yy-pos_y/sig_y**2), fit*(np.square(yy-pos_y)/sig_y**3)))
-            b = np.matmul(A, beta)
-            a = np.matmul(A, np.transpose(A))
-
-            residue_y = np.sum(np.square(beta))/np.sum(np.square(xSum))
-            if residue_y < self.mintol:
-                break
-
-            try:
-                dL = np.matmul(a, 1/b)
-                sig_change = dL[2]
-                if abs(sig_change) > 0.1:
-                    sig_change = sig_change/abs(sig_change)*0.1
-                sig_y = sig_y +sig_change
-            except:
-                residue_y = 0
-                break
-
-        if residue_y < self.maxtol:
-            flag_y = True
-
-        if flag_y:
-            sig_x = sig_y
-            C = np.max(ySum)
-            for j in range(0, self.max_its):
-                fit = C*np.exp(-np.square(xx-pos_x)/(2*sig_x**2))
-                beta = ySum - fit
-                A = np.vstack((fit/C, fit*(xx-pos_x/sig_x**2), fit*(np.square(xx-pos_x)/sig_x**3)))
-                b = np.matmul(A, beta)
-                a = np.matmul(A, np.transpose(A))
-                
-                residue_x = np.sum(np.square(beta))/np.sum(np.square(ySum))
-                if residue_x < self.mintol:
-                    break
-
-                try:
-                    dL = np.matmul(a, 1/b)
-                    sig_change = dL[2]
-                    if abs(sig_change) > 0.1:
-                        sig_change = sig_change/abs(sig_change)*0.1
-                    sig_x = sig_x + sig_change
-                except:
-                    residue_x = 0
-                    break
-
-            if residue_x < self.maxtol:
-                flag_x = True
-
-        if flag_y and flag_x:
-            return (sig_x+sig_y)/2, i+j, True
-        else:
-            return 0, 0, False
+        startpars_x = [np.max(x_sum), pos_x, init_sigma, np.min(x_sum)]
+        startpars_y = [np.max(y_sum), pos_y, init_sigma, np.min(y_sum)]
+        
+        result_x, its_x, success_x = self.LM(self.fJ, startpars_x, (xx, x_sum), tau = 1e-4)
+        
+        result_y, its_y, success_y = self.LM(self.fJ, startpars_y, (yy, y_sum), tau = 1e-4)
+        
+        return (result_y[2]+result_x[2])/2, its_x+its_y, success_y and success_y
+        
+        
     
     def fit(self, roi, peak_index):
         
@@ -935,7 +958,7 @@ class dions_fitter(base_phasor, main_localizer):
         factor = height/np.max(roi_fit)
         res_height = factor*height
         
-        result = res_height, pos_x, pos_y, sigma, sigma
+        result = res_height, pos_y, pos_x, sigma, sigma
         
         return result, its, success
     
