@@ -24,7 +24,8 @@ v3.1: Last fit frame loop with new method: 28/06/2020
 v4.0: removed all unneeded fitters
 v4.1: Dions fitter v1
 v4.2: Dions fitter v2
-
+v4.3: small optimization of Scipy
+v4.4: attempt of stripped least squares function
 """
 #%% Generic imports
 import math
@@ -100,6 +101,7 @@ class main_localizer():
         self.init_sig = wavelength/(2*metadata['NA']*math.sqrt(8*math.log(2)))/(metadata['calibration_um']*1000)*2 #*2 for better guess
         self.threshold_sigma = threshold
         self.__name__ = METHOD
+        self.indices = np.indices((ROI_size, ROI_size))
    
     
     def main(self, frames, metadata):
@@ -477,6 +479,8 @@ class scipy_phasor_log(scipy_phasor):
         
 #%% Scipy last fit guess 
 
+import least_squares_stripped
+
 class scipy_last_fit_guess(scipy_phasor):
     """
     Build-in scipy least squares fitting, with last fit as initial guess
@@ -490,9 +494,11 @@ class scipy_last_fit_guess(scipy_phasor):
             params = self.phasor_guess(data)
         else:
             params = self.params[peak_index, :]
-        errorfunction = lambda p: np.ravel(self.gaussian(*p)(*np.indices(data.shape)) -
-         data)    
-        p = optimize.least_squares(errorfunction, params, method='lm')
+        errorfunction = lambda p: np.ravel(self.gaussian(*p)(*self.indices) -
+        data)  
+        #errorfunction = lambda p: np.ravel(self.gaussian(*p)(*np.indices(data.shape)) -
+        # data)    
+        p = least_squares_stripped.least_squares(errorfunction, params, method='lm')#, gtol=1e-4, ftol=1e-4)
         
         self.params[peak_index, :] = p.x
         
@@ -903,7 +909,7 @@ class dions_fitter(base_phasor, main_localizer):
                 g = inner(Jnew, fnew)
                 f = fnew
                 J = Jnew
-                if (norm(g, Inf) < eps1): # or norm(fnew) < eps3):
+                if (norm(g, Inf) < eps1):
                     stop = True
                     break
                 mu = mu * max([1.0/3, 1.0 - (2*rho - 1)**3])
