@@ -26,6 +26,7 @@ v4.1: Dions fitter v1
 v4.2: Dions fitter v2
 v4.3: small optimization of Scipy
 v4.4: attempt of stripped least squares function
+v4.5: cached
 """
 #%% Generic imports
 import math
@@ -102,10 +103,7 @@ class main_localizer():
         self.threshold_sigma = threshold
         self.__name__ = METHOD
         self.indices = np.indices((ROI_size, ROI_size))
-        self.cache_values = [ np.zeros(5) for _ in range(100) ]
-        self.cache_results = [ np.zeros(81) for _ in range(100) ]
-        self.cache_index = 0
-   
+        self.cache = {}
     
     def main(self, frames, metadata):
         """
@@ -501,7 +499,7 @@ class scipy_last_fit_guess(scipy_phasor):
         data)  
         #errorfunction = lambda p: np.ravel(self.gaussian(*p)(*np.indices(data.shape)) -
         # data)    
-        p, self.cache_values, self.cache_results, self.cache_index = least_squares_stripped.least_squares(errorfunction, params,  cache_values=self.cache_values, cache_results=self.cache_results, cache_index=self.cache_index, method='lm')#, gtol=1e-4, ftol=1e-4)
+        p, self.cache = least_squares_stripped.least_squares(errorfunction, params,  cache=self.cache, method='lm')#, gtol=1e-4, ftol=1e-4)
         
         self.params[peak_index, :] = p.x
         

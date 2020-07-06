@@ -90,7 +90,7 @@ for name in filenames:
                 
 
             
-            frames = frames[0:10,:,:]
+            #frames = frames[0:10,:,:]
         elif DATASET == "YUYANG":
             ## parse ND2 info
             frames = ND2

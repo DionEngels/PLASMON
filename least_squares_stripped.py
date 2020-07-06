@@ -158,7 +158,7 @@ def least_squares(
         ftol=1e-8, xtol=1e-8, gtol=1e-8, x_scale=1.0, loss='linear',
         f_scale=1.0, diff_step=None, tr_solver=None, tr_options={},
         jac_sparsity=None, max_nfev=None, verbose=0, args=(), kwargs={}, 
-        cache_values=None, cache_results=None, cache_index=None):
+        cache=None):
     """Solve a nonlinear least-squares problem with bounds on the variables.
 
     Given the residuals f(x) (an m-dimensional real function of n real
@@ -463,19 +463,15 @@ def least_squares(
     ftol, xtol, gtol = check_tolerance(ftol, xtol, gtol)
 
     def fun_wrapped(x):
-        nonlocal cache_results, cache_values, cache_index
+        nonlocal cache
         
-        if any((x == a).all() for a in cache_values):
-            result = cache_results[[np.array_equal(x,a) for a in cache_values].index(True)]
+        key = tuple(x) 
+        if key in cache:
+            return cache[key]
         else:
             result = fun(x, *args, **kwargs)
-            cache_values[cache_index] = x#.tolist()
-            cache_results[cache_index] = result
-            cache_index +=1
-            if cache_index == 100:
-                cache_index = 0
-         
-        return result
+            cache[key] = result
+            return result
 
     if method == 'trf':
         x0 = make_strictly_feasible(x0, lb, ub)
@@ -502,4 +498,4 @@ def least_squares(
     result.message = TERMINATION_MESSAGES[result.status]
     result.success = result.status > 0
 
-    return result, cache_values, cache_results, cache_index
+    return result, cache
