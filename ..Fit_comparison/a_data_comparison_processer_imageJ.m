@@ -37,7 +37,7 @@ for i=1:size(positions,1)
     
     fit_x = temp(:,x_column);
     fit_y = temp(:,y_column);
-    fit_uncertainty = temp(:,9); % 8 for MLE, 9 for LS
+    fit_uncertainty = temp(:,8); % 8 for MLE, 9 for LS
 
     sigma = temp(:,sigma_column);
 

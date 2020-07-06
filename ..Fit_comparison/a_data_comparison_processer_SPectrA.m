@@ -13,20 +13,20 @@ number_y = 10;
 
 n_frames = 1000;
 %% load in data
-load v4/SPectrA
+load v4/SPectrA_log
 
 %% fit checker setup
 columns_not_fitted = [1];
 n_fits_per_frame = (number_x-size(columns_not_fitted,2))*number_y;
 i_fit = 1; % row index
 %% normal
-x_column = 3; %what column has x-pos in the return data
-y_column = 5; %what column has y-pos in the return data
-sigma_column = 4;
+% x_column = 3; %what column has x-pos in the return data
+% y_column = 5; %what column has y-pos in the return data
+% sigma_column = 4;
 %% log
-% x_column = 2; %what column has x-pos in the return data
-% y_column = 4; %what column has y-pos in the return data
-% sigma_column = 3;
+x_column = 2; %what column has x-pos in the return data
+y_column = 4; %what column has y-pos in the return data
+sigma_column = 3;
 %% fit checker %% clear test
 clear res_precision res_accuracy 
 
