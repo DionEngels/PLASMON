@@ -499,7 +499,7 @@ class scipy_last_fit_guess(scipy_phasor):
         data)  
         #errorfunction = lambda p: np.ravel(self.gaussian(*p)(*np.indices(data.shape)) -
         # data)    
-        p, self.cache = least_squares_stripped.least_squares(errorfunction, params,  cache=self.cache, method='lm')#, gtol=1e-4, ftol=1e-4)
+        p, self.cache = least_squares_stripped.least_squares(errorfunction, params,  cache=self.cache)#, gtol=1e-4, ftol=1e-4)
         
         self.params[peak_index, :] = p.x
         
