@@ -488,9 +488,6 @@ from scipy.optimize import _minpack, OptimizeResult
 
 from scipy.optimize._lsq.common import EPS
 
-from scipy.optimize._numdiff import _dense_difference
-
-
 TERMINATION_MESSAGES = {
     -1: "Improper input parameters status returned from `leastsq`",
     0: "The maximum number of function evaluations is exceeded.",
@@ -545,11 +542,30 @@ class scipy_last_fit_guess(scipy_phasor):
         self.empty_background = np.zeros(self.ROI_size*2+(self.ROI_size-2)*2, dtype=np.uint16)
         
         
+    def dense_difference(self, fun, x0, f0, h):
+        m = f0.size
+        n = x0.size
+        J_transposed = np.empty((n, m))
+        h_vecs = np.diag(h)
+        
+        for i in range(h.size):
+            x1 = x0 - h_vecs[i]
+            x2 = x0 + h_vecs[i]
+            dx = x2[i] - x1[i]
+            f1 = fun(x1)
+            f2 = fun(x2)
+            df = f2 - f1
+            
+            J_transposed[i] = df / dx
+        
+        return J_transposed.T
+        
+    
     def compute_absolute_step(self, x0):
         rel_step = EPS**(1/3)
         return np.abs(rel_step * np.maximum(1.0, np.abs(x0)))
         
-    def approx_derivative(self, fun, x0, f0=None, args=(), kwargs={}):
+    def approx_derivative(self, fun, x0, f0=None):
          
         if x0.ndim > 1:
             raise ValueError("`x0` must have at most 1 dimension.")
@@ -561,19 +577,15 @@ class scipy_last_fit_guess(scipy_phasor):
             raise ValueError("Inconsistent shapes between bounds and `x0`.")
     
         def fun_wrapped(x):
-            f = np.atleast_1d(fun(x, *args, **kwargs))
+            f = np.atleast_1d(fun(x))
             if f.ndim > 1:
                 raise RuntimeError("`fun` return value has "
                                    "more than 1 dimension.")
             return f
-    
-        #f0 = np.atleast_1d(f0)
-   
+       
         h = self.compute_absolute_step(x0)
-        use_one_sided = self.use_one_sided
 
-        return _dense_difference(fun_wrapped, x0, f0, h,
-                                     use_one_sided, '3-point')
+        return self.dense_difference(fun_wrapped, x0, f0, h)
                 
     def call_minpack(self, fun, x0, f0, jac, ftol, xtol, gtol, max_nfev, diag):
 
@@ -592,12 +604,10 @@ class scipy_last_fit_guess(scipy_phasor):
     
         f = info['fvec']
         
-        J_return = self.approx_derivative(fun, x, f0=f0)
-    
-        J = np.atleast_2d(J_return)
-    
+        j = self.approx_derivative(fun, x, f0=f0)
+        
         cost = 0.5 * np.dot(f, f)
-        g = J.T.dot(f)
+        g = j.T.dot(f)
         g_norm = norm(g, ord=np.inf)
     
         nfev = info['nfev']
@@ -607,7 +617,7 @@ class scipy_last_fit_guess(scipy_phasor):
         active_mask = self.active_mask
     
         return OptimizeResult(
-            x=x, cost=cost, fun=f, jac=J, grad=g, optimality=g_norm,
+            x=x, cost=cost, fun=f, jac=j, grad=g, optimality=g_norm,
             active_mask=active_mask, nfev=nfev, njev=njev, status=status)     
     
     def least_squares(self, fun, x0, ftol=1e-8, xtol=1e-8, gtol=1e-8, 
