@@ -33,6 +33,7 @@ v4.8: passing f0 through the class
 v4.9: new method of background determination
 v4.10: own dense difference
 v4.11: only check intensity = 0 for save params
+v4.12: also cache for derivative
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
@@ -485,9 +486,7 @@ class scipy_phasor_log(scipy_phasor):
         
 #%% Scipy last fit guess 
 from numpy.linalg import norm
-
 from scipy.optimize import _minpack, OptimizeResult
-
 from scipy.optimize._lsq.common import EPS
 
 TERMINATION_MESSAGES = {
@@ -498,7 +497,6 @@ TERMINATION_MESSAGES = {
     3: "`xtol` termination condition is satisfied.",
     4: "Both `ftol` and `xtol` termination conditions are satisfied."
 }
-
 
 FROM_MINPACK_TO_COMMON = {
     0: -1,  # Improper input parameters from MINPACK.
@@ -543,6 +541,8 @@ class scipy_last_fit_guess(scipy_phasor):
         self.use_one_sided = np.resize(False, self.x_scale.shape)
         self.empty_background = np.zeros(self.ROI_size*2+(self.ROI_size-2)*2, dtype=np.uint16)
         
+        self.cache_derivative = {} 
+        
         
     def dense_difference(self, fun, x0, f0, h):
         m = f0.size
@@ -567,7 +567,7 @@ class scipy_last_fit_guess(scipy_phasor):
         rel_step = EPS**(1/3)
         return np.abs(rel_step * np.maximum(1.0, np.abs(x0)))
         
-    def approx_derivative(self, fun, x0, f0=None):
+    def approx_derivative(self, fun, x0, f0):
          
         if x0.ndim > 1:
             raise ValueError("`x0` must have at most 1 dimension.")
@@ -579,15 +579,24 @@ class scipy_last_fit_guess(scipy_phasor):
             raise ValueError("Inconsistent shapes between bounds and `x0`.")
     
         def fun_wrapped(x):
-            f = np.atleast_1d(fun(x))
-            if f.ndim > 1:
-                raise RuntimeError("`fun` return value has "
-                                   "more than 1 dimension.")
-            return f
+            
+            key = tuple(x) 
+            if key in self.cache:
+                return self.cache[key]
+            else:
+                result = fun(x)
+                self.cache[key] = result
+                return result
        
         h = self.compute_absolute_step(x0)
-
-        return self.dense_difference(fun_wrapped, x0, f0, h)
+        
+        key = tuple(x0)
+        if key in self.cache_derivative:
+            return self.cache_derivative[key]
+        else:
+            result = self.dense_difference(fun_wrapped, x0, f0, h)
+            self.cache_derivative[key] = result
+            return result
                 
     def call_minpack(self, fun, x0, f0, jac, ftol, xtol, gtol, max_nfev, diag):
 
@@ -606,7 +615,7 @@ class scipy_last_fit_guess(scipy_phasor):
     
         f = info['fvec']
         
-        j = self.approx_derivative(fun, x, f0=f0)
+        j = self.approx_derivative(fun, x, f0)
         
         cost = 0.5 * np.dot(f, f)
         g = j.T.dot(f)
@@ -623,7 +632,7 @@ class scipy_last_fit_guess(scipy_phasor):
             active_mask=active_mask, nfev=nfev, njev=njev, status=status)     
     
     def least_squares(self, fun, x0, ftol=1e-8, xtol=1e-8, gtol=1e-8, 
-        max_nfev=None, args=(), kwargs={}):
+        max_nfev=None):
         
         def fun_wrapped(x):
             
@@ -631,7 +640,7 @@ class scipy_last_fit_guess(scipy_phasor):
             if key in self.cache:
                 return self.cache[key]
             else:
-                result = fun(x, *args, **kwargs)
+                result = fun(x)
                 self.cache[key] = result
                 return result
         
@@ -688,8 +697,8 @@ class scipy_last_fit_guess(scipy_phasor):
         roi_background = self.empty_background
         roi_background[0:self.ROI_size] = my_roi[:, 0]
         roi_background[self.ROI_size:self.ROI_size*2] = my_roi[:, -1]
-        roi_background[self.ROI_size*2:self.ROI_size*2+self.ROI_size-2] = np.transpose(my_roi[0, 0:-2])
-        roi_background[self.ROI_size*2+self.ROI_size-2:] = np.transpose(my_roi[-1, 0:-2])
+        roi_background[self.ROI_size*2:self.ROI_size*2+self.ROI_size-2] = my_roi[0, 0:-2]
+        roi_background[self.ROI_size*2+self.ROI_size-2:] = my_roi[-1, 0:-2]
         
         return np.mean(roi_background)
         
@@ -718,8 +727,6 @@ class scipy_last_fit_guess(scipy_phasor):
 
             my_roi = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
             my_roi_bg = self.determine_background(my_roi)
-            #my_roi_bg = np.mean(np.append(np.append(np.append(my_roi[:, 0], 
-            #my_roi[:, -1]), np.transpose(my_roi[0, 1:-2])), np.transpose(my_roi[-1, 1:-2])))
             my_roi = my_roi - my_roi_bg
 
             result, its, success = self.fitgaussian(my_roi, peak_index)

@@ -10,7 +10,7 @@ number_y = 10;
 
 n_frames = 1000;
 %% load in data
-load v4/Localizations_Scipy_4_5_caching_high_tol
+load v4/Localizations_Scipy_4_12_no_cache
 
 %% fit checker setup
 x_column = 4; %what column has x-pos in the return data

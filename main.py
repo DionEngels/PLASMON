@@ -21,7 +21,6 @@ v1.1. MATLAB loading: 15/06/2020
 import os # to get standard usage
 #import math # for generic math
 import time # for timekeeping
-#import cProfile # for profiler
 
 ## Numpy and matplotlib, for linear algebra and plotting respectively
 import numpy as np
