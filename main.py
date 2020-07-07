@@ -113,10 +113,11 @@ for name in filenames:
             ROI_locations = np.load('ROI_locations.npy')
 
             ROI_locations = ROI_locations - 1
-            #ROI_locations = ROI_locations[0:2,:]
 
             ## switch array columns since MATLAB gives x,y. Python likes y,x
             ROI_locations = tools.switch(ROI_locations)
+
+        #ROI_locations = ROI_locations[0:2,:]
 
         plt.imshow(frames[0], extent=[0,frames[0].shape[1],frames[0].shape[0],0], aspect='auto')
         #takes x,y hence the switched order

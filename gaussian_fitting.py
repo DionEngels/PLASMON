@@ -27,8 +27,10 @@ v4.2: Dions fitter v2
 v4.3: small optimization of Scipy
 v4.4: attempt of stripped least squares function
 v4.5: cached: 06/07/2020
+v4.6: cached class
 """
 #%% Generic imports
+from __future__ import division, print_function, absolute_import
 import math
 import numpy as np
 
@@ -102,8 +104,6 @@ class main_localizer():
         self.init_sig = wavelength/(2*metadata['NA']*math.sqrt(8*math.log(2)))/(metadata['calibration_um']*1000)*2 #*2 for better guess
         self.threshold_sigma = threshold
         self.__name__ = METHOD
-        self.indices = np.indices((ROI_size, ROI_size))
-        self.cache = {}
     
     def main(self, frames, metadata):
         """
@@ -479,13 +479,139 @@ class scipy_phasor_log(scipy_phasor):
         
         
 #%% Scipy last fit guess 
+from numpy.linalg import norm
 
-import least_squares_stripped
+from scipy.optimize import _minpack, OptimizeResult
+from scipy.optimize._numdiff import approx_derivative
+
+from scipy.optimize._lsq.common import EPS
+
+
+TERMINATION_MESSAGES = {
+    -1: "Improper input parameters status returned from `leastsq`",
+    0: "The maximum number of function evaluations is exceeded.",
+    1: "`gtol` termination condition is satisfied.",
+    2: "`ftol` termination condition is satisfied.",
+    3: "`xtol` termination condition is satisfied.",
+    4: "Both `ftol` and `xtol` termination conditions are satisfied."
+}
+
+
+FROM_MINPACK_TO_COMMON = {
+    0: -1,  # Improper input parameters from MINPACK.
+    1: 2,
+    2: 3,
+    3: 4,
+    4: 1,
+    5: 0
+    # There are 6, 7, 8 for too small tolerance parameters,
+    # but we guard against it by checking ftol, xtol, gtol beforehand.
+}
 
 class scipy_last_fit_guess(scipy_phasor):
     """
     Build-in scipy least squares fitting, with last fit as initial guess
     """
+    
+    def __init__(self, metadata, ROI_size, wavelength, threshold, ROI_locations, METHOD):
+        """
+
+        Parameters
+        ----------
+        metadata : metadata of ND2
+        ROI_size : ROI size
+        wavelength : laser wavelength
+        threshold : # of standard deviations for threhsold
+        ROI_locations : found ROIs
+
+        Returns
+        -------
+        None.
+
+        """
+        super().__init__(metadata, ROI_size, wavelength, threshold, ROI_locations, METHOD)
+        self.indices = np.indices((ROI_size, ROI_size))
+        self.cache = {}  
+        self.x_scale = np.ones(5)
+        self.active_mask = np.zeros_like(self.x_scale, dtype=int)
+                
+    def call_minpack(self, fun, x0, jac, ftol, xtol, gtol, max_nfev, diag):
+
+        n = x0.size
+        epsfcn = EPS
+        
+        full_output = True
+        factor = 100.0
+    
+        if max_nfev is None:
+            # n squared to account for Jacobian evaluations.
+            max_nfev = 100 * n * (n + 1)
+        x, info, status = _minpack._lmdif(
+            fun, x0, (), full_output, ftol, xtol, gtol,
+            max_nfev, epsfcn, factor, diag)
+    
+        f = info['fvec']
+    
+        J = np.atleast_2d(approx_derivative(fun, x))
+    
+        cost = 0.5 * np.dot(f, f)
+        g = J.T.dot(f)
+        g_norm = norm(g, ord=np.inf)
+    
+        nfev = info['nfev']
+        njev = info.get('njev', None)
+    
+        status = FROM_MINPACK_TO_COMMON[status]
+        active_mask = self.active_mask
+    
+        return OptimizeResult(
+            x=x, cost=cost, fun=f, jac=J, grad=g, optimality=g_norm,
+            active_mask=active_mask, nfev=nfev, njev=njev, status=status)     
+    
+    def least_squares(self, fun, x0, ftol=1e-8, xtol=1e-8, gtol=1e-8, 
+        max_nfev=None, args=(), kwargs={}):
+        
+        def fun_wrapped(x):
+            
+            key = tuple(x) 
+            if key in self.cache:
+                return self.cache[key]
+            else:
+                result = fun(x, *args, **kwargs)
+                self.cache[key] = result
+                return result
+        
+        if max_nfev is not None and max_nfev <= 0:
+            raise ValueError("`max_nfev` must be None or positive integer.")
+    
+        if np.iscomplexobj(x0):
+            raise ValueError("`x0` must be real.")
+        
+        if x0.ndim > 1:
+            raise ValueError("`x0` must have at most 1 dimension.")
+         
+        f0 = fun_wrapped(x0)
+    
+        if f0.ndim != 1:
+            raise ValueError("`fun` must return at most 1-d array_like.")
+    
+        if not np.all(np.isfinite(f0)):
+            raise ValueError("Residuals are not finite in the initial point.")
+    
+        result = self.call_minpack(fun_wrapped, x0, None, ftol, xtol, gtol,
+                              max_nfev, self.x_scale)
+    
+        result.message = TERMINATION_MESSAGES[result.status]
+        result.success = result.status > 0
+    
+        return result
+    
+    def phasor_guess(self, data):
+        """ Returns an initial guess based on phasor fitting"""
+        pos_x, pos_y = self.phasor_fit(data)
+        height = data[int(pos_y+0.5), int(pos_x+0.5)]-np.min(data)
+        
+        return np.array([height, pos_y, pos_x, self.init_sig, self.init_sig])
     
     def fitgaussian(self, data, peak_index):
         """Returns (height, x, y, width_x, width_y)
@@ -497,9 +623,7 @@ class scipy_last_fit_guess(scipy_phasor):
             params = self.params[peak_index, :]
         errorfunction = lambda p: np.ravel(self.gaussian(*p)(*self.indices) -
         data)  
-        #errorfunction = lambda p: np.ravel(self.gaussian(*p)(*np.indices(data.shape)) -
-        # data)    
-        p, self.cache = least_squares_stripped.least_squares(errorfunction, params,  cache=self.cache)#, gtol=1e-4, ftol=1e-4)
+        p = self.least_squares(errorfunction, params)#, gtol=1e-4, ftol=1e-4)
         
         self.params[peak_index, :] = p.x
         
@@ -529,7 +653,8 @@ class scipy_last_fit_guess(scipy_phasor):
             x = int(peak[1])
 
             my_roi = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
-            my_roi_bg = np.mean(np.append(np.append(np.append(my_roi[:, 0],my_roi[:, -1]), np.transpose(my_roi[0, 1:-2])), np.transpose(my_roi[-1, 1:-2])))
+            my_roi_bg = np.mean(np.append(np.append(np.append(my_roi[:, 0], 
+            my_roi[:, -1]), np.transpose(my_roi[0, 1:-2])), np.transpose(my_roi[-1, 1:-2])))
             my_roi = my_roi - my_roi_bg
 
             result, its, success = self.fitgaussian(my_roi, peak_index)
@@ -812,8 +937,8 @@ class phasor_only_ROI_loop_dumb(phasor_only_ROI_loop):
         return roi_result  
     
 #%% Dion fitter method
-from numpy import inner, max, diag, eye, Inf, dot
-from numpy.linalg import norm, solve
+from numpy import inner, max, diag, eye, Inf
+from numpy.linalg import solve
 
 class dions_fitter(base_phasor, main_localizer):
     

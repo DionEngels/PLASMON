@@ -6,7 +6,6 @@ from numpy.linalg import norm
 
 from scipy.optimize import _minpack, OptimizeResult
 from scipy.optimize._numdiff import approx_derivative
-from scipy._lib.six import string_types
 
 from scipy.optimize._lsq.common import EPS
 
@@ -71,7 +70,7 @@ def call_minpack(fun, x0, jac, ftol, xtol, gtol, max_nfev, diag):
 
 
 def least_squares(
-        fun, x0, ftol=1e-8, xtol=1e-8, gtol=1e-8, f_scale=1.0, 
+        fun, x0, ftol=1e-8, xtol=1e-8, gtol=1e-8, 
         max_nfev=None, args=(), kwargs={}, cache=None):
 
     if max_nfev is not None and max_nfev <= 0:
