@@ -413,24 +413,8 @@ def least_squares(
     it doesn't work when m < n.
 
     """
-    if method not in ['trf', 'dogbox', 'lm']:
-        raise ValueError("`method` must be 'trf', 'dogbox' or 'lm'.")
-
-    if jac not in ['2-point', '3-point', 'cs'] and not callable(jac):
-        raise ValueError("`jac` must be '2-point', '3-point', 'cs' or "
-                         "callable.")
-
-    if tr_solver not in [None, 'exact', 'lsmr']:
-        raise ValueError("`tr_solver` must be None, 'exact' or 'lsmr'.")
-
     if method == 'lm' and loss != 'linear':
         raise ValueError("method='lm' supports only 'linear' loss function.")
-
-    if verbose not in [0, 1, 2]:
-        raise ValueError("`verbose` must be in [0, 1, 2].")
-
-    if len(bounds) != 2:
-        raise ValueError("`bounds` must contain 2 elements.")
 
     if max_nfev is not None and max_nfev <= 0:
         raise ValueError("`max_nfev` must be None or positive integer.")
@@ -443,24 +427,7 @@ def least_squares(
     if x0.ndim > 1:
         raise ValueError("`x0` must have at most 1 dimension.")
 
-    lb, ub = prepare_bounds(bounds, x0.shape[0])
-
-    if method == 'lm' and not np.all((lb == -np.inf) & (ub == np.inf)):
-        raise ValueError("Method 'lm' doesn't support bounds.")
-
-    if lb.shape != x0.shape or ub.shape != x0.shape:
-        raise ValueError("Inconsistent shapes between bounds and `x0`.")
-
-    if np.any(lb >= ub):
-        raise ValueError("Each lower bound must be strictly less than each "
-                         "upper bound.")
-
-    if not in_bounds(x0, lb, ub):
-        raise ValueError("`x0` is infeasible.")
-
-    x_scale = check_x_scale(x_scale, x0)
-
-    ftol, xtol, gtol = check_tolerance(ftol, xtol, gtol)
+    x_scale = np.ones(5)
 
     def fun_wrapped(x):
         nonlocal cache
@@ -472,9 +439,6 @@ def least_squares(
             result = fun(x, *args, **kwargs)
             cache[key] = result
             return result
-
-    if method == 'trf':
-        x0 = make_strictly_feasible(x0, lb, ub)
 
     f0 = fun_wrapped(x0)
 

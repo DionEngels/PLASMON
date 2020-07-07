@@ -26,7 +26,7 @@ v4.1: Dions fitter v1
 v4.2: Dions fitter v2
 v4.3: small optimization of Scipy
 v4.4: attempt of stripped least squares function
-v4.5: cached
+v4.5: cached: 06/07/2020
 """
 #%% Generic imports
 import math
