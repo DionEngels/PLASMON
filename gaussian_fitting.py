@@ -28,6 +28,7 @@ v4.3: small optimization of Scipy
 v4.4: attempt of stripped least squares function
 v4.5: cached: 06/07/2020
 v4.6: cached class
+v4.7: added approx_derivative to class
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
@@ -482,9 +483,10 @@ class scipy_phasor_log(scipy_phasor):
 from numpy.linalg import norm
 
 from scipy.optimize import _minpack, OptimizeResult
-from scipy.optimize._numdiff import approx_derivative
 
 from scipy.optimize._lsq.common import EPS
+
+from scipy.optimize._numdiff import _dense_difference
 
 
 TERMINATION_MESSAGES = {
@@ -534,6 +536,51 @@ class scipy_last_fit_guess(scipy_phasor):
         self.cache = {}  
         self.x_scale = np.ones(5)
         self.active_mask = np.zeros_like(self.x_scale, dtype=int)
+        
+        self.lb = np.resize(-np.inf, self.x_scale.shape)
+        self.ub = np.resize(np.inf, self.x_scale.shape)
+        self.use_one_sided = np.resize(False, self.x_scale.shape)
+        
+        
+    def compute_absolute_step(self, x0):
+        rel_step = EPS**(1/3)
+        return np.abs(rel_step * np.maximum(1.0, np.abs(x0)))
+        
+    def approx_derivative(self, fun, x0, method='3-point', rel_step=None, f0=None,
+                      bounds=(-np.inf, np.inf), sparsity=None,
+                      as_linear_operator=False, args=(), kwargs={}):
+         
+        if x0.ndim > 1:
+            raise ValueError("`x0` must have at most 1 dimension.")
+    
+        lb = self.lb
+        ub = self.ub
+    
+        if lb.shape != x0.shape or ub.shape != x0.shape:
+            raise ValueError("Inconsistent shapes between bounds and `x0`.")
+    
+        def fun_wrapped(x):
+            f = np.atleast_1d(fun(x, *args, **kwargs))
+            if f.ndim > 1:
+                raise RuntimeError("`fun` return value has "
+                                   "more than 1 dimension.")
+            return f
+    
+        if f0 is None:
+            f0 = fun_wrapped(x0)
+        else:
+            f0 = np.atleast_1d(f0)
+            if f0.ndim > 1:
+                raise ValueError("`f0` passed has more than 1 dimension.")
+    
+        if np.any((x0 < lb) | (x0 > ub)):
+            raise ValueError("`x0` violates bound constraints.")
+    
+        h = self.compute_absolute_step(x0)
+        use_one_sided = self.use_one_sided
+
+        return _dense_difference(fun_wrapped, x0, f0, h,
+                                     use_one_sided, method)
                 
     def call_minpack(self, fun, x0, jac, ftol, xtol, gtol, max_nfev, diag):
 
@@ -552,7 +599,7 @@ class scipy_last_fit_guess(scipy_phasor):
     
         f = info['fvec']
     
-        J = np.atleast_2d(approx_derivative(fun, x))
+        J = np.atleast_2d(self.approx_derivative(fun, x))
     
         cost = 0.5 * np.dot(f, f)
         g = J.T.dot(f)
