@@ -29,6 +29,7 @@ v4.4: attempt of stripped least squares function
 v4.5: cached: 06/07/2020
 v4.6: cached class
 v4.7: added approx_derivative to class
+v4.8: passing f0 through the class
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
@@ -546,9 +547,7 @@ class scipy_last_fit_guess(scipy_phasor):
         rel_step = EPS**(1/3)
         return np.abs(rel_step * np.maximum(1.0, np.abs(x0)))
         
-    def approx_derivative(self, fun, x0, method='3-point', rel_step=None, f0=None,
-                      bounds=(-np.inf, np.inf), sparsity=None,
-                      as_linear_operator=False, args=(), kwargs={}):
+    def approx_derivative(self, fun, x0, f0=None, args=(), kwargs={}):
          
         if x0.ndim > 1:
             raise ValueError("`x0` must have at most 1 dimension.")
@@ -566,23 +565,15 @@ class scipy_last_fit_guess(scipy_phasor):
                                    "more than 1 dimension.")
             return f
     
-        if f0 is None:
-            f0 = fun_wrapped(x0)
-        else:
-            f0 = np.atleast_1d(f0)
-            if f0.ndim > 1:
-                raise ValueError("`f0` passed has more than 1 dimension.")
-    
-        if np.any((x0 < lb) | (x0 > ub)):
-            raise ValueError("`x0` violates bound constraints.")
-    
+        #f0 = np.atleast_1d(f0)
+   
         h = self.compute_absolute_step(x0)
         use_one_sided = self.use_one_sided
 
         return _dense_difference(fun_wrapped, x0, f0, h,
-                                     use_one_sided, method)
+                                     use_one_sided, '3-point')
                 
-    def call_minpack(self, fun, x0, jac, ftol, xtol, gtol, max_nfev, diag):
+    def call_minpack(self, fun, x0, f0, jac, ftol, xtol, gtol, max_nfev, diag):
 
         n = x0.size
         epsfcn = EPS
@@ -598,8 +589,10 @@ class scipy_last_fit_guess(scipy_phasor):
             max_nfev, epsfcn, factor, diag)
     
         f = info['fvec']
+        
+        J_return = self.approx_derivative(fun, x, f0=f0)
     
-        J = np.atleast_2d(self.approx_derivative(fun, x))
+        J = np.atleast_2d(J_return)
     
         cost = 0.5 * np.dot(f, f)
         g = J.T.dot(f)
@@ -645,7 +638,7 @@ class scipy_last_fit_guess(scipy_phasor):
         if not np.all(np.isfinite(f0)):
             raise ValueError("Residuals are not finite in the initial point.")
     
-        result = self.call_minpack(fun_wrapped, x0, None, ftol, xtol, gtol,
+        result = self.call_minpack(fun_wrapped, x0, f0, None, ftol, xtol, gtol,
                               max_nfev, self.x_scale)
     
         result.message = TERMINATION_MESSAGES[result.status]
