@@ -31,6 +31,8 @@ v4.6: cached class
 v4.7: added approx_derivative to class
 v4.8: passing f0 through the class
 v4.9: new method of background determination
+v4.10: own dense difference
+v4.11: only check intensity = 0 for save params
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
@@ -647,8 +649,8 @@ class scipy_last_fit_guess(scipy_phasor):
         if f0.ndim != 1:
             raise ValueError("`fun` must return at most 1-d array_like.")
     
-        if not np.all(np.isfinite(f0)):
-            raise ValueError("Residuals are not finite in the initial point.")
+        # if not np.all(np.isfinite(f0)):
+        #     raise ValueError("Residuals are not finite in the initial point.")
     
         result = self.call_minpack(fun_wrapped, x0, f0, None, ftol, xtol, gtol,
                               max_nfev, self.x_scale)
@@ -669,7 +671,7 @@ class scipy_last_fit_guess(scipy_phasor):
         """Returns (height, x, y, width_x, width_y)
         the gaussian parameters of a 2D distribution found by a fit"""
     
-        if np.sum(self.params[peak_index, :]) == 0:
+        if self.params[peak_index, 0] == 0:
             params = self.phasor_guess(data)
         else:
             params = self.params[peak_index, :]
