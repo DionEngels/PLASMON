@@ -30,6 +30,7 @@ v4.5: cached: 06/07/2020
 v4.6: cached class
 v4.7: added approx_derivative to class
 v4.8: passing f0 through the class
+v4.9: new method of background determination
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
@@ -541,6 +542,7 @@ class scipy_last_fit_guess(scipy_phasor):
         self.lb = np.resize(-np.inf, self.x_scale.shape)
         self.ub = np.resize(np.inf, self.x_scale.shape)
         self.use_one_sided = np.resize(False, self.x_scale.shape)
+        self.empty_background = np.zeros(self.ROI_size*2+(self.ROI_size-2)*2, dtype=np.uint16)
         
         
     def compute_absolute_step(self, x0):
@@ -668,6 +670,16 @@ class scipy_last_fit_guess(scipy_phasor):
         self.params[peak_index, :] = p.x
         
         return [p.x, p.nfev, p.success]
+    
+    
+    def determine_background(self, my_roi):
+        roi_background = self.empty_background
+        roi_background[0:self.ROI_size] = my_roi[:, 0]
+        roi_background[self.ROI_size:self.ROI_size*2] = my_roi[:, -1]
+        roi_background[self.ROI_size*2:self.ROI_size*2+self.ROI_size-2] = np.transpose(my_roi[0, 0:-2])
+        roi_background[self.ROI_size*2+self.ROI_size-2:] = np.transpose(my_roi[-1, 0:-2])
+        
+        return np.mean(roi_background)
         
     def fitter(self, frame_index, frame, peaks):
         """
@@ -693,8 +705,9 @@ class scipy_last_fit_guess(scipy_phasor):
             x = int(peak[1])
 
             my_roi = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
-            my_roi_bg = np.mean(np.append(np.append(np.append(my_roi[:, 0], 
-            my_roi[:, -1]), np.transpose(my_roi[0, 1:-2])), np.transpose(my_roi[-1, 1:-2])))
+            my_roi_bg = self.determine_background(my_roi)
+            #my_roi_bg = np.mean(np.append(np.append(np.append(my_roi[:, 0], 
+            #my_roi[:, -1]), np.transpose(my_roi[0, 1:-2])), np.transpose(my_roi[-1, 1:-2])))
             my_roi = my_roi - my_roi_bg
 
             result, its, success = self.fitgaussian(my_roi, peak_index)
