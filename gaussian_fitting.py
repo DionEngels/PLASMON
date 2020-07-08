@@ -35,6 +35,8 @@ v4.10: own dense difference
 v4.11: only check intensity = 0 for save params
 v4.12: also cache for derivative
 v4.13: cleanup
+v4.14: intensity invariant cache
+v4.15: intensity back in cache
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
@@ -260,7 +262,6 @@ class scipy_last_fit_guess(main_localizer, base_phasor):
         self.empty_background = np.zeros(self.ROI_size*2+(self.ROI_size-2)*2, dtype=np.uint16)
         
         self.cache_derivative = {} 
-        
         
     def dense_difference(self, fun, x0, f0, h):
         m = f0.size
