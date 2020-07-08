@@ -37,6 +37,7 @@ v4.12: also cache for derivative
 v4.13: cleanup
 v4.14: intensity invariant cache
 v4.15: intensity back in cache
+v4.16: background in fit
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
@@ -253,7 +254,7 @@ class scipy_last_fit_guess(main_localizer, base_phasor):
         super().__init__(metadata, ROI_size, wavelength, threshold, ROI_locations, METHOD)
         self.indices = np.indices((ROI_size, ROI_size))
         self.cache = {}  
-        self.x_scale = np.ones(5)
+        self.x_scale = np.ones(6)
         self.active_mask = np.zeros_like(self.x_scale, dtype=int)
         
         self.lb = np.resize(-np.inf, self.x_scale.shape)
@@ -388,19 +389,29 @@ class scipy_last_fit_guess(main_localizer, base_phasor):
     
         return result
     
+    def determine_background(self, my_roi):
+        roi_background = self.empty_background
+        roi_background[0:self.ROI_size] = my_roi[:, 0]
+        roi_background[self.ROI_size:self.ROI_size*2] = my_roi[:, -1]
+        roi_background[self.ROI_size*2:self.ROI_size*2+self.ROI_size-2] = my_roi[0, 0:-2]
+        roi_background[self.ROI_size*2+self.ROI_size-2:] = my_roi[-1, 0:-2]
+        
+        return np.mean(roi_background)
+    
     def phasor_guess(self, data):
         """ Returns an initial guess based on phasor fitting"""
         pos_x, pos_y = self.phasor_fit(data)
-        height = data[int(pos_y+0.5), int(pos_x+0.5)]-np.min(data)
+        background = self.determine_background(data)
+        height = data[int(pos_y+0.5), int(pos_x+0.5)]-background
         
-        return np.array([height, pos_y, pos_x, self.init_sig, self.init_sig])
+        return np.array([height, pos_y, pos_x, self.init_sig, self.init_sig, background])
     
-    def gaussian(self, height, center_x, center_y, width_x, width_y):
+    def gaussian(self, height, center_x, center_y, width_x, width_y, background):
         """Returns a gaussian function with the given parameters"""
         width_x = float(width_x)
         width_y = float(width_y)
         return lambda x,y: height*np.exp(
-                    -(((center_x-x)/width_x)**2+((center_y-y)/width_y)**2)/2)
+                    -(((center_x-x)/width_x)**2+((center_y-y)/width_y)**2)/2) + background
         
     def fitgaussian(self, data, peak_index):
         """Returns (height, x, y, width_x, width_y)
@@ -417,17 +428,7 @@ class scipy_last_fit_guess(main_localizer, base_phasor):
         self.params[peak_index, :] = p.x
         
         return [p.x, p.nfev, p.success]
-    
-    
-    def determine_background(self, my_roi):
-        roi_background = self.empty_background
-        roi_background[0:self.ROI_size] = my_roi[:, 0]
-        roi_background[self.ROI_size:self.ROI_size*2] = my_roi[:, -1]
-        roi_background[self.ROI_size*2:self.ROI_size*2+self.ROI_size-2] = my_roi[0, 0:-2]
-        roi_background[self.ROI_size*2+self.ROI_size-2:] = my_roi[-1, 0:-2]
-        
-        return np.mean(roi_background)
-        
+           
     def fitter(self, frame_index, frame, peaks):
         """
         Fits all peaks by scipy least squares fitting
@@ -452,8 +453,8 @@ class scipy_last_fit_guess(main_localizer, base_phasor):
             x = int(peak[1])
 
             my_roi = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
-            my_roi_bg = self.determine_background(my_roi)
-            my_roi = my_roi - my_roi_bg
+            #my_roi_bg = self.determine_background(my_roi)
+            #my_roi = my_roi - my_roi_bg
 
             result, its, success = self.fitgaussian(my_roi, peak_index)
 
@@ -468,7 +469,7 @@ class scipy_last_fit_guess(main_localizer, base_phasor):
             frame_result[peak_index, 4] = result[0]
             frame_result[peak_index, 5] = result[3]
             frame_result[peak_index, 6] = result[4]
-            frame_result[peak_index, 7] = my_roi_bg
+            frame_result[peak_index, 7] = result[5]
             frame_result[peak_index, 8] = its
 
         frame_result = frame_result[frame_result[:, 4] > 0]
@@ -492,7 +493,7 @@ class scipy_last_fit_guess(main_localizer, base_phasor):
         """
         tot_fits = 0
         
-        self.params = np.zeros((self.ROI_locations.shape[0],5))
+        self.params = np.zeros((self.ROI_locations.shape[0],6))
         
         for frame_index, frame in enumerate(frames):
             if frame_index == 0:
