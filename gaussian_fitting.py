@@ -38,6 +38,7 @@ v4.13: cleanup
 v4.14: intensity invariant cache
 v4.15: intensity back in cache
 v4.16: background in fit
+v4.17: further cleanup
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
@@ -83,127 +84,6 @@ class base_phasor():
             
         return pos_x, pos_y
     
-#%% Main
-
-class main_localizer():
-    """
-    class that everything else inherits from.
-    """
-
-    def __init__(self, metadata, ROI_size, wavelength, threshold, ROI_locations, METHOD):
-        """
-
-        Parameters
-        ----------
-        metadata : metadata of ND2
-        ROI_size : ROI size
-        wavelength : laser wavelength
-        threshold : # of standard deviations for threhsold
-        ROI_locations : found ROIs
-
-        Returns
-        -------
-        None.
-
-        """
-
-        self.result = []
-        self.ROI_size = ROI_size
-        self.ROI_size_1D = int((self.ROI_size-1)/2)
-        self.ROI_locations = ROI_locations
-        self.init_sig = wavelength/(2*metadata['NA']*math.sqrt(8*math.log(2)))/(metadata['calibration_um']*1000)*2 #*2 for better guess
-        self.threshold_sigma = threshold
-        self.__name__ = METHOD
-    
-    def main(self, frames, metadata):
-        """
-        Main for every fitter method, calls fitter function and returns fits
-
-        Parameters
-        ----------
-        frames : All frames of .nd2 video
-        metadata : Metadata of .nd2 video
-
-        Returns
-        -------
-        All localizations
-
-        """
-        tot_fits = 0
-        
-        for frame_index, frame in enumerate(frames):
-            if frame_index == 0:
-                frame_result = self.fitter(frame_index, frame, self.ROI_locations)
-                n_fits = frame_result.shape[0]
-                width = frame_result.shape[1]
-                height = len(frames)*self.ROI_locations.shape[0]
-                self.result = np.zeros((height, width))
-                self.result[tot_fits:tot_fits+n_fits,:] = frame_result
-                tot_fits += n_fits
-            else:
-                frame_result = self.fitter(frame_index, frame, self.ROI_locations)
-                n_fits = frame_result.shape[0]
-                self.result[tot_fits:tot_fits+n_fits,:] = frame_result
-                tot_fits += n_fits
-
-            if frame_index % (round(metadata['sequence_count']/10,0)) == 0:
-                print('Done fitting frame '+str(frame_index)+' of ' + str(metadata['sequence_count']))
-            #print('Done fitting frame '+str(frame_index)+' of ' + str(metadata['sequence_count']))
-        
-        self.result = np.delete(self.result, range(tot_fits,len(frames)*self.ROI_locations.shape[0]), axis=0)
-
-        return self.result
-    
-#%% Summation
-
-class summation(main_localizer):
-    """
-    Summation fitter
-
-    """
-
-    def fitter(self, frame_index, frame, peaks):
-        """
-        Fits all peaks by summing them
-
-        Parameters
-        ----------
-        frame_index : Index of frame
-        frame : frame
-        peaks : all peaks
-
-        Returns
-        -------
-        frame_result : fits of each frame
-
-        """
-
-        frame_result = np.zeros([peaks.shape[0], 6])
-
-        for peak_index, peak in enumerate(peaks):
-
-            y = int(peak[0])
-            x = int(peak[1])
-
-            myROI = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
-            myROI_bg = np.mean(np.append(np.append(np.append(myROI[:, 0],myROI[:, -1]), np.transpose(myROI[0, 1:-2])), np.transpose(myROI[-1, 1:-2])))
-            
-            if np.max(myROI) < myROI_bg + math.sqrt(myROI_bg)*self.threshold_sigma:
-                continue
-
-            total = np.sum(myROI)
-
-            frame_result[peak_index, 0] = frame_index
-            frame_result[peak_index, 1] = peak_index
-            frame_result[peak_index, 2] = y
-            frame_result[peak_index, 3] = x
-            frame_result[peak_index, 4] = np.max(myROI)-myROI_bg
-            frame_result[peak_index, 5] = total
-
-
-        frame_result = frame_result[frame_result[:, 4] > 0]
-        
-        return frame_result
        
 #%% Scipy last fit guess 
 from numpy.linalg import norm
@@ -230,12 +110,12 @@ FROM_MINPACK_TO_COMMON = {
     # but we guard against it by checking ftol, xtol, gtol beforehand.
 }
 
-class scipy_last_fit_guess(main_localizer, base_phasor):
+class scipy_last_fit_guess(base_phasor):
     """
     Build-in scipy least squares fitting, with last fit as initial guess
     """
     
-    def __init__(self, metadata, ROI_size, wavelength, threshold, ROI_locations, METHOD):
+    def __init__(self, metadata, ROI_size, wavelength, threshold, ROI_locations, METHOD, num_fit_params):
         """
 
         Parameters
@@ -251,10 +131,19 @@ class scipy_last_fit_guess(main_localizer, base_phasor):
         None.
 
         """
-        super().__init__(metadata, ROI_size, wavelength, threshold, ROI_locations, METHOD)
+        self.result = []
+        self.ROI_size = ROI_size
+        self.ROI_size_1D = int((self.ROI_size-1)/2)
+        self.ROI_locations = ROI_locations
+        self.init_sig = wavelength/(2*metadata['NA']*math.sqrt(8*math.log(2)))/(metadata['calibration_um']*1000)*2 #*2 for better guess
+        self.threshold_sigma = threshold
+        self.__name__ = METHOD
+        
+        self.params = np.zeros((self.ROI_locations.shape[0],num_fit_params))
+        
         self.indices = np.indices((ROI_size, ROI_size))
         self.cache = {}  
-        self.x_scale = np.ones(6)
+        self.x_scale = np.ones(num_fit_params)
         self.active_mask = np.zeros_like(self.x_scale, dtype=int)
         
         self.lb = np.resize(-np.inf, self.x_scale.shape)
@@ -493,8 +382,6 @@ class scipy_last_fit_guess(main_localizer, base_phasor):
         """
         tot_fits = 0
         
-        self.params = np.zeros((self.ROI_locations.shape[0],6))
-        
         for frame_index, frame in enumerate(frames):
             if frame_index == 0:
                 frame_result = self.fitter(frame_index, frame, self.ROI_locations)
@@ -523,10 +410,33 @@ class scipy_last_fit_guess(main_localizer, base_phasor):
 import pyfftw 
 from pims import Frame # for converting ND2 generator to one numpy array
 
-class phasor_only_ROI_loop(main_localizer):
+class phasor_only_ROI_loop():
     """
     Phasor localizer over ROIs
     """
+    def __init__(self, metadata, ROI_size, wavelength, threshold, ROI_locations, METHOD):
+        """
+        Parameters
+        ----------
+        metadata : metadata of ND2
+        ROI_size : ROI size
+        wavelength : laser wavelength
+        threshold : # of standard deviations for threhsold
+        ROI_locations : found ROIs
+
+        Returns
+        -------
+        None.
+
+        """
+
+        self.result = []
+        self.ROI_size = ROI_size
+        self.ROI_size_1D = int((self.ROI_size-1)/2)
+        self.ROI_locations = ROI_locations
+        self.init_sig = wavelength/(2*metadata['NA']*math.sqrt(8*math.log(2)))/(metadata['calibration_um']*1000)*2 #*2 for better guess
+        self.threshold_sigma = threshold
+        self.__name__ = METHOD
     
     def phasor_fit_stack(self, frame_stack, roi, roi_index, y, x):
         

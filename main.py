@@ -58,7 +58,7 @@ FILETYPES = [("ND2", ".nd2")]
 
 filenames = ("C:/Users/s150127/Downloads/_MBx dataset/1nMimager_newGNRs_100mW.nd2",)
 
-METHOD = "ScipyLastFitGuess"
+METHOD = "PhasorOnlyROI"
 DATASET = "MATLAB_v2" # "MATLAB, "MATLAB_v2" OR "YUYANG"
 #%% Main loop cell
 
@@ -128,15 +128,13 @@ for name in filenames:
         #%% Fit Gaussians
         print('Starting to prepare fitting')
         start = time.time()
-
-        if METHOD == "Sum":
-            fitter = gaussian_fitting.summation(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
-        elif METHOD == "PhasorOnlyROI":
+        
+        if METHOD == "PhasorOnlyROI":
             fitter = gaussian_fitting.phasor_only_ROI_loop(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
         elif METHOD == "PhasorOnlyROIDumb":
             fitter = gaussian_fitting.phasor_only_ROI_loop_dumb(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
         elif METHOD == "ScipyLastFitGuess":
-            fitter = gaussian_fitting.scipy_last_fit_guess(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
+            fitter = gaussian_fitting.scipy_last_fit_guess(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD, 6)
 
         results = fitter.main(frames, metadata) 
         
