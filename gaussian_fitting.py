@@ -39,6 +39,7 @@ v4.14: intensity invariant cache
 v4.15: intensity back in cache
 v4.16: background in fit
 v4.17: further cleanup
+v5.0: Three versions of cached fitter
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
@@ -85,7 +86,7 @@ class base_phasor():
         return pos_x, pos_y
     
        
-#%% Scipy last fit guess 
+#%% Cached scipy last fit guess exlcuding background 
 from numpy.linalg import norm
 from scipy.optimize import _minpack, OptimizeResult
 from scipy.optimize._lsq.common import EPS
@@ -290,17 +291,16 @@ class scipy_last_fit_guess(base_phasor):
     def phasor_guess(self, data):
         """ Returns an initial guess based on phasor fitting"""
         pos_x, pos_y = self.phasor_fit(data)
-        background = self.determine_background(data)
-        height = data[int(pos_y+0.5), int(pos_x+0.5)]-background
+        height = data[int(pos_y+0.5), int(pos_x+0.5)]-np.min(data)
         
-        return np.array([height, pos_y, pos_x, self.init_sig, self.init_sig, background])
+        return np.array([height, pos_y, pos_x, self.init_sig, self.init_sig])
     
-    def gaussian(self, height, center_x, center_y, width_x, width_y, background):
+    def gaussian(self, height, center_x, center_y, width_x, width_y):
         """Returns a gaussian function with the given parameters"""
         width_x = float(width_x)
         width_y = float(width_y)
         return lambda x,y: height*np.exp(
-                    -(((center_x-x)/width_x)**2+((center_y-y)/width_y)**2)/2) + background
+                    -(((center_x-x)/width_x)**2+((center_y-y)/width_y)**2)/2)
         
     def fitgaussian(self, data, peak_index):
         """Returns (height, x, y, width_x, width_y)
@@ -342,8 +342,8 @@ class scipy_last_fit_guess(base_phasor):
             x = int(peak[1])
 
             my_roi = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
-            #my_roi_bg = self.determine_background(my_roi)
-            #my_roi = my_roi - my_roi_bg
+            my_roi_bg = self.determine_background(my_roi)
+            my_roi = my_roi - my_roi_bg
 
             result, its, success = self.fitgaussian(my_roi, peak_index)
 
@@ -358,7 +358,7 @@ class scipy_last_fit_guess(base_phasor):
             frame_result[peak_index, 4] = result[0]
             frame_result[peak_index, 5] = result[3]
             frame_result[peak_index, 6] = result[4]
-            frame_result[peak_index, 7] = result[5]
+            frame_result[peak_index, 7] = my_roi_bg
             frame_result[peak_index, 8] = its
 
         frame_result = frame_result[frame_result[:, 4] > 0]
@@ -404,6 +404,92 @@ class scipy_last_fit_guess(base_phasor):
         self.result = np.delete(self.result, range(tot_fits,len(frames)*self.ROI_locations.shape[0]), axis=0)
 
         return self.result
+    
+#%% Cached scipy last fit guess including background
+
+class scipy_last_fit_guess_background(scipy_last_fit_guess):
+    
+    def phasor_guess(self, data):
+        """ Returns an initial guess based on phasor fitting"""
+        pos_x, pos_y = self.phasor_fit(data)
+        background = self.determine_background(data)
+        height = data[int(pos_y+0.5), int(pos_x+0.5)]-background
+        
+        return np.array([height, pos_y, pos_x, self.init_sig, self.init_sig, background])
+    
+    def gaussian(self, height, center_x, center_y, width_x, width_y, background):
+        """Returns a gaussian function with the given parameters"""
+        width_x = float(width_x)
+        width_y = float(width_y)
+        return lambda x,y: height*np.exp(
+                    -(((center_x-x)/width_x)**2+((center_y-y)/width_y)**2)/2) + background
+    
+    def fitter(self, frame_index, frame, peaks):
+        """
+        Fits all peaks by scipy least squares fitting
+
+        Parameters
+        ----------
+        frame_index : Index of frame
+        frame : frame
+        peaks : all peaks
+
+        Returns
+        -------
+        frame_result : fits of each frame
+
+        """
+
+        frame_result = np.zeros([peaks.shape[0], 9])
+
+        for peak_index, peak in enumerate(peaks):
+
+            y = int(peak[0])
+            x = int(peak[1])
+
+            my_roi = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
+
+            result, its, success = self.fitgaussian(my_roi, peak_index)
+
+            if success == 0:
+                continue
+
+            frame_result[peak_index, 0] = frame_index
+            frame_result[peak_index, 1] = peak_index
+            #start position plus from center in ROI + half for indexing of pixels
+            frame_result[peak_index, 2] = result[1]+y-self.ROI_size_1D+0.5 #y
+            frame_result[peak_index, 3] = result[2]+x-self.ROI_size_1D+0.5 #x
+            frame_result[peak_index, 4] = result[0]
+            frame_result[peak_index, 5] = result[3]
+            frame_result[peak_index, 6] = result[4]
+            frame_result[peak_index, 7] = result[5]
+            frame_result[peak_index, 8] = its
+
+        frame_result = frame_result[frame_result[:, 4] > 0]
+
+        return frame_result 
+
+#%% Cached scipy phasor guess
+
+class scipy_phasor_fit_guess(scipy_last_fit_guess):
+    
+    def fitgaussian(self, data, peak_index):
+        """Returns (height, x, y, width_x, width_y)
+        the gaussian parameters of a 2D distribution found by a fit"""
+    
+        if self.params[peak_index, 0] == 0:
+            params = self.phasor_guess(data)
+        else:
+            params = self.params[peak_index, :]
+            params[2], params[1]= self.phasor_fit(data)
+        errorfunction = lambda p: np.ravel(self.gaussian(*p)(*self.indices) -
+        data)  
+        p = self.least_squares(errorfunction, params)#, gtol=1e-4, ftol=1e-4)
+        
+        self.params[peak_index, :] = p.x
+        
+        return [p.x, p.nfev, p.success]
+    
 
 #%% Phasor for ROI loops
 
