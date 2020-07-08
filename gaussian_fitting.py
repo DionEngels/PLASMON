@@ -34,6 +34,7 @@ v4.9: new method of background determination
 v4.10: own dense difference
 v4.11: only check intensity = 0 for save params
 v4.12: also cache for derivative
+v4.13: cleanup
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
@@ -150,168 +151,6 @@ class main_localizer():
 
         return self.result
     
-#%% rainSTORM
-
-class rainSTORM_Dion(main_localizer):
-    """
-    rainSTORM class
-    """
-    def __init__(self, metadata, ROI_size, wavelength, threshold, ROI_locations, METHOD):
-        """
-        Init of rainSTORM
-
-        Parameters
-        ----------
-        metadata : metadata of ND2
-        ROI_size : ROI size
-        wavelength : laser wavelength
-        threshold : # of standard deviations for threhsold
-        ROI_locations : found ROIs
-
-        Returns
-        -------
-        None.
-
-        """
-        super().__init__(metadata, ROI_size, wavelength, threshold, ROI_locations, METHOD)
-        self.allow_sig = [0.25, self.ROI_size_1D+1]
-        self.max_its = 60
-        self.maxtol = 0.2
-        self.mintol = 0.06
-        self.allow_x = 1
-
-    def fitter(self, frame_index, frame, peaks):
-        """
-        Fits all peaks with 2D gaussian, iterative solver self-build
-
-        Parameters
-        ----------
-        frame_index : Index of frame
-        frame : frame
-        peaks : all peaks
-
-        Returns
-        -------
-        frame_result : fits of each frame
-
-        """
-        init_x0 = 0
-        n_fails = 0
-
-        frame_result = np.zeros([peaks.shape[0], 12])
-
-        for peak_index, peak in enumerate(peaks):
-            y = int(peak[0])
-            x = int(peak[1])
-            myROI = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
-            #myROI_min = np.amin(myROI)
-            myROI_bg = np.mean(np.append(np.append(np.append(myROI[:, 0],myROI[:, -1]), np.transpose(myROI[0, 1:-2])), np.transpose(myROI[-1, 1:-2])))
-            myROI = myROI - myROI_bg
-            
-            if np.max(myROI) < math.sqrt(myROI_bg)*self.threshold_sigma:
-                n_fails+= 1
-                continue
-            
-            flag_y = False
-            flag_x = False
-
-            xx = np.transpose(range(-self.ROI_size_1D, self.ROI_size_1D+1))
-            yy = np.transpose(range(-self.ROI_size_1D, self.ROI_size_1D+1))
-            xSum = np.sum(myROI, axis=1)
-            ySum = np.transpose(np.sum(myROI, axis=0))
-
-            y0 = init_x0
-            sig_y = self.init_sig
-            C = xSum[self.ROI_size_1D]
-            for i in range(0, self.max_its):
-                fit = C*np.exp(-np.square(yy-y0)/(2*sig_y**2))
-                beta = xSum - fit
-                A = np.vstack((fit/C, fit* (yy-y0/sig_y**2), fit*(np.square(yy-y0)/sig_y**3)))
-                b = np.matmul(A, beta)
-                a = np.matmul(A, np.transpose(A))
-
-                if abs(y0) > self.allow_x or sig_y < self.allow_sig[0] or sig_y > self.allow_sig[1]:
-                    residue_y = 0
-                    break
-
-                residue_y = np.sum(np.square(beta))/np.sum(np.square(xSum))
-                if residue_y < self.mintol and abs(y0) < self.allow_x and sig_y > self.allow_sig[0] and sig_y < self.allow_sig[1]:
-                    break
-
-                try:
-                    dL = np.matmul(a, 1/b)
-                    C = C+dL[0]
-                    y_change = dL[1]
-                    if abs(y_change) > 0.1:
-                        y_change = y_change/abs(y_change)*0.1
-                    y0 = y0+y_change
-                    sig_change = dL[2]
-                    if abs(sig_change) > 0.1:
-                        sig_change = sig_change/abs(sig_change)*0.1
-                    sig_y = sig_y +sig_change
-                except:
-                    residue_y = 0
-                    break
-
-            if residue_y < self.maxtol and abs(y0) < self.allow_x and sig_y > self.allow_sig[0] and sig_y < self.allow_sig[1]:
-                fit_y = float(y) + y0 + 0.5 # add half for indexing of pixels
-                flag_y = True
-
-            if flag_y:
-                x0 = init_x0
-                sig_x = sig_y
-                C = ySum[self.ROI_size_1D]
-                for j in range(0, self.max_its):
-                    fit = C*np.exp(-np.square(xx-x0)/(2*sig_x**2))
-                    beta = ySum - fit
-                    A = np.vstack((fit/C, fit*(xx-x0/sig_x**2), fit*(np.square(xx-x0)/sig_x**3)))
-                    b = np.matmul(A, beta)
-                    a = np.matmul(A, np.transpose(A))
-
-                    if abs(x0) > self.allow_x or sig_x < self.allow_sig[0] or sig_x > self.allow_sig[1]:
-                        residue_x = 0
-                        break
-
-                    residue_x = np.sum(np.square(beta))/np.sum(np.square(ySum))
-                    if residue_x < self.mintol and abs(x0) < self.allow_x and sig_x > self.allow_sig[0] and sig_x < self.allow_sig[1]:
-                        break
-
-                    try:
-                        dL = np.matmul(a, 1/b)
-                        C = C+dL[0]/50
-                        x0 = x0+dL[1]/50
-                        sig_x = sig_x +dL[2]/50
-                    except:
-                        residue_x = 0
-                        break
-
-                if residue_x < self.maxtol and abs(x0) < self.allow_x and sig_x > self.allow_sig[0] and sig_x < self.allow_sig[1]:
-                    fit_x = float(x) + x0 + 0.5 # add half for indexing of pixels
-                    flag_x = True
-
-
-            if flag_y and flag_x:
-                frame_result[peak_index, 0] = frame_index
-                frame_result[peak_index, 1] = peak_index
-                frame_result[peak_index, 2] = fit_y
-                frame_result[peak_index, 3] = fit_x
-                frame_result[peak_index, 4] = np.max(myROI)
-                frame_result[peak_index, 5] = sig_y
-                frame_result[peak_index, 6] = sig_x
-                frame_result[peak_index, 7] = (residue_y + residue_x) / 2
-                frame_result[peak_index, 8] = residue_y
-                frame_result[peak_index, 9] = residue_x
-                frame_result[peak_index, 10] = i
-                frame_result[peak_index, 11] = j
-
-            else:
-                n_fails += 1
-
-
-        frame_result = frame_result[frame_result[:, 4] > 0]
-
-        return frame_result
-
 #%% Summation
 
 class summation(main_localizer):
@@ -362,128 +201,7 @@ class summation(main_localizer):
         frame_result = frame_result[frame_result[:, 4] > 0]
         
         return frame_result
-
-#%% Build in using phasor as first estimate
-
-from scipy import optimize
-
-class scipy_phasor(main_localizer, base_phasor):
-
-    """
-    Build-in scipy least squares fitting, using phasor fitting as initial guess
-    """
-
-    def gaussian(self, height, center_x, center_y, width_x, width_y):
-        """Returns a gaussian function with the given parameters"""
-        width_x = float(width_x)
-        width_y = float(width_y)
-        return lambda x,y: height*np.exp(
-                    -(((center_x-x)/width_x)**2+((center_y-y)/width_y)**2)/2)
-    
-    def phasor_guess(self, data):
-        """ Returns an initial guess based on phasor fitting"""
-        pos_x, pos_y = self.phasor_fit(data)
-        height = data[int(pos_y+0.5), int(pos_x+0.5)]-np.min(data)
-        
-        return height, pos_y, pos_x, self.init_sig, self.init_sig
-        
-
-    def fitgaussian(self, data):
-        """Returns (height, x, y, width_x, width_y)
-        the gaussian parameters of a 2D distribution found by a fit"""
-        params = self.phasor_guess(data)
-        errorfunction = lambda p: np.ravel(self.gaussian(*p)(*np.indices(data.shape)) -
-         data)
-        
-        test_method ='lm' # different method test
-        # test_tol =0.1 # tolerance test
-        #test_bounds = ([-np.inf, params[1]*0.99, params[2]*0.99, -np.inf, -np.inf], [np.inf, params[1]*1.01, params[2]*1.01, np.inf, np.inf])
-        
-        
-        p = optimize.least_squares(errorfunction, params, method=test_method)#, bounds=test_bounds) 
-
-        return [p.x, p.nfev, p.success]
-
-    def fitter(self, frame_index, frame, peaks):
-        """
-        Fits all peaks by scipy least squares fitting
-
-        Parameters
-        ----------
-        frame_index : Index of frame
-        frame : frame
-        peaks : all peaks
-
-        Returns
-        -------
-        frame_result : fits of each frame
-
-        """
-
-        frame_result = np.zeros([peaks.shape[0], 9])
-
-        for peak_index, peak in enumerate(peaks):
-
-            y = int(peak[0])
-            x = int(peak[1])
-
-            my_roi = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
-            my_roi_bg = np.mean(np.append(np.append(np.append(my_roi[:, 0],my_roi[:, -1]), np.transpose(my_roi[0, 1:-2])), np.transpose(my_roi[-1, 1:-2])))
-            my_roi = my_roi - my_roi_bg
-
-            result, its, success = self.fitgaussian(my_roi)
-
-            if success == 0:
-                continue
-
-            frame_result[peak_index, 0] = frame_index
-            frame_result[peak_index, 1] = peak_index
-            #start position plus from center in ROI + half for indexing of pixels
-            frame_result[peak_index, 2] = result[1]+y-self.ROI_size_1D+0.5
-            frame_result[peak_index, 3] = result[2]+x-self.ROI_size_1D+0.5
-            frame_result[peak_index, 4] = result[0]
-            frame_result[peak_index, 5] = result[3]
-            frame_result[peak_index, 6] = result[4]
-            frame_result[peak_index, 7] = my_roi_bg
-            frame_result[peak_index, 8] = its
-
-        frame_result = frame_result[frame_result[:, 4] > 0]
-
-        return frame_result
-
-#%% Scipy phasor guess log scale 
-
-# currently not used
-
-class scipy_phasor_log(scipy_phasor):
-    """
-    Build-in scipy least squares fitting on log scale, using phasor fitting as initial guess
-    """
-    
-    def gaussian(self, height, center_x, center_y, width_x, width_y):
-        """Returns a gaussian function with the given parameters"""
-        width_x = float(width_x)
-        width_y = float(width_y)
-        return lambda x,y: height-(((center_x-x)/width_x)**2+((center_y-y)/width_y)**2)/2
-    
-    def fitgaussian(self, data):
-        """Returns (height, x, y, width_x, width_y)
-        the gaussian parameters of a 2D distribution found by a fit"""
-        pos_x, pos_y = self.phasor_fit(data)
-        
-        data[data< 1] = 1
-        data = np.log(data)
-        
-        height = data[int(pos_y+0.5), int(pos_x+0.5)]-np.min(data)
-        
-        params = height, pos_y, pos_x, self.init_sig, self.init_sig
-        errorfunction = lambda p: np.ravel(self.gaussian(*p)(*np.indices(data.shape)) -
-         data)
-        p = optimize.least_squares(errorfunction, params)#, method='lm')
-
-        return [p.x, p.nfev, p.success]
-        
-        
+       
 #%% Scipy last fit guess 
 from numpy.linalg import norm
 from scipy.optimize import _minpack, OptimizeResult
@@ -509,7 +227,7 @@ FROM_MINPACK_TO_COMMON = {
     # but we guard against it by checking ftol, xtol, gtol beforehand.
 }
 
-class scipy_last_fit_guess(scipy_phasor):
+class scipy_last_fit_guess(main_localizer, base_phasor):
     """
     Build-in scipy least squares fitting, with last fit as initial guess
     """
@@ -676,6 +394,13 @@ class scipy_last_fit_guess(scipy_phasor):
         
         return np.array([height, pos_y, pos_x, self.init_sig, self.init_sig])
     
+    def gaussian(self, height, center_x, center_y, width_x, width_y):
+        """Returns a gaussian function with the given parameters"""
+        width_x = float(width_x)
+        width_y = float(width_y)
+        return lambda x,y: height*np.exp(
+                    -(((center_x-x)/width_x)**2+((center_y-y)/width_y)**2)/2)
+        
     def fitgaussian(self, data, peak_index):
         """Returns (height, x, y, width_x, width_y)
         the gaussian parameters of a 2D distribution found by a fit"""
@@ -791,76 +516,10 @@ class scipy_last_fit_guess(scipy_phasor):
 
         return self.result
 
-#%% ROI loops
-
-from pims import Frame # for converting ND2 generator to one numpy array
-
-class main_localizer_roi_loop(main_localizer):
-    """
-    Class that every looping over ROI fitter inherits from
-    """
-    
-    def main(self, frames, metadata):
-        """
-        Main for every fitter method, calls fitter function and returns fits. Loops over ROIs
-
-        Parameters
-        ----------
-        frames : All frames of .nd2 video
-        metadata : Metadata of .nd2 video
-
-        Returns
-        -------
-        All localizations
-
-        """
-        frame_stack_total = Frame(frames)
-        
-        tot_fits = 0
-        created = 0
-
-        for roi_index, roi in enumerate(self.ROI_locations):
-            y = int(roi[0])
-            x = int(roi[1])
-            frame_stack = frame_stack_total[:,y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
-            self.params = []
-
-            for frame_index, frame in enumerate(frame_stack):
-                my_roi_bg = np.mean(np.append(np.append(np.append(frame[:, 0],frame[:, -1]), np.transpose(frame[0, 1:-2])), np.transpose(frame[-1, 1:-2])))
-                my_roi = frame - my_roi_bg
-
-                threshold = math.sqrt(my_roi_bg)*self.threshold_sigma
-                maximum = np.max(my_roi)
-
-                if maximum < threshold:
-                    continue
-                frame_result = self.fitter(frame_index, my_roi, roi, roi_index, [])
-                
-                if frame_result == []:
-                    continue
-                
-                if created == 0:
-                    n_fits = frame_result.shape[0]
-                    width = frame_result.shape[1]
-                    height = len(frames)*self.ROI_locations.shape[0]
-                    self.result = np.zeros((height, width))
-                    created = 1
-                    self.result[tot_fits:tot_fits+n_fits,:] = frame_result
-                    tot_fits += n_fits
-                else:
-                    n_fits = frame_result.shape[0]
-                    self.result[tot_fits:tot_fits+n_fits,:] = frame_result
-                    tot_fits += n_fits
-
-            print('Done fitting ROI '+str(roi_index)+' of ' + str(self.ROI_locations.shape[0]))
-            
-        self.result = np.delete(self.result, range(tot_fits,len(frames)*self.ROI_locations.shape[0]), axis=0)
-                                
-        return self.result
-    
 #%% Phasor for ROI loops
 
 import pyfftw 
+from pims import Frame # for converting ND2 generator to one numpy array
 
 class phasor_only_ROI_loop(main_localizer):
     """
@@ -1007,194 +666,4 @@ class phasor_only_ROI_loop_dumb(phasor_only_ROI_loop):
             roi_result[frame_index, 3] = x+pos_x-self.ROI_size_1D+0.5
     
         return roi_result  
-    
-#%% Dion fitter method
-from numpy import inner, max, diag, eye, Inf
-from numpy.linalg import solve
-
-class dions_fitter(base_phasor, main_localizer):
-    
-    def __init__(self, metadata, ROI_size, wavelength, threshold, ROI_locations, METHOD):
-        """
-
-        Parameters
-        ----------
-        metadata : metadata of ND2
-        ROI_size : ROI size
-        wavelength : laser wavelength
-        threshold : # of standard deviations for threhsold
-        ROI_locations : found ROIs
-
-        Returns
-        -------
-        None.
-
-        """
-
-        self.result = []
-        self.ROI_size = ROI_size
-        self.ROI_size_1D = int((self.ROI_size-1)/2)
-        self.ROI_locations = ROI_locations
-        self.init_sig = wavelength/(2*metadata['NA']*math.sqrt(8*math.log(2)))/(metadata['calibration_um']*1000) #*2 for better guess
-        self.threshold_sigma = threshold
-        self.__name__ = METHOD
-        
-        self.sigmas = np.zeros((self.ROI_locations.shape[0]))
-        self.max_its = 60
-        self.maxtol = 0.2
-        self.mintol = 0.06
-    
-    def gaussian(self, height, center_x, center_y, width_x, width_y):
-        """Returns a gaussian function with the given parameters"""
-        width_x = float(width_x)
-        width_y = float(width_y)
-        return lambda x,y: height*np.exp(
-                    -(((center_x-x)/width_x)**2+((center_y-y)/width_y)**2)/2)
-    
-    def fJ(self, pars, x, y = 0):
-        "Calculation of function and Jacobian for one-dimensional Gaussian."
-        A, m, s, offs = pars[0:4]
-        f = A*np.exp( - (x-m)**2 / (2*s**2))
-        if 1:
-            J = np.empty(shape = (4,)+x.shape, dtype = np.float_)
-            J[0] = 1.0/A * f
-            J[1] = f*(x-m)/s**2
-            J[2] = f*(x-m)**2/s**3
-            J[3] = 1
-            return f + (offs - y), J
-        return f + (offs - y) 
-    
-    def LM(self, fun, pars, args, 
-           tau = 1e-2, eps1 = 1e-6, eps2 = 1e-6, kmax = 20):
-        """Implementation of the Levenberg-Marquardt algorithm in pure
-        Python. Solves the normal equations."""
-        
-        p = pars
-        f, J = fun(p, *args)
-    
-        A = inner(J,J)
-        g = inner(J,f)
-    
-        I = eye(len(p))
-        
-        success = True
-    
-        k = 0; nu = 2
-        mu = tau * max(diag(A))
-        stop = norm(g, Inf) < eps1
-        while not stop and k < kmax:
-            k += 1
-    
-            try:
-                d = solve( A + mu*I, -g)
-            except np.linalg.LinAlgError:
-                stop = True
-                success = False
-                break
-    
-            if norm(d) < eps2*(norm(p) + eps2):
-                stop = True
-                break
-    
-            pnew = p + d
-    
-            fnew, Jnew = fun(pnew, *args)
-            rho = (norm(f)**2 - norm(fnew)**2)/inner(d, mu*d - g)
-            
-            if rho > 0:
-                p = pnew
-                A = inner(Jnew, Jnew)
-                g = inner(Jnew, fnew)
-                f = fnew
-                J = Jnew
-                if (norm(g, Inf) < eps1):
-                    stop = True
-                    break
-                mu = mu * max([1.0/3, 1.0 - (2*rho - 1)**3])
-                nu = 2.0
-            else:
-                mu = mu * nu
-                nu = 2*nu
-    
-        else:
-            success = False
-        
-        return p, k, success
-        
-    def find_sigma(self, roi, pos_x, pos_y, init_sigma):
-            
-        xx = np.transpose(range(0, self.ROI_size_1D*2+1))
-        yy = np.transpose(range(0, self.ROI_size_1D*2+1))
-        x_sum = np.sum(roi, axis=1)
-        y_sum = np.transpose(np.sum(roi, axis=0))
-        
-        startpars_x = [np.max(x_sum), pos_x, init_sigma, np.min(x_sum)]
-        startpars_y = [np.max(y_sum), pos_y, init_sigma, np.min(y_sum)]
-        
-        result_x, its_x, success_x = self.LM(self.fJ, startpars_x, (xx, x_sum), tau = 1e-4)
-        
-        result_y, its_y, success_y = self.LM(self.fJ, startpars_y, (yy, y_sum), tau = 1e-4)
-        
-        return (result_y[2]+result_x[2])/2, its_x+its_y, success_y and success_y
-        
-        
-    
-    def fit(self, roi, peak_index):
-        
-        pos_x, pos_y = self.phasor_fit(roi)
-        
-        if self.sigmas[peak_index] == 0:
-            init_sigma = self.init_sig
-        else:
-            init_sigma = self.sigmas[peak_index]
-        
-        sigma, its, success = self.find_sigma(roi, pos_x, pos_y, init_sigma)
-        
-        if success == False:
-            return 0, 0, success
-        
-        self.sigmas[peak_index] = sigma
-        
-        height = np.max(roi)
-                
-        roi_fit = self.gaussian(height, pos_x, pos_y, sigma, sigma)(*np.indices(roi.shape))
-        
-        factor = height/np.max(roi_fit)
-        res_height = factor*height
-        
-        result = res_height, pos_y, pos_x, sigma, sigma
-        
-        return result, its, success
-    
-    def fitter(self, frame_index, frame, peaks):
-        frame_result = np.zeros([peaks.shape[0], 9])
-
-        for peak_index, peak in enumerate(peaks):
-
-            y = int(peak[0])
-            x = int(peak[1])
-
-            my_roi = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
-            my_roi_bg = np.mean(np.append(np.append(np.append(my_roi[:, 0],my_roi[:, -1]), np.transpose(my_roi[0, 1:-2])), np.transpose(my_roi[-1, 1:-2])))
-            my_roi = my_roi - my_roi_bg
-
-            result, its, success = self.fit(my_roi, peak_index)
-
-            if success == 0:
-                continue
-
-            frame_result[peak_index, 0] = frame_index
-            frame_result[peak_index, 1] = peak_index
-            #start position plus from center in ROI + half for indexing of pixels
-            frame_result[peak_index, 2] = result[1]+y-self.ROI_size_1D+0.5
-            frame_result[peak_index, 3] = result[2]+x-self.ROI_size_1D+0.5
-            frame_result[peak_index, 4] = result[0]
-            frame_result[peak_index, 5] = result[3]
-            frame_result[peak_index, 6] = result[4]
-            frame_result[peak_index, 7] = my_roi_bg
-            frame_result[peak_index, 8] = its
-
-        frame_result = frame_result[frame_result[:, 4] > 0]
-
-        return frame_result
     

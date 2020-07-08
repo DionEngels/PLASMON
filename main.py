@@ -94,12 +94,12 @@ for name in filenames:
             ## parse ND2 info
             frames = ND2
             metadata = ND2.metadata
-            frames = frames[0:10]
+            #frames = frames[0:10]
 
         #%% Find ROIs (for standard NP2 file)
         print('Starting to find ROIs')
         
-        if DATASET == "MATLAB" or "MATLAB_v2":
+        if DATASET == "MATLAB" or DATASET == "MATLAB_v2":
             for i in range(20):
                 for j in range(10):
                     if i == 0 and j == 0:
@@ -131,16 +131,12 @@ for name in filenames:
 
         if METHOD == "Sum":
             fitter = gaussian_fitting.summation(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
-        elif METHOD == "rainSTORM":
-            fitter = gaussian_fitting.rainSTORM_Dion(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
         elif METHOD == "PhasorOnlyROI":
             fitter = gaussian_fitting.phasor_only_ROI_loop(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
         elif METHOD == "PhasorOnlyROIDumb":
             fitter = gaussian_fitting.phasor_only_ROI_loop_dumb(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
         elif METHOD == "ScipyLastFitGuess":
             fitter = gaussian_fitting.scipy_last_fit_guess(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
-        elif METHOD == "DionsFitter":
-            fitter = gaussian_fitting.dions_fitter(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
 
         results = fitter.main(frames, metadata) 
         
