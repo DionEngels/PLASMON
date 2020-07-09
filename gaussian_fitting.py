@@ -41,6 +41,7 @@ v4.16: background in fit
 v4.17: further cleanup
 v5.0: Three versions of cached fitter
 v5.1: limited size of cache
+v5.2: caching bugfix v1
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
@@ -196,7 +197,7 @@ class scipy_last_fit_guess(base_phasor):
         rel_step = EPS**(1/3)
         return np.abs(rel_step * np.maximum(1.0, np.abs(x0)))
         
-    def approx_derivative(self, fun, x0, f0):
+    def approx_derivative(self, fun, x0, f0, data):
          
         if x0.ndim > 1:
             raise ValueError("`x0` must have at most 1 dimension.")
@@ -211,11 +212,11 @@ class scipy_last_fit_guess(base_phasor):
             
             key = tuple(x) 
             if key in self.cache:
-                return self.cache[key]
+                return self.cache[key] - data
             else:
                 result = fun(x)
                 self.cache[key] = result
-                return result
+                return result - data
        
         h = self.compute_absolute_step(x0)
         
@@ -227,7 +228,7 @@ class scipy_last_fit_guess(base_phasor):
             self.cache_derivative[key] = result
             return result
                 
-    def call_minpack(self, fun, x0, f0, jac, ftol, xtol, gtol, max_nfev, diag):
+    def call_minpack(self, fun, x0, f0, data, jac, ftol, xtol, gtol, max_nfev, diag):
 
         n = x0.size
         epsfcn = EPS
@@ -244,7 +245,7 @@ class scipy_last_fit_guess(base_phasor):
     
         f = info['fvec']
         
-        j = self.approx_derivative(fun, x, f0)
+        j = self.approx_derivative(fun, x, f0, data)
         
         cost = 0.5 * np.dot(f, f)
         g = j.T.dot(f)
@@ -260,18 +261,18 @@ class scipy_last_fit_guess(base_phasor):
             x=x, cost=cost, fun=f, jac=j, grad=g, optimality=g_norm,
             active_mask=active_mask, nfev=nfev, njev=njev, status=status)     
     
-    def least_squares(self, fun, x0, ftol=1e-8, xtol=1e-8, gtol=1e-8, 
+    def least_squares(self, fun, x0, data, ftol=1e-8, xtol=1e-8, gtol=1e-8, 
         max_nfev=None):
         
         def fun_wrapped(x):
             
             key = tuple(x) 
             if key in self.cache:
-                return self.cache[key]
+                return self.cache[key] - data
             else:
                 result = fun(x)
                 self.cache[key] = result
-                return result
+                return result - data
         
         if max_nfev is not None and max_nfev <= 0:
             raise ValueError("`max_nfev` must be None or positive integer.")
@@ -290,7 +291,7 @@ class scipy_last_fit_guess(base_phasor):
         # if not np.all(np.isfinite(f0)):
         #     raise ValueError("Residuals are not finite in the initial point.")
     
-        result = self.call_minpack(fun_wrapped, x0, f0, None, ftol, xtol, gtol,
+        result = self.call_minpack(fun_wrapped, x0, f0, data, None, ftol, xtol, gtol,
                               max_nfev, self.x_scale)
     
         result.message = TERMINATION_MESSAGES[result.status]
@@ -329,9 +330,9 @@ class scipy_last_fit_guess(base_phasor):
             params = self.phasor_guess(data)
         else:
             params = self.params[peak_index, :]
-        errorfunction = lambda p: np.ravel(self.gaussian(*p)(*self.indices) -
-        data)  
-        p = self.least_squares(errorfunction, params)#, gtol=1e-4, ftol=1e-4)
+        errorfunction = lambda p: np.ravel(self.gaussian(*p)(*self.indices))# -
+        #data)  
+        p = self.least_squares(errorfunction, params, np.ravel(data))#, gtol=1e-4, ftol=1e-4)
         
         self.params[peak_index, :] = p.x
         

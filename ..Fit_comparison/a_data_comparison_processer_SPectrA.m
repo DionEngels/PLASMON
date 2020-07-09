@@ -66,7 +66,7 @@ for i=1:size(positions,1)
 
     sigma_mean = mean(sigma);
 
-    sigma_std = sum((sigma - sigma_mean).^2)/(size(sigma,1)-1);
+    sigma_std = std(sigma);
 
     res_sigma_precision(row,column) = sigma_std;
     if res_sigma_precision(row,column) > 200
@@ -77,8 +77,8 @@ for i=1:size(positions,1)
     fit_x_mean = mean(fit_x);
     fit_y_mean = mean(fit_y);
     
-    fit_x_std = sum((fit_x - fit_x_mean).^2)/(size(fit_x,1)-1);
-    fit_y_std = sum((fit_y - fit_y_mean).^2)/(size(fit_y,1)-1);
+    fit_x_std = std(fit_x);
+    fit_y_std = std(fit_y);
     res_precision(row,column) = sqrt(fit_x_std^2 + fit_y_std^2);
     if res_precision(row,column) > 200
         res_precision(row,column) = NaN;

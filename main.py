@@ -116,7 +116,7 @@ for name in filenames:
             ## switch array columns since MATLAB gives x,y. Python likes y,x
             ROI_locations = tools.switch(ROI_locations)
 
-        #ROI_locations = ROI_locations[0:2,:]
+        #ROI_locations = ROI_locations[123:124,:]
 
         plt.imshow(frames[0], extent=[0,frames[0].shape[1],frames[0].shape[0],0], aspect='auto')
         #takes x,y hence the switched order

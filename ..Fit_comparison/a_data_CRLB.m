@@ -18,6 +18,8 @@ for i=1:size(SNRs,2)
     
     u = ((R-gauss_data.xc).^2 + (C-gauss_data.yc).^2)./(2*gauss_data.sigma^2); 
     frame = uint16(gauss_data.I_max*(exp(-u))); 
+    
+    counts(i) = sum(frame, 'all');
 
     frame_x = diff(double(frame),1,2);
     frame_x = [frame_x zeros(9,1)]*saved.pixelsize;

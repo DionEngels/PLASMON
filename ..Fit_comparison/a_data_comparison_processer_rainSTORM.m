@@ -65,8 +65,8 @@ for i=1:number_x
     sigma_x_mean = mean(sigma_x);
     sigma_y_mean = mean(sigma_y);
 
-    sigma_x_std = sum((sigma_x - sigma_x_mean).^2)/(size(sigma_x,1)-1);
-    sigma_y_std = sum((sigma_y - sigma_y_mean).^2)/(size(sigma_y,1)-1);
+    sigma_x_std = std(sigma_x);
+    sigma_y_std = std(sigma_y);
 
     sigma_mean = mean([sigma_x_mean sigma_y_mean]);
     res_sigma_precision(i,j) = sqrt(sigma_x_std^2 + sigma_y_std^2);
@@ -74,8 +74,8 @@ for i=1:number_x
     
     fit_x_mean = mean(fit_x);
     fit_y_mean = mean(fit_y);
-    fit_x_std = sum((fit_x - fit_x_mean).^2)/(size(fit_x,1)-1);
-    fit_y_std = sum((fit_y - fit_y_mean).^2)/(size(fit_y,1)-1);
+    fit_x_std = std(fit_x);
+    fit_y_std = std(fit_y);
     res_precision(i,j) = sqrt(fit_x_std^2 + fit_y_std^2);
     res_accuracy(i,j) = norm([pos_x(i) pos_y(j)] - [fit_x_mean fit_y_mean]);
     

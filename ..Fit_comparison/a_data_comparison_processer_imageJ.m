@@ -37,22 +37,20 @@ for i=1:size(positions,1)
     
     fit_x = temp(:,x_column);
     fit_y = temp(:,y_column);
-    fit_uncertainty = temp(:,8); % 8 for MLE, 9 for LS
+    fit_uncertainty = temp(:,9); % 8 for MLE, 9 for LS
 
     sigma = temp(:,sigma_column);
 
     sigma_mean = mean(sigma);
 
-    sigma_std = sum((sigma - sigma_mean).^2)/(size(sigma,1)-1);
-
-    res_sigma_precision(row,column) = sigma_std;
+    res_sigma_precision(row,column) = std(sigma);
     res_sigma_accuracy(row,column) = sigma_mean - mic_pixelsize;
     
     fit_x_mean = mean(fit_x);
     fit_y_mean = mean(fit_y);
     
-    fit_x_std = sum((fit_x - fit_x_mean).^2)/(size(fit_x,1)-1);
-    fit_y_std = sum((fit_y - fit_y_mean).^2)/(size(fit_y,1)-1);
+    fit_x_std = std(fit_x);
+    fit_y_std = std(fit_y);
     res_precision(row,column) = sqrt(fit_x_std^2 + fit_y_std^2);
     res_accuracy(row,column) = norm([pos_x pos_y] - [fit_x_mean fit_y_mean]);
     res_precision_imageJ(row,column) = mean(fit_uncertainty);
