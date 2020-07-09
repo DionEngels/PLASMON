@@ -10,13 +10,13 @@ number_y = 10;
 
 n_frames = 1000;
 %% load in data
-load v5/Localizations_Last_Fit_Background
+load v5/5_2_Localizations_Last_Fit_Background
 
 %% fit checker setup
 x_column = 4; %what column has x-pos in the return data
 y_column = 3; %what column has y-pos in the return data
 
-sigma_check = 0;
+sigma_check = 1;
 if sigma_check == 1
     sigma_x_column = 6;
     sigma_y_column = 7;
@@ -75,11 +75,11 @@ for i=1:size(positions,1)
     res_accuracy(row,column) = norm([pos_x pos_y] - [fit_x_mean fit_y_mean]);
     
         %figure
-        hold on
-        scatter(fit_x, fit_y)
-        scatter(pos_x,  pos_y, 'x','g', 'LineWidth',5)
-        scatter(fit_x_mean,  fit_y_mean, 'x','r', 'LineWidth',5)
-        total_fits = total_fits + size(fit_x,1);
+%         hold on
+%         scatter(fit_x, fit_y)
+%         scatter(pos_x,  pos_y, 'x','g', 'LineWidth',5)
+%         scatter(fit_x_mean,  fit_y_mean, 'x','r', 'LineWidth',5)
+%         total_fits = total_fits + size(fit_x,1);
 end
 
 res_mean_precision = nanmean(res_precision,2);

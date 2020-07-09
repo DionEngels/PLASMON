@@ -42,6 +42,7 @@ v4.17: further cleanup
 v5.0: Three versions of cached fitter
 v5.1: limited size of cache
 v5.2: caching bugfix v1
+v5.3: invariant caching test
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
@@ -174,6 +175,9 @@ class scipy_last_fit_guess(base_phasor):
         
         self.cache_derivative = LimitedSizeDict(size_limit = 1000000)   
         
+        self.counter_cache = 0
+        self.counter_calc = 0
+        
     def dense_difference(self, fun, x0, f0, h):
         m = f0.size
         n = x0.size
@@ -210,12 +214,14 @@ class scipy_last_fit_guess(base_phasor):
     
         def fun_wrapped(x):
             
-            key = tuple(x) 
+            key = tuple(x[1:5]) 
             if key in self.cache:
-                return self.cache[key] - data
+                self.counter_cache+=1
+                return (self.cache[key]*x[0]+x[5]) - data
             else:
                 result = fun(x)
-                self.cache[key] = result
+                self.cache[key] = (result-x[5])/x[0]
+                self.counter_calc+=1
                 return result - data
        
         h = self.compute_absolute_step(x0)
@@ -266,12 +272,14 @@ class scipy_last_fit_guess(base_phasor):
         
         def fun_wrapped(x):
             
-            key = tuple(x) 
+            key = tuple(x[1:5]) 
             if key in self.cache:
-                return self.cache[key] - data
+                self.counter_cache+=1
+                return (self.cache[key]*x[0]+x[5]) - data
             else:
                 result = fun(x)
-                self.cache[key] = result
+                self.cache[key] = (result-x[5])/x[0]
+                self.counter_calc+=1
                 return result - data
         
         if max_nfev is not None and max_nfev <= 0:
@@ -357,8 +365,7 @@ class scipy_last_fit_guess(base_phasor):
         frame_result = np.zeros([peaks.shape[0], 9])
         
         self.cache._check_size_limit()
-        self.cache_derivative._check_size_limit()
-
+        
         for peak_index, peak in enumerate(peaks):
 
             y = int(peak[0])
@@ -466,7 +473,6 @@ class scipy_last_fit_guess_background(scipy_last_fit_guess):
         frame_result = np.zeros([peaks.shape[0], 9])
         
         self.cache._check_size_limit()
-        self.cache_derivative._check_size_limit()
 
         for peak_index, peak in enumerate(peaks):
 
