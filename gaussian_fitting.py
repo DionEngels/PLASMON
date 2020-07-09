@@ -40,6 +40,7 @@ v4.15: intensity back in cache
 v4.16: background in fit
 v4.17: further cleanup
 v5.0: Three versions of cached fitter
+v5.1: limited size of cache
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
@@ -86,6 +87,24 @@ class base_phasor():
         return pos_x, pos_y
     
        
+#%% Limited size cache
+from collections import OrderedDict
+
+class LimitedSizeDict(OrderedDict):
+    def __init__(self, *args, **kwds):
+        self.size_limit = kwds.pop("size_limit", None)
+        OrderedDict.__init__(self, *args, **kwds)
+        self._check_size_limit()
+
+    def __setitem__(self, key, value):
+        OrderedDict.__setitem__(self, key, value)
+        #self._check_size_limit()
+
+    def _check_size_limit(self):
+        if self.size_limit is not None:
+            while len(self) > self.size_limit:
+                self.popitem(last=False)
+                
 #%% Cached scipy last fit guess exlcuding background 
 from numpy.linalg import norm
 from scipy.optimize import _minpack, OptimizeResult
@@ -143,7 +162,7 @@ class scipy_last_fit_guess(base_phasor):
         self.params = np.zeros((self.ROI_locations.shape[0],num_fit_params))
         
         self.indices = np.indices((ROI_size, ROI_size))
-        self.cache = {}  
+        self.cache = LimitedSizeDict(size_limit = 1000000) # 1000000 = 150 Mb
         self.x_scale = np.ones(num_fit_params)
         self.active_mask = np.zeros_like(self.x_scale, dtype=int)
         
@@ -152,7 +171,7 @@ class scipy_last_fit_guess(base_phasor):
         self.use_one_sided = np.resize(False, self.x_scale.shape)
         self.empty_background = np.zeros(self.ROI_size*2+(self.ROI_size-2)*2, dtype=np.uint16)
         
-        self.cache_derivative = {} 
+        self.cache_derivative = LimitedSizeDict(size_limit = 1000000)   
         
     def dense_difference(self, fun, x0, f0, h):
         m = f0.size
@@ -335,6 +354,9 @@ class scipy_last_fit_guess(base_phasor):
         """
 
         frame_result = np.zeros([peaks.shape[0], 9])
+        
+        self.cache._check_size_limit()
+        self.cache_derivative._check_size_limit()
 
         for peak_index, peak in enumerate(peaks):
 
@@ -441,6 +463,9 @@ class scipy_last_fit_guess_background(scipy_last_fit_guess):
         """
 
         frame_result = np.zeros([peaks.shape[0], 9])
+        
+        self.cache._check_size_limit()
+        self.cache_derivative._check_size_limit()
 
         for peak_index, peak in enumerate(peaks):
 

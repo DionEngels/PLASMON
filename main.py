@@ -58,8 +58,8 @@ FILETYPES = [("ND2", ".nd2")]
 
 filenames = ("C:/Users/s150127/Downloads/_MBx dataset/1nMimager_newGNRs_100mW.nd2",)
 
-METHOD = "ScipyPhasorFitGuess"
-DATASET = "YUYANG" # "MATLAB, "MATLAB_v2" OR "YUYANG"
+METHOD = "ScipyLastFitGuessBackground"
+DATASET = "MATLAB_v2" # "MATLAB, "MATLAB_v2" OR "YUYANG"
 #%% Main loop cell
 
 for name in filenames:
@@ -94,7 +94,7 @@ for name in filenames:
             ## parse ND2 info
             frames = ND2
             metadata = ND2.metadata
-            #frames = frames[0:10]
+            #frames = frames[0:5]
 
         #%% Find ROIs (for standard NP2 file)
         print('Starting to find ROIs')
