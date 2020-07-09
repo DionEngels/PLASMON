@@ -43,6 +43,7 @@ v5.0: Three versions of cached fitter
 v5.1: limited size of cache
 v5.2: caching bugfix v1
 v5.3: invariant caching test
+v5.4: complete clear test
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
@@ -105,7 +106,8 @@ class LimitedSizeDict(OrderedDict):
     def _check_size_limit(self):
         if self.size_limit is not None:
             while len(self) > self.size_limit:
-                self.popitem(last=False)
+                self.clear()
+                #self.popitem(last=False)
                 
 #%% Cached scipy last fit guess exlcuding background 
 from numpy.linalg import norm
