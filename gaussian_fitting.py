@@ -45,6 +45,7 @@ v5.2: caching bugfix v1
 v5.3: invariant caching test
 v5.4: complete clear test
 v5.5: complete clear FORTRAN
+v5.6: invariant cache FORTRAN
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
@@ -108,8 +109,7 @@ class LimitedSizeDict(OrderedDict):
     def _check_size_limit(self):
         if self.size_limit is not None:
             while len(self) > self.size_limit:
-                self.clear()
-                #self.popitem(last=False)
+                self.popitem(last=False)
                 
 #%% Cached scipy last fit guess exlcuding background 
 from numpy.linalg import norm
