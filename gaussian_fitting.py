@@ -55,6 +55,7 @@ v5.12: data to FORTAN v2
 v5.13: dense_differnece in FORTRAN
 v5.14: cleanup of FORTRAN and Python code
 v6.0: FORTRAN enabled without cache, ST
+v6.1: cutoff intensity
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
@@ -301,12 +302,12 @@ class scipy_last_fit_guess(base_phasor):
             my_roi_bg = self.determine_background(my_roi)
             my_roi = my_roi - my_roi_bg
             
-            # if np.max(my_roi) < np.sqrt(my_roi_bg)*self.threshold:
-            #     continue
+            if np.max(my_roi) < np.sqrt(my_roi_bg)*self.threshold:
+                continue
 
             result, its, success = self.fitgaussian(my_roi, peak_index)
 
-            if success == 0:# or result[1]< -2 or result[2] > self.ROI_size+2 or result[1] < -2 or result[1] > self.ROI_size+2:
+            if success == 0 or result[1]< -2 or result[2] > self.ROI_size+2 or result[1] < -2 or result[1] > self.ROI_size+2:
                 continue
 
             frame_result[peak_index, 0] = frame_index
@@ -410,9 +411,12 @@ class scipy_last_fit_guess_background(scipy_last_fit_guess):
 
             my_roi = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
 
+            if frame_index > 0 and np.max(my_roi) < np.sqrt(self.params[peak_index,-1])*self.threshold:
+                continue
+
             result, its, success = self.fitgaussian(my_roi, peak_index)
 
-            if success == 0:
+            if success == 0 or result[1]< -2 or result[2] > self.ROI_size+2 or result[1] < -2 or result[1] > self.ROI_size+2:
                 continue
 
             frame_result[peak_index, 0] = frame_index
