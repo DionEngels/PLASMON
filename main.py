@@ -94,7 +94,7 @@ for name in filenames:
             ## parse ND2 info
             frames = ND2
             metadata = ND2.metadata
-            #frames = frames[0:5]
+            #frames = frames[360:]
 
         #%% Find ROIs (for standard NP2 file)
         print('Starting to find ROIs')
@@ -116,7 +116,7 @@ for name in filenames:
             ## switch array columns since MATLAB gives x,y. Python likes y,x
             ROI_locations = tools.switch(ROI_locations)
 
-        #ROI_locations = ROI_locations[123:124,:]
+        #ROI_locations = ROI_locations[147:148,:]
 
         plt.imshow(frames[0], extent=[0,frames[0].shape[1],frames[0].shape[0],0], aspect='auto')
         #takes x,y hence the switched order

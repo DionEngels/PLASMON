@@ -56,6 +56,7 @@ v5.13: dense_differnece in FORTRAN
 v5.14: cleanup of FORTRAN and Python code
 v6.0: FORTRAN enabled without cache, ST
 v6.1: cutoff intensity
+v6.2: stricter rejection and only save params if succesful
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
@@ -270,9 +271,7 @@ class scipy_last_fit_guess(base_phasor):
         else:
             params = self.params[peak_index, :]
         p = self.least_squares(params, data)#, gtol=1e-4, ftol=1e-4)
-        
-        self.params[peak_index, :] = p.x
-        
+                
         return [p.x, p.nfev, p.success]
            
     def fitter(self, frame_index, frame, peaks):
@@ -307,8 +306,10 @@ class scipy_last_fit_guess(base_phasor):
 
             result, its, success = self.fitgaussian(my_roi, peak_index)
 
-            if success == 0 or result[1]< -2 or result[2] > self.ROI_size+2 or result[1] < -2 or result[1] > self.ROI_size+2:
+            if success == 0 or result[2]< 0 or result[2] > self.ROI_size or result[1] < 0 or result[1] > self.ROI_size:
                 continue
+
+            self.params[peak_index, :] = result            
 
             frame_result[peak_index, 0] = frame_index
             frame_result[peak_index, 1] = peak_index
@@ -418,6 +419,8 @@ class scipy_last_fit_guess_background(scipy_last_fit_guess):
 
             if success == 0 or result[1]< -2 or result[2] > self.ROI_size+2 or result[1] < -2 or result[1] > self.ROI_size+2:
                 continue
+            
+            self.params[peak_index, :] = result
 
             frame_result[peak_index, 0] = frame_index
             frame_result[peak_index, 1] = peak_index
@@ -448,9 +451,7 @@ class scipy_phasor_fit_guess(scipy_last_fit_guess):
             params = self.params[peak_index, :]
             params[2], params[1]= self.phasor_fit(data)
         p = self.least_squares(params, data)#, gtol=1e-4, ftol=1e-4)
-        
-        self.params[peak_index, :] = p.x
-        
+                
         return [p.x, p.nfev, p.success]
 
 #%% Phasor for ROI loops
