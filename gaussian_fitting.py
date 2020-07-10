@@ -53,12 +53,13 @@ v5.10: alternative last fits
 v5.11: data to FORTRAN
 v5.12: data to FORTAN v2
 v5.13: dense_differnece in FORTRAN
+v5.14: cleanup of FORTRAN and Python code
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
 import math
 import numpy as np
-import gauss_full_v39 as gauss2
+import MBx_FORTRAN_v3 as fortran_tools
 
 #%% Base Phasor
 
@@ -170,26 +171,13 @@ class scipy_last_fit_guess(base_phasor):
         
     def gaussian(self, x, data):
  
-        return gauss2.gaussian(*x, self.ROI_size, data)
+        return fortran_tools.gaussian(*x, self.ROI_size, data)
+    
+    def jacobian(self, x0, data):
         
-    def approx_derivative(self, fun, x0, f0, data):
-         
-        if x0.ndim > 1:
-            raise ValueError("`x0` must have at most 1 dimension.")
-    
-        lb = self.lb
-        ub = self.ub
-    
-        if lb.shape != x0.shape or ub.shape != x0.shape:
-            raise ValueError("Inconsistent shapes between bounds and `x0`.")
-    
-        def fun_wrapped(x):
-            
-            return self.gaussian(x, data)
-                   
-     
-        return gauss2.dense_dif(x0, self.rel_step, self.comp, data)
-                
+        return fortran_tools.dense_dif(x0, self.rel_step, self.comp,
+                                       self.num_fit_params, self.ROI_size, data)
+                    
     def call_minpack(self, fun, x0, f0, data, jac, ftol, xtol, gtol, max_nfev, diag):
 
         n = x0.size
@@ -207,7 +195,7 @@ class scipy_last_fit_guess(base_phasor):
     
         f = info['fvec']
         
-        j = self.approx_derivative(fun, x, f0, data)
+        j = self.jacobian(x0, data)
         
         cost = 0.5 * np.dot(f, f)
         g = j.T.dot(f)
@@ -386,9 +374,13 @@ class scipy_last_fit_guess_background(scipy_last_fit_guess):
     
     def gaussian(self, x, data):
  
-         return gauss2.gaussian_back(*x, self.ROI_size, data)
+         return fortran_tools.gs_bg(*x, self.ROI_size, data)
         
-
+    def jacobian(self, x0, data):
+        
+        return fortran_tools.dense_dif_bg(x0, self.rel_step, self.comp,
+                                       self.num_fit_params, self.ROI_size, data)
+    
     def fitter(self, frame_index, frame, peaks):
         """
         Fits all peaks by scipy least squares fitting
