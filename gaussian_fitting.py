@@ -47,12 +47,13 @@ v5.4: complete clear test
 v5.5: complete clear FORTRAN
 v5.6: invariant cache FORTRAN
 v5.7: small improvemnet, remove derivate cache
+v5.8: improvement fun_wrapped, deletion old gaussian
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
 import math
 import numpy as np
-import gauss_full4 as gauss2
+import gauss_full5 as gauss2
 
 #%% Base Phasor
 
@@ -204,6 +205,19 @@ class scipy_last_fit_guess(base_phasor):
         rel_step = EPS**(1/3)
         return np.abs(rel_step * np.maximum(1.0, np.abs(x0)))
         
+    def fun_wrapped(self, x, data):
+ 
+        key = tuple(x[1:5]) 
+        if key in self.cache:
+            self.counter_cache+=1
+            return (self.cache[key]*x[0]) - data
+        else:
+            result = gauss2.gaussian(*x, self.ROI_size)
+            self.cache[key] = (result)/x[0]
+            self.counter_calc+=1
+            return result - data
+    
+    
     def approx_derivative(self, fun, x0, f0, data):
          
         if x0.ndim > 1:
@@ -217,16 +231,8 @@ class scipy_last_fit_guess(base_phasor):
     
         def fun_wrapped(x):
             
-            key = tuple(x[1:5]) 
-            if key in self.cache:
-                self.counter_cache+=1
-                return (self.cache[key]*x[0]+x[5]) - data
-            else:
-                result = gauss2.gaussian(*x, self.ROI_size)
-                self.cache[key] = (result-x[5])/x[0]
-                self.counter_calc+=1
-                return result - data
-       
+            return self.fun_wrapped(x, data)
+                   
         h = self.compute_absolute_step(x0)
 
         return self.dense_difference(fun_wrapped, x0, f0, h)
@@ -269,15 +275,7 @@ class scipy_last_fit_guess(base_phasor):
         
         def fun_wrapped(x):
             
-            key = tuple(x[1:5]) 
-            if key in self.cache:
-                self.counter_cache+=1
-                return (self.cache[key]*x[0]+x[5]) - data
-            else:
-                result = gauss2.gaussian(*x, self.ROI_size)
-                self.cache[key] = (result-x[5])/x[0]
-                self.counter_calc+=1
-                return result - data
+            return self.fun_wrapped(x, data)
         
         if max_nfev is not None and max_nfev <= 0:
             raise ValueError("`max_nfev` must be None or positive integer.")
@@ -319,14 +317,7 @@ class scipy_last_fit_guess(base_phasor):
         height = data[int(pos_y+0.5), int(pos_x+0.5)]-np.min(data)
         
         return np.array([height, pos_y, pos_x, self.init_sig, self.init_sig])
-    
-    def gaussian(self, height, center_x, center_y, width_x, width_y):
-        """Returns a gaussian function with the given parameters"""
-        width_x = float(width_x)
-        width_y = float(width_y)
-        return lambda x,y: height*np.exp(
-                    -(((center_x-x)/width_x)**2+((center_y-y)/width_y)**2)/2)
-        
+            
     def fitgaussian(self, data, peak_index):
         """Returns (height, x, y, width_x, width_y)
         the gaussian parameters of a 2D distribution found by a fit"""
@@ -442,12 +433,17 @@ class scipy_last_fit_guess_background(scipy_last_fit_guess):
         
         return np.array([height, pos_y, pos_x, self.init_sig, self.init_sig, background])
     
-    def gaussian(self, height, center_x, center_y, width_x, width_y, background):
-        """Returns a gaussian function with the given parameters"""
-        width_x = float(width_x)
-        width_y = float(width_y)
-        return lambda x,y: height*np.exp(
-                    -(((center_x-x)/width_x)**2+((center_y-y)/width_y)**2)/2) + background
+    def fun_wrapped(self, x, data):
+ 
+        key = tuple(x[1:5]) 
+        if key in self.cache:
+            self.counter_cache+=1
+            return (self.cache[key]*x[0]+x[5]) - data
+        else:
+            result = gauss2.gaussian_background(*x, self.ROI_size)
+            self.cache[key] = (result-x[5])/x[0]
+            self.counter_calc+=1
+            return result - data
     
     def fitter(self, frame_index, frame, peaks):
         """
@@ -499,6 +495,18 @@ class scipy_last_fit_guess_background(scipy_last_fit_guess):
 #%% Cached scipy phasor guess
 
 class scipy_phasor_fit_guess(scipy_last_fit_guess):
+    
+    def fun_wrapped(self, x, data):
+ 
+        key = tuple(x[1:5]) 
+        if key in self.cache:
+            self.counter_cache+=1
+            return (self.cache[key]*x[0]+x[5]) - data
+        else:
+            result = gauss2.gaussian(*x, self.ROI_size)
+            self.cache[key] = (result-x[5])/x[0]
+            self.counter_calc+=1
+            return result - data
     
     def fitgaussian(self, data, peak_index):
         """Returns (height, x, y, width_x, width_y)
