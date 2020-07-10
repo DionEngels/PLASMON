@@ -52,12 +52,13 @@ v5.9: without caching
 v5.10: alternative last fits
 v5.11: data to FORTRAN
 v5.12: data to FORTAN v2
+v5.13: dense_differnece in FORTRAN
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
 import math
 import numpy as np
-import gauss_full_v2 as gauss2
+import gauss_full_v39 as gauss2
 
 #%% Base Phasor
 
@@ -97,27 +98,8 @@ class base_phasor():
             pos_y -= roi_size
             
         return pos_x, pos_y
-    
-       
-#%% Limited size cache
-from collections import OrderedDict
-
-class LimitedSizeDict(OrderedDict):
-    def __init__(self, *args, **kwds):
-        self.size_limit = kwds.pop("size_limit", None)
-        OrderedDict.__init__(self, *args, **kwds)
-        self._check_size_limit()
-
-    def __setitem__(self, key, value):
-        OrderedDict.__setitem__(self, key, value)
-        #self._check_size_limit()
-
-    def _check_size_limit(self):
-        if self.size_limit is not None:
-            while len(self) > self.size_limit:
-                self.popitem(last=False)
-                
-#%% Cached scipy last fit guess exlcuding background 
+                   
+#%% Scipy last fit guess exlcuding background 
 from numpy.linalg import norm
 from scipy.optimize import _minpack, OptimizeResult
 from scipy.optimize._lsq.common import EPS
@@ -171,10 +153,10 @@ class scipy_last_fit_guess(base_phasor):
         self.threshold_sigma = threshold
         self.__name__ = METHOD
         
+        
+        self.num_fit_params = num_fit_params
         self.params = np.zeros((self.ROI_locations.shape[0],num_fit_params))
         
-        self.indices = np.indices((ROI_size, ROI_size))
-        self.cache = LimitedSizeDict(size_limit = 1000000) # 1000000 = 150 Mb
         self.x_scale = np.ones(num_fit_params)
         self.active_mask = np.zeros_like(self.x_scale, dtype=int)
         
@@ -183,36 +165,13 @@ class scipy_last_fit_guess(base_phasor):
         self.use_one_sided = np.resize(False, self.x_scale.shape)
         self.empty_background = np.zeros(self.ROI_size*2+(self.ROI_size-2)*2, dtype=np.uint16)
                 
-        self.counter_cache = 0
-        self.counter_calc = 0
-        
-    def dense_difference(self, fun, x0, f0, h):
-        m = f0.size
-        n = x0.size
-        J_transposed = np.empty((n, m))
-        h_vecs = np.diag(h)
-        
-        for i in range(h.size):
-            x1 = x0 - h_vecs[i]
-            x2 = x0 + h_vecs[i]
-            dx = x2[i] - x1[i]
-            f1 = fun(x1)
-            f2 = fun(x2)
-            df = f2 - f1
-            
-            J_transposed[i] = df / dx
-        
-        return J_transposed.T
-        
-    
-    def compute_absolute_step(self, x0):
-        rel_step = EPS**(1/3)
-        return np.abs(rel_step * np.maximum(1.0, np.abs(x0)))
+        self.rel_step = EPS**(1/3)
+        self.comp = np.ones(num_fit_params)
         
     def gaussian(self, x, data):
  
         return gauss2.gaussian(*x, self.ROI_size, data)
-    
+        
     def approx_derivative(self, fun, x0, f0, data):
          
         if x0.ndim > 1:
@@ -228,9 +187,8 @@ class scipy_last_fit_guess(base_phasor):
             
             return self.gaussian(x, data)
                    
-        h = self.compute_absolute_step(x0)
-
-        return self.dense_difference(fun_wrapped, x0, f0, h)
+     
+        return gauss2.dense_dif(x0, self.rel_step, self.comp, data)
                 
     def call_minpack(self, fun, x0, f0, data, jac, ftol, xtol, gtol, max_nfev, diag):
 
@@ -344,9 +302,7 @@ class scipy_last_fit_guess(base_phasor):
         """
 
         frame_result = np.zeros([peaks.shape[0], 9])
-        
-        self.cache._check_size_limit()
-        
+                
         for peak_index, peak in enumerate(peaks):
 
             y = int(peak[0])
@@ -416,7 +372,7 @@ class scipy_last_fit_guess(base_phasor):
 
         return self.result
     
-#%% Cached scipy last fit guess including background
+#%% Scipy last fit guess including background
 
 class scipy_last_fit_guess_background(scipy_last_fit_guess):
     
@@ -451,8 +407,6 @@ class scipy_last_fit_guess_background(scipy_last_fit_guess):
 
         frame_result = np.zeros([peaks.shape[0], 9])
         
-        self.cache._check_size_limit()
-
         for peak_index, peak in enumerate(peaks):
 
             y = int(peak[0])
@@ -480,7 +434,7 @@ class scipy_last_fit_guess_background(scipy_last_fit_guess):
 
         return frame_result 
 
-#%% Cached scipy phasor guess
+#%% Scipy phasor guess
 
 class scipy_phasor_fit_guess(scipy_last_fit_guess):
        
