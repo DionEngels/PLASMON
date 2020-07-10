@@ -496,17 +496,17 @@ class scipy_last_fit_guess_background(scipy_last_fit_guess):
 
 class scipy_phasor_fit_guess(scipy_last_fit_guess):
     
-    def fun_wrapped(self, x, data):
+    # def fun_wrapped(self, x, data):
  
-        key = tuple(x[1:5]) 
-        if key in self.cache:
-            self.counter_cache+=1
-            return (self.cache[key]*x[0]+x[5]) - data
-        else:
-            result = gauss2.gaussian(*x, self.ROI_size)
-            self.cache[key] = (result-x[5])/x[0]
-            self.counter_calc+=1
-            return result - data
+    #     key = tuple(x[1:5]) 
+    #     if key in self.cache:
+    #         self.counter_cache+=1
+    #         return (self.cache[key]*x[0]+x[5]) - data
+    #     else:
+    #         result = gauss2.gaussian(*x, self.ROI_size)
+    #         self.cache[key] = (result-x[5])/x[0]
+    #         self.counter_calc+=1
+    #         return result - data
     
     def fitgaussian(self, data, peak_index):
         """Returns (height, x, y, width_x, width_y)

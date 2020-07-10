@@ -15,7 +15,7 @@ p = [1, 4, 4, 3/(2*np.sqrt(2*np.log(2))), 3/(2*np.sqrt(2*np.log(2)))]
 
 data = np.zeros((9,9));
 
-num_loop = 100000
+num_loop = 1000000
 
 loops = list(range(0, num_loop))
 
@@ -58,24 +58,24 @@ print('Time taken v2: ' + str(round(time.time() - start, 3)) + ' s. Loops: ' + s
 
 #%% v3
 
-def makeGaussian_v3(size, fwhm = 3, center=None):
+# def makeGaussian_v3(size, fwhm = 3, center=None):
 
-    x=np.arange(size)[None].astype(np.float)
-    y=x.T
+#     x=np.arange(size)[None].astype(np.float)
+#     y=x.T
     
-    xx,yy=np.meshgrid(x,y)
+#     xx,yy=np.meshgrid(x,y)
     
-    x0 = center[0]
-    y0 = center[1]
+#     x0 = center[0]
+#     y0 = center[1]
 
-    return np.exp(-4*np.log(2) * ((xx-x0)**2 +(yy-y0)**2)/fwhm**2) #x and y vectors
+#     return np.exp(-4*np.log(2) * ((xx-x0)**2 +(yy-y0)**2)/fwhm**2) #x and y vectors
 
-start = time.time()
+# start = time.time()
 
-for loop in loops:
-    roi3 = makeGaussian_v3(9, center=[4, 4])
+# for loop in loops:
+#     roi3 = makeGaussian_v3(9, center=[4, 4])
 
-print('Time taken v3: ' + str(round(time.time() - start, 3)) + ' s. Loops: ' + str(len(loops)))
+# print('Time taken v3: ' + str(round(time.time() - start, 3)) + ' s. Loops: ' + str(len(loops)))
 
 #%% v4
 import gauss4 as gauss
@@ -98,3 +98,14 @@ for loop in loops:
     roi5 = gauss2.gaussian(*p, 9)
     
 print('Time taken v5: ' + str(round(time.time() - start, 3)) + ' s. Loops: ' + str(len(loops)))
+
+#%% v6
+import gauss_full7 as gauss3
+
+start = time.time()
+
+for loop in loops:
+    
+    roi5 = gauss3.gaussian_background_s(*p, 0, 9)
+    
+print('Time taken v6: ' + str(round(time.time() - start, 3)) + ' s. Loops: ' + str(len(loops)))
