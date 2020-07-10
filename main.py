@@ -59,7 +59,7 @@ FILETYPES = [("ND2", ".nd2")]
 filenames = ("C:/Users/s150127/Downloads/_MBx dataset/1nMimager_newGNRs_100mW.nd2",)
 
 METHOD = "ScipyLastFitGuessBackground"
-DATASET = "MATLAB_v2" # "MATLAB, "MATLAB_v2" OR "YUYANG"
+DATASET = "YUYANG" # "MATLAB, "MATLAB_v2" OR "YUYANG"
 #%% Main loop cell
 
 for name in filenames:

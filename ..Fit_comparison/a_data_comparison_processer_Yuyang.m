@@ -1,9 +1,9 @@
 %clear all
 close all
 %% load in data
-load v5_Yuyang/Localizations
-load v5_Yuyang/metadata
-load v5_Yuyang/ROI_locations
+load v6_Yuyang/Last_Fit
+load v6_Yuyang/metadata
+load v6_Yuyang/ROI_locations
 
 
 %% fit checker setup
@@ -17,21 +17,22 @@ y_column_Thunder = 3;
 data = Localizations;
 % data(:,x_column) = (data(:, x_column))*mic_pixelsize; % convert to nm, compensate for pixel offset MATLAB
 % data(:,y_column) = (data(:, y_column))*mic_pixelsize; % convert to nm, compensate for pixel offset MATLAB
-% data = data(data(:,x_column)>0,:);
+ data = data(data(:,x_column)>0 & data(:,x_column)< height & data(:,y_column)>0 & data(:,y_column)> height ,:);
 
 data_ThunderSTORM = ThunderSTORMresults;
 % data_ThunderSTORM(:,x_column_Thunder) = (data_ThunderSTORM(:, x_column_Thunder))/2; % convert to nm, compensate for pixel offset MATLAB
 % data_ThunderSTORM(:,y_column_Thunder) = (data_ThunderSTORM(:, y_column_Thunder))/2; % convert to nm, compensate for pixel offset MATLAB
 
-figure
-x = 374 - x;
-scatter(y,x)
 
+x = 374 - x;
+% figure
+% scatter(y,x)
+%%
 figure
 hold on
 scatter(data(:,x_column), data(:,y_column))
-scatter(data_ThunderSTORM(:,x_column_Thunder), data_ThunderSTORM(:,y_column_Thunder))
-
+%scatter(data_ThunderSTORM(:,x_column_Thunder), data_ThunderSTORM(:,y_column_Thunder))
+%%
 hold off
 figure
 frames = 1:sequence_count;
