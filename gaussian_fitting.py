@@ -50,12 +50,14 @@ v5.7: small improvemnet, remove derivate cache
 v5.8: improvement fun_wrapped, deletion old gaussian
 v5.9: without caching
 v5.10: alternative last fits
+v5.11: data to FORTRAN
+v5.12: data to FORTAN v2
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
 import math
 import numpy as np
-import gauss_full219 as gauss2
+import gauss_full_v2 as gauss2
 
 #%% Base Phasor
 
@@ -209,9 +211,7 @@ class scipy_last_fit_guess(base_phasor):
         
     def fun_wrapped(self, x, data):
  
-            result = gauss2.gaussian(*x, self.ROI_size)
-            return result - data
-    
+        return gauss2.gaussian(*x, self.ROI_size, data)
     
     def approx_derivative(self, fun, x0, f0, data):
          
@@ -321,7 +321,7 @@ class scipy_last_fit_guess(base_phasor):
             params = self.phasor_guess(data)
         else:
             params = self.params[peak_index, :]
-        p = self.least_squares(params, np.ravel(data))#, gtol=1e-4, ftol=1e-4)
+        p = self.least_squares(params, data)#, gtol=1e-4, ftol=1e-4)
         
         self.params[peak_index, :] = p.x
         
@@ -430,8 +430,8 @@ class scipy_last_fit_guess_background(scipy_last_fit_guess):
     
     def fun_wrapped(self, x, data):
  
-        result = gauss2.gaussian_background(*x, self.ROI_size)
-        return result - data
+         return gauss2.gaussian_back(*x, self.ROI_size, data)
+        
 
     def fitter(self, frame_index, frame, peaks):
         """
@@ -493,51 +493,6 @@ class scipy_phasor_fit_guess(scipy_last_fit_guess):
         else:
             params = self.params[peak_index, :]
             params[2], params[1]= self.phasor_fit(data)
-        p = self.least_squares(params, np.ravel(data))#, gtol=1e-4, ftol=1e-4)
-        
-        self.params[peak_index, :] = p.x
-        
-        return [p.x, p.nfev, p.success]
-
-#%% Alternative scipy last fits
-
-class scipy_last_fit_guess_vec(scipy_last_fit_guess):
-    
-    def __init__(self, metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD, num_fit_params):
-        super().__init__(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD, num_fit_params)
-
-        x=np.arange(self.ROI_size)[None].astype(np.int)
-        x_res = np.zeros(self.ROI_size*self.ROI_size, dtype=int)
-        y_res = np.zeros(self.ROI_size*self.ROI_size, dtype=int)
-        
-        
-        for i in range(0,self.ROI_size):
-            y = np.ones(self.ROI_size)*i
-            x_res[i*self.ROI_size:(i+1)*self.ROI_size] = x
-            y_res[i*self.ROI_size:(i+1)*self.ROI_size] = y
-        
-        self.x_res = x_res
-        self.y_res = y_res
-    
-    def fun_wrapped(self, x, data):
- 
-        result = gauss2.gaussian_vec(*x, self.ROI_size, self.x_res, self.y_res)
-        return result - data
-
-class scipy_last_fit_guess_data(scipy_last_fit_guess):
-    
-    def fun_wrapped(self, x, data):
-        
-        return gauss2.gaussian_data(*x, self.ROI_size, data)
-
-    def fitgaussian(self, data, peak_index):
-        """Returns (height, x, y, width_x, width_y)
-        the gaussian parameters of a 2D distribution found by a fit"""
-    
-        if self.params[peak_index, 0] == 0:
-            params = self.phasor_guess(data)
-        else:
-            params = self.params[peak_index, :]
         p = self.least_squares(params, data)#, gtol=1e-4, ftol=1e-4)
         
         self.params[peak_index, :] = p.x
