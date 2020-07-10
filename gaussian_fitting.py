@@ -209,7 +209,7 @@ class scipy_last_fit_guess(base_phasor):
         rel_step = EPS**(1/3)
         return np.abs(rel_step * np.maximum(1.0, np.abs(x0)))
         
-    def fun_wrapped(self, x, data):
+    def gaussian(self, x, data):
  
         return gauss2.gaussian(*x, self.ROI_size, data)
     
@@ -226,7 +226,7 @@ class scipy_last_fit_guess(base_phasor):
     
         def fun_wrapped(x):
             
-            return self.fun_wrapped(x, data)
+            return self.gaussian(x, data)
                    
         h = self.compute_absolute_step(x0)
 
@@ -270,7 +270,7 @@ class scipy_last_fit_guess(base_phasor):
         
         def fun_wrapped(x):
             
-            return self.fun_wrapped(x, data)
+            return self.gaussian(x, data)
         
         if max_nfev is not None and max_nfev <= 0:
             raise ValueError("`max_nfev` must be None or positive integer.")
@@ -428,7 +428,7 @@ class scipy_last_fit_guess_background(scipy_last_fit_guess):
         
         return np.array([height, pos_y, pos_x, self.init_sig, self.init_sig, background])
     
-    def fun_wrapped(self, x, data):
+    def gaussian(self, x, data):
  
          return gauss2.gaussian_back(*x, self.ROI_size, data)
         
