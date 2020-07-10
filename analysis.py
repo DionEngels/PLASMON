@@ -92,3 +92,21 @@ def background_correction_wavelet_set(frame_data, level, eng):
     low_pass = frame_data - hi_pass
 
     return [hi_pass, low_pass]
+
+#%% Python ROI finder
+
+class roi_finder():
+    
+    def __init__(self, intensity_min, intensity_max, sigma_min, sigma_max, ):
+        self.intensity_min = intensity_min
+        self.intensity_max = intensity_max
+        self.sigma_min = sigma_min
+        self.sigma_max = sigma_max
+        self.shape = 0.8
+        
+        
+    def main(self, frame):
+        
+        pass
+        
+        

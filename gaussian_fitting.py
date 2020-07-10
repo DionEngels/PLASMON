@@ -44,11 +44,13 @@ v5.1: limited size of cache
 v5.2: caching bugfix v1
 v5.3: invariant caching test
 v5.4: complete clear test
+v5.5: complete clear FORTRAN
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
 import math
 import numpy as np
+import gauss_full4 as gauss2
 
 #%% Base Phasor
 
@@ -221,7 +223,7 @@ class scipy_last_fit_guess(base_phasor):
                 self.counter_cache+=1
                 return (self.cache[key]*x[0]+x[5]) - data
             else:
-                result = fun(x)
+                result = gauss2.gaussian(*x, self.ROI_size)
                 self.cache[key] = (result-x[5])/x[0]
                 self.counter_calc+=1
                 return result - data
@@ -269,7 +271,7 @@ class scipy_last_fit_guess(base_phasor):
             x=x, cost=cost, fun=f, jac=j, grad=g, optimality=g_norm,
             active_mask=active_mask, nfev=nfev, njev=njev, status=status)     
     
-    def least_squares(self, fun, x0, data, ftol=1e-8, xtol=1e-8, gtol=1e-8, 
+    def least_squares(self, x0, data, ftol=1e-8, xtol=1e-8, gtol=1e-8, 
         max_nfev=None):
         
         def fun_wrapped(x):
@@ -279,7 +281,7 @@ class scipy_last_fit_guess(base_phasor):
                 self.counter_cache+=1
                 return (self.cache[key]*x[0]+x[5]) - data
             else:
-                result = fun(x)
+                result = gauss2.gaussian(*x, self.ROI_size)
                 self.cache[key] = (result-x[5])/x[0]
                 self.counter_calc+=1
                 return result - data
@@ -340,9 +342,7 @@ class scipy_last_fit_guess(base_phasor):
             params = self.phasor_guess(data)
         else:
             params = self.params[peak_index, :]
-        errorfunction = lambda p: np.ravel(self.gaussian(*p)(*self.indices))# -
-        #data)  
-        p = self.least_squares(errorfunction, params, np.ravel(data))#, gtol=1e-4, ftol=1e-4)
+        p = self.least_squares(params, np.ravel(data))#, gtol=1e-4, ftol=1e-4)
         
         self.params[peak_index, :] = p.x
         
