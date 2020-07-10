@@ -302,7 +302,7 @@ class scipy_last_fit_guess(base_phasor):
             my_roi_bg = self.determine_background(my_roi)
             my_roi = my_roi - my_roi_bg
             
-            if np.max(my_roi) < np.sqrt(my_roi_bg)*self.threshold:
+            if np.max(my_roi) < np.sqrt(my_roi_bg)*self.threshold_sigma:
                 continue
 
             result, its, success = self.fitgaussian(my_roi, peak_index)
@@ -411,7 +411,7 @@ class scipy_last_fit_guess_background(scipy_last_fit_guess):
 
             my_roi = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
 
-            if frame_index > 0 and np.max(my_roi) < np.sqrt(self.params[peak_index,-1])*self.threshold:
+            if frame_index > 0 and np.max(my_roi) < np.sqrt(self.params[peak_index,-1])*self.threshold_sigma:
                 continue
 
             result, its, success = self.fitgaussian(my_roi, peak_index)
