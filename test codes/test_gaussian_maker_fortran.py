@@ -15,7 +15,7 @@ p = [1, 4, 4, 3/(2*np.sqrt(2*np.log(2))), 3/(2*np.sqrt(2*np.log(2)))]
 
 data = np.zeros((9,9));
 
-num_loop = 1000
+num_loop = 1000000
 
 loops = list(range(0, num_loop))
 
@@ -97,10 +97,12 @@ for loop in loops:
     
     roi5 = gauss2.gaussian(*p, 9)
     
+roi5 = np.reshape(roi5, (9,9))
+
 print('Time taken v5: ' + str(round(time.time() - start, 3)) + ' s. Loops: ' + str(len(loops)))
 
 #%% v6
-import gauss_full9 as gauss3
+import gauss_full16 as gauss3
 
 size = 9
 
@@ -116,7 +118,7 @@ start = time.time()
 
 for loop in loops:
     
-    roi5 = gauss3.gaussian2(*p, result)
+    roi6 = gauss3.gaussian2(*p, result)
     
-roi5 = np.reshape(roi5, (9,9))
+roi6 = np.reshape(roi6, (9,9))
 print('Time taken v6: ' + str(round(time.time() - start, 3)) + ' s. Loops: ' + str(len(loops)))

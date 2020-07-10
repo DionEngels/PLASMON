@@ -53,10 +53,13 @@ Cf2py depend(c_x) g
 C
 C     Make a gaussian without background
 C
-      REAL*8 g(s_int*s_int)
+      REAL*8 h, c_x, c_y, w_x, w_y
+	  REAL*8 s(2, 81)
 Cf2py intent(in) h, c_x, c_y, w_x, w_y, s
+      ! int s_int = size(s,1)
+	  REAL*8 g(81)
 Cf2py intent(out) g
-Cf2py depend(c_x) g
+Cf2py depend(s) g
 	  
 	  g = h*exp(-(((c_x-s(1,:))/w_x)**2+((c_y-s(2,:))/w_y)**2)/2)
   
