@@ -46,6 +46,7 @@ v5.3: invariant caching test
 v5.4: complete clear test
 v5.5: complete clear FORTRAN
 v5.6: invariant cache FORTRAN
+v5.7: small improvemnet, remove derivate cache
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
@@ -176,9 +177,7 @@ class scipy_last_fit_guess(base_phasor):
         self.ub = np.resize(np.inf, self.x_scale.shape)
         self.use_one_sided = np.resize(False, self.x_scale.shape)
         self.empty_background = np.zeros(self.ROI_size*2+(self.ROI_size-2)*2, dtype=np.uint16)
-        
-        self.cache_derivative = LimitedSizeDict(size_limit = 1000000)   
-        
+                
         self.counter_cache = 0
         self.counter_calc = 0
         
@@ -229,14 +228,8 @@ class scipy_last_fit_guess(base_phasor):
                 return result - data
        
         h = self.compute_absolute_step(x0)
-        
-        key = tuple(x0)
-        if key in self.cache_derivative:
-            return self.cache_derivative[key]
-        else:
-            result = self.dense_difference(fun_wrapped, x0, f0, h)
-            self.cache_derivative[key] = result
-            return result
+
+        return self.dense_difference(fun_wrapped, x0, f0, h)
                 
     def call_minpack(self, fun, x0, f0, data, jac, ftol, xtol, gtol, max_nfev, diag):
 
@@ -516,9 +509,7 @@ class scipy_phasor_fit_guess(scipy_last_fit_guess):
         else:
             params = self.params[peak_index, :]
             params[2], params[1]= self.phasor_fit(data)
-        errorfunction = lambda p: np.ravel(self.gaussian(*p)(*self.indices) -
-        data)  
-        p = self.least_squares(errorfunction, params)#, gtol=1e-4, ftol=1e-4)
+        p = self.least_squares(params, np.ravel(data))#, gtol=1e-4, ftol=1e-4)
         
         self.params[peak_index, :] = p.x
         
