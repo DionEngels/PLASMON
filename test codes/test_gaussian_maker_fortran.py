@@ -105,6 +105,18 @@ print('Time taken v5: ' + str(round(time.time() - start, 3)) + ' s. Loops: ' + s
 import gauss_full20 as gauss3
 
 size = 9
+   
+start = time.time()
+
+for loop in loops:
+    
+    roi6 = gauss3.gaussian(*p, 9)
+    
+roi6 = np.reshape(roi6, (9,9))
+print('Time taken v6: ' + str(round(time.time() - start, 3)) + ' s. Loops: ' + str(len(loops)))
+
+#%% v7
+import gauss_full218 as gauss4
 
 x=np.arange(size)[None].astype(np.int)
 x_res = np.zeros(81, dtype=int)
@@ -120,7 +132,20 @@ start = time.time()
 
 for loop in loops:
     
-    roi6 = gauss3.gaussian(*p, 9)
+    roi7 = gauss4.gaussian_vec(*p, 9, x_res, y_res)
     
-roi6 = np.reshape(roi6, (9,9))
-print('Time taken v6: ' + str(round(time.time() - start, 3)) + ' s. Loops: ' + str(len(loops)))
+roi7 = np.reshape(roi7, (9,9))
+print('Time taken v7: ' + str(round(time.time() - start, 3)) + ' s. Loops: ' + str(len(loops)))
+
+#%% v8
+
+data = np.ones((size,size))
+
+start = time.time()
+
+for loop in loops:
+    
+    roi8 = gauss4.gaussian_data(*p, 9, data)
+    
+roi8 = np.reshape(roi8, (9,9))
+print('Time taken v8: ' + str(round(time.time() - start, 3)) + ' s. Loops: ' + str(len(loops)))
