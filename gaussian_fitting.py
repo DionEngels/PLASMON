@@ -48,6 +48,7 @@ v5.5: complete clear FORTRAN
 v5.6: invariant cache FORTRAN
 v5.7: small improvemnet, remove derivate cache
 v5.8: improvement fun_wrapped, deletion old gaussian
+v5.9: without caching
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
@@ -207,14 +208,14 @@ class scipy_last_fit_guess(base_phasor):
         
     def fun_wrapped(self, x, data):
  
-        key = tuple(x[1:5]) 
-        if key in self.cache:
-            self.counter_cache+=1
-            return (self.cache[key]*x[0]) - data
-        else:
+        # key = tuple(x[1:5]) 
+        # if key in self.cache:
+        #     self.counter_cache+=1
+        #     return (self.cache[key]*x[0]) - data
+        # else:
             result = gauss2.gaussian(*x, self.ROI_size)
-            self.cache[key] = (result)/x[0]
-            self.counter_calc+=1
+            # self.cache[key] = (result)/x[0]
+            # self.counter_calc+=1
             return result - data
     
     
