@@ -97,7 +97,6 @@ def background_correction_wavelet_set(frame_data, level, eng):
 
 from scipy.stats import norm
 import scipy.ndimage.filters as filters
-import gaussian_fitting
 
 class roi_finder():
     

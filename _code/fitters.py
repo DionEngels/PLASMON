@@ -62,7 +62,7 @@ v6.2: stricter rejection and only save params if succesful
 from __future__ import division, print_function, absolute_import
 import math
 import numpy as np
-import MBx_FORTRAN_v3 as fortran_tools
+import _code.MBx_FORTRAN_v3 as fortran_tools
 
 #%% Base Phasor
 
