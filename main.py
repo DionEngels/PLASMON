@@ -14,6 +14,7 @@ v0.2, rainSTORM inspired v1: 03/06/2020
 v0.3, rainSTORM inspired working v1: 04/06/2020
 v1.0, main working for .nd2 loading, no custom ROI fitting: 05/06/2020
 v1.1. MATLAB loading: 15/06/2020
+v1.2: own ROI finder: 11/07/2020
 
  """
 
