@@ -62,17 +62,7 @@ def switch(array):
     new[:, 0] = array[:, 1]
     return new
 
-def plot_rois(frame, roi_locations):
-    
-    plt.imshow(frame, extent=[0,frame.shape[1],frame.shape[0],0], aspect='auto')
-    # #takes x,y hence the switched order, and +0.5 for pixel offset
-    plt.scatter(roi_locations[:,1] + 0.5, roi_locations[:,0] + 0.5, 
-                 s=2, c='red', marker='x', alpha=0.5)
-    plt.title("ROI locations")
-    plt.show()
-
-
-def plot_rois_v2(frame, roi_locations, roi_size):
+def plot_rois(frame, roi_locations, roi_size):
     
     fig, ax = plt.subplots(1)
     ax.imshow(frame, extent=[0,frame.shape[1],frame.shape[0],0], aspect='auto')

@@ -124,7 +124,7 @@ for name in filenames:
             fitter = gaussian_fitting.scipy_last_fit_guess(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, METHOD, 5)
             ROI_locations = roi_finder.main(frames[0], fitter)
 
-        tools.plot_rois_v2(frames[0], ROI_locations, ROI_SIZE)
+        tools.plot_rois(frames[0], ROI_locations, ROI_SIZE)
 
         #%% Fit Gaussians
         print('Starting to prepare fitting')
