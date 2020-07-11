@@ -120,17 +120,11 @@ for name in filenames:
 
             #ROI_locations = ROI_locations[147:148,:]
         elif ROI_FINDER == "SELF":
-            roi_finder = analysis.roi_finder(None, None, None, None, None, None, ROI_SIZE)
-            roi_finder.determine_standard_values(frames[0])
+            roi_finder = analysis.roi_finder(ROI_SIZE, frames[0], intensity_min = 800)
             fitter = gaussian_fitting.scipy_last_fit_guess(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, METHOD, 5)
             ROI_locations = roi_finder.main(frames[0], fitter)
 
-        plt.imshow(frames[0], extent=[0,frames[0].shape[1],frames[0].shape[0],0], aspect='auto')
-        #takes x,y hence the switched order
-        plt.scatter(ROI_locations[:,1], ROI_locations[:,0], s=2, c='red', marker='x', alpha=0.5)
-        plt.title("ROI locations")
-        plt.show()
-
+        tools.plot_rois_v2(frames[0], ROI_locations, ROI_SIZE)
 
         #%% Fit Gaussians
         print('Starting to prepare fitting')

@@ -17,6 +17,8 @@ v2: also switch array: 04/06/2020
 import csv # to save to csv
 import scipy.io as sio #to export for MATLAB
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
 def save_to_csv_mat(name, values, directory):
     """
@@ -59,3 +61,29 @@ def switch(array):
     new[:, 1] = array[:, 0]
     new[:, 0] = array[:, 1]
     return new
+
+def plot_rois(frame, roi_locations):
+    
+    plt.imshow(frame, extent=[0,frame.shape[1],frame.shape[0],0], aspect='auto')
+    # #takes x,y hence the switched order, and +0.5 for pixel offset
+    plt.scatter(roi_locations[:,1] + 0.5, roi_locations[:,0] + 0.5, 
+                 s=2, c='red', marker='x', alpha=0.5)
+    plt.title("ROI locations")
+    plt.show()
+
+
+def plot_rois_v2(frame, roi_locations, roi_size):
+    
+    fig, ax = plt.subplots(1)
+    ax.imshow(frame, extent=[0,frame.shape[1],frame.shape[0],0], aspect='auto')
+    roi_size_1d = int((roi_size-1)/2)
+    
+    roi_locations = roi_locations - roi_size_1d
+    
+    for roi in roi_locations:
+        rect = patches.Rectangle((roi[1], roi[0]), roi_size, roi_size,
+                                 linewidth=0.5, edgecolor='r', facecolor='none')
+        ax.add_patch(rect)
+        
+    plt.title("ROI locations")
+    plt.show()

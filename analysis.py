@@ -101,21 +101,6 @@ import gaussian_fitting
 
 class roi_finder():
     
-    def __init__(self, intensity_min, intensity_max, sigma_min, sigma_max,
-                 shape, symmetry, roi_size):
-        self.intensity_min = intensity_min
-        self.intensity_max = intensity_max
-        self.sigma_min = sigma_min
-        self.sigma_max = sigma_max
-        self.symmetry = symmetry
-        self.shape = shape
-        
-        self.roi_size = int(roi_size)
-        self.roi_size_1d = int((roi_size-1)/2)
-        self.roi_locations = []
-        
-        self.empty_background = np.zeros(self.roi_size*2+(self.roi_size-2)*2, dtype=np.uint16)
-        
     def determine_threshold_min(self, frame):
         
         frame_ravel = np.ravel(frame)
@@ -124,17 +109,25 @@ class roi_finder():
             frame_ravel = frame_ravel[frame_ravel < mean+std*5]
         
         return mean+self.threshold_sigma*std
-        
-    def determine_standard_values(self, frame):
+    
+    def __init__(self, roi_size, frame, intensity_min = None, intensity_max = np.inf, 
+                 sigma_min = 0, sigma_max = np.inf, ):
         
         self.threshold_sigma = 5
-        self.intensity_min = self.determine_threshold_min(frame)
-        self.intensity_max = np.inf
-        self.sigma_min = 0
-        self.sigma_max = np.inf
-        self.symmetry = 0.8
-        self.shape = 0.3
+        if intensity_min == None:
+            self.intensity_min = self.determine_threshold_min(frame)
+        else:
+            self.intensity_min = intensity_min
+        self.intensity_max = intensity_max
+        self.sigma_min = sigma_min
+        self.sigma_max = sigma_max
         
+        self.roi_size = int(roi_size)
+        self.roi_size_1d = int((roi_size-1)/2)
+        self.roi_locations = []
+        
+        self.empty_background = np.zeros(self.roi_size*2+(self.roi_size-2)*2, dtype=np.uint16)
+             
     def find_within_intensity_range(self, frame):
         
         boolean_int_min = frame > self.intensity_min
