@@ -95,18 +95,123 @@ def background_correction_wavelet_set(frame_data, level, eng):
 
 #%% Python ROI finder
 
+from scipy.stats import norm
+import scipy.ndimage.filters as filters
+
 class roi_finder():
     
-    def __init__(self, intensity_min, intensity_max, sigma_min, sigma_max, ):
+    def __init__(self, intensity_min, intensity_max, sigma_min, sigma_max,
+                 shape, symmetry, roi_size):
         self.intensity_min = intensity_min
         self.intensity_max = intensity_max
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
-        self.shape = 0.8
+        self.symmetry = symmetry
+        self.shape = shape
         
+        self.roi_size = int(roi_size)
+        self.roi_size_1d = int((roi_size-1)/2)
+        self.roi_locations = []
         
+    def determine_threshold_min(self, frame):
+        
+        frame_ravel = np.ravel(frame)
+        for _ in range(4):
+            mean, std = norm.fit(frame_ravel)
+            frame_ravel = frame_ravel[frame_ravel < mean+std*5]
+        
+        return mean+self.threshold_sigma*std
+        
+    def determine_standard_values(self, frame):
+        
+        self.threshold_sigma = 5
+        self.intensity_min = self.determine_threshold_min(frame)
+        self.intensity_max = np.inf
+        self.sigma_min = 0
+        self.sigma_max = np.inf
+        self.symmetry = 0.8
+        self.shape = 0.3
+        
+    def find_within_intensity_range(self, frame):
+        
+        boolean_int_min = frame > self.intensity_min
+        boolean_int_max = frame < self.intensity_max
+        
+        return boolean_int_max & boolean_int_min
+        
+    def find_local_maximum(self, frame):
+        
+        data_max = filters.maximum_filter(frame, self.roi_size)
+        maxima = (frame == data_max)
+        
+        return maxima
+        
+    def adjacent_or_boundary_rois(self, roi_boolean):
+        
+        keep_boolean = np.ones(self.roi_locations.shape[0], dtype=bool)
+        
+        for roi_index, roi in enumerate(self.roi_locations):
+            
+            y = int(roi[0])
+            x = int(roi[1])
+
+            try:            
+                my_roi = roi_boolean[y-self.roi_size_1d:y+self.roi_size_1d+1, x-self.roi_size_1d:x+self.roi_size_1d+1]
+            except:
+                keep_boolean[roi_index] = False # if this fails, the roi is on the boundary
+                continue
+            
+            trues_in_roi = np.transpose(np.where(my_roi == True))
+            
+            if trues_in_roi.shape[0] > 1:
+                keep_boolean[roi_index] = False
+                
+        self.roi_locations = self.roi_locations[keep_boolean, :]
+        
+    def remove_boundary_rois(self, frame):
+        
+        keep_boolean = np.ones(self.roi_locations.shape[0], dtype=bool)
+        
+        x_low = self.roi_size
+        x_high = frame.shape[1] - self.roi_size
+        
+        y_low = self.roi_size
+        y_high = frame.shape[0] - self.roi_size
+        
+        for roi_index, roi in enumerate(self.roi_locations):
+            
+            y = int(roi[0])
+            x = int(roi[1]) 
+            if x < x_low or x > x_high:
+                keep_boolean[roi_index] = False
+            if y < y_low or y > y_high:
+                keep_boolean[roi_index] = False
+        
+        self.roi_locations = self.roi_locations[keep_boolean, :] 
+    
     def main(self, frame):
         
-        pass
+        roi_boolean = self.find_within_intensity_range(frame)
         
+        local_maxima = self.find_local_maximum(frame)
+        
+        roi_boolean = roi_boolean & local_maxima
+        
+        self.roi_locations = np.transpose(np.where(roi_boolean == True))
+        
+        self.adjacent_or_boundary_rois(roi_boolean) # check if any rois too close
+        
+        self.remove_boundary_rois(frame) # remove rois too close to edge
+        
+        #self.roi_symmetry(frame) # check symmetry of roi
+        
+        #self.roi_shape(frame) # check shape of roi
+        
+        
+        
+        
+        
+        
+        
+        return self.roi_locations
         

@@ -1,7 +1,7 @@
 %clear all
 close all
 %% load in data
-load v6_Yuyang/Last_Fit_Background
+load v6_Yuyang/Last_Fit_6_2
 load v6_Yuyang/metadata
 load v6_Yuyang/ROI_locations
 
@@ -17,7 +17,7 @@ y_column_Thunder = 3;
 data = Localizations;
 % data(:,x_column) = (data(:, x_column))*mic_pixelsize; % convert to nm, compensate for pixel offset MATLAB
 % data(:,y_column) = (data(:, y_column))*mic_pixelsize; % convert to nm, compensate for pixel offset MATLAB
- data = data(data(:,x_column)>0 & data(:,x_column)< height & data(:,y_column)>0 & data(:,y_column)< height ,:);
+%data = data(data(:,x_column)<0 | data(:,x_column)> height ,:);
 
 data_ThunderSTORM = ThunderSTORMresults;
 % data_ThunderSTORM(:,x_column_Thunder) = (data_ThunderSTORM(:, x_column_Thunder))/2; % convert to nm, compensate for pixel offset MATLAB

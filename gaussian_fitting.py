@@ -247,6 +247,7 @@ class scipy_last_fit_guess(base_phasor):
         return result
     
     def determine_background(self, my_roi):
+       
         roi_background = self.empty_background
         roi_background[0:self.ROI_size] = my_roi[:, 0]
         roi_background[self.ROI_size:self.ROI_size*2] = my_roi[:, -1]

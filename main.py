@@ -60,6 +60,7 @@ filenames = ("C:/Users/s150127/Downloads/_MBx dataset/1nMimager_newGNRs_100mW.nd
 
 METHOD = "ScipyLastFitGuess"
 DATASET = "YUYANG" # "MATLAB, "MATLAB_v2" OR "YUYANG"
+ROI_FINDER = "SELF" # "SELF" OR "PRE"
 #%% Main loop cell
 
 for name in filenames:
@@ -99,24 +100,29 @@ for name in filenames:
         #%% Find ROIs (for standard NP2 file)
         print('Starting to find ROIs')
         
-        if DATASET == "MATLAB" or DATASET == "MATLAB_v2":
-            for i in range(20):
-                for j in range(10):
-                    if i == 0 and j == 0:
-                        ROI_locations = [19, 19]
-                    else:
-                        ROI_locations = np.vstack((ROI_locations, [19+j*20, 19+i*20]))          
-        
-        elif DATASET == "YUYANG":
-            #ROI_locations = analysis.ROI_finder(frames[0],ROI_size)
-            ROI_locations = np.load('ROI_locations.npy')
+        if ROI_FINDER == "PRE":
+            if DATASET == "MATLAB" or DATASET == "MATLAB_v2":
+                for i in range(20):
+                    for j in range(10):
+                        if i == 0 and j == 0:
+                            ROI_locations = [19, 19]
+                        else:
+                            ROI_locations = np.vstack((ROI_locations, [19+j*20, 19+i*20]))          
+            
+            elif DATASET == "YUYANG":
+                #ROI_locations = analysis.ROI_finder(frames[0],ROI_size)
+                ROI_locations = np.load('ROI_locations.npy')
+    
+                ROI_locations = ROI_locations - 1
+    
+                ## switch array columns since MATLAB gives x,y. Python likes y,x
+                ROI_locations = tools.switch(ROI_locations)
 
-            ROI_locations = ROI_locations - 1
-
-            ## switch array columns since MATLAB gives x,y. Python likes y,x
-            ROI_locations = tools.switch(ROI_locations)
-
-        #ROI_locations = ROI_locations[147:148,:]
+            #ROI_locations = ROI_locations[147:148,:]
+        elif ROI_FINDER == "SELF":
+            roi_finder = analysis.roi_finder(None, None, None, None, None, None, ROI_SIZE)
+            roi_finder.determine_standard_values(frames[0])
+            ROI_locations = roi_finder.main(frames[0])
 
         plt.imshow(frames[0], extent=[0,frames[0].shape[1],frames[0].shape[0],0], aspect='auto')
         #takes x,y hence the switched order
