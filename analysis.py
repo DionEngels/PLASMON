@@ -97,6 +97,7 @@ def background_correction_wavelet_set(frame_data, level, eng):
 
 from scipy.stats import norm
 import scipy.ndimage.filters as filters
+import gaussian_fitting
 
 class roi_finder():
     
@@ -112,6 +113,8 @@ class roi_finder():
         self.roi_size = int(roi_size)
         self.roi_size_1d = int((roi_size-1)/2)
         self.roi_locations = []
+        
+        self.empty_background = np.zeros(self.roi_size*2+(self.roi_size-2)*2, dtype=np.uint16)
         
     def determine_threshold_min(self, frame):
         
@@ -156,7 +159,8 @@ class roi_finder():
             x = int(roi[1])
 
             try:            
-                my_roi = roi_boolean[y-self.roi_size_1d:y+self.roi_size_1d+1, x-self.roi_size_1d:x+self.roi_size_1d+1]
+                my_roi = roi_boolean[y-self.roi_size_1d:y+self.roi_size_1d+1, 
+                                     x-self.roi_size_1d:x+self.roi_size_1d+1]
             except:
                 keep_boolean[roi_index] = False # if this fails, the roi is on the boundary
                 continue
@@ -188,8 +192,127 @@ class roi_finder():
                 keep_boolean[roi_index] = False
         
         self.roi_locations = self.roi_locations[keep_boolean, :] 
+        
+    def determine_background(self, my_roi):
+       
+        roi_background = self.empty_background
+        roi_background[0:self.roi_size] = my_roi[:, 0]
+        roi_background[self.roi_size:self.roi_size*2] = my_roi[:, -1]
+        roi_background[self.roi_size*2:self.roi_size*2+self.roi_size-2] = my_roi[0, 0:-2]
+        roi_background[self.roi_size*2+self.roi_size-2:] = my_roi[-1, 0:-2]
+        
+        return np.mean(roi_background)
+        
+    def roi_symmetry(self, frame):
+        
+        keep_boolean = np.ones(self.roi_locations.shape[0], dtype=bool)
+        
+        for roi_index, roi in enumerate(self.roi_locations):
+            x_range = np.asarray(range(0, self.roi_size))+0.5
+            y_range = np.asarray(range(0, self.roi_size))+0.5
+            
+            y = int(roi[0])
+            x = int(roi[1]) 
+            
+            my_roi = frame[y-self.roi_size_1d:y+self.roi_size_1d+1, 
+                           x-self.roi_size_1d:x+self.roi_size_1d+1]
+            
+            #my_roi_bg = self.determine_background(my_roi)
+            #my_roi = my_roi - my_roi_bg
+            
+            x_sum = np.sum(my_roi, axis=0)
+            y_sum = np.sum(my_roi, axis=1)
+            total = np.sum(x_sum)
+            
+            mu_x = np.sum(x_range*x_sum)/total
+            mu_y = np.sum(y_range*y_sum)/total
+            
+            x_range = x_range - mu_x
+            y_range = y_range - mu_y
+            x_mesh, y_mesh = np.meshgrid(x_range, y_range)
+            
+            roi_symmetry_xy = np.sum(my_roi*x_mesh*y_mesh)/(total-1)
+            roi_symmetry_xx = np.sum(my_roi*x_mesh*x_mesh)/(total-1)
+            roi_symmetry_yx = np.sum(my_roi*y_mesh*x_mesh)/(total-1)
+            roi_symmetry_yy = np.sum(my_roi*y_mesh*y_mesh)/(total-1)
+            
+            C = np.array([[roi_symmetry_xx, roi_symmetry_xy], 
+                 [roi_symmetry_yx, roi_symmetry_yy]])
+            
+            eigenvalues = np.linalg.eigvals(C)
+            
+            roi_symmetry = np.sqrt(np.min(eigenvalues))/np.sqrt(np.max(eigenvalues))
+            
+            if roi_symmetry < self.symmetry:
+                keep_boolean[roi_index] = False
+            
+        self.roi_locations = self.roi_locations[keep_boolean, :] 
+            
+    def roi_shape(self, frame):
+        
+        keep_boolean = np.ones(self.roi_locations.shape[0], dtype=bool)
+        
+        shape = (self.roi_locations.shape[0], self.roi_size, self.roi_size)
+        stack = np.zeros(shape)
+        
+        for roi_index, roi in enumerate(self.roi_locations):
+            y = int(roi[0])
+            x = int(roi[1]) 
+            
+            my_roi = frame[y-self.roi_size_1d:y+self.roi_size_1d+1, 
+                           x-self.roi_size_1d:x+self.roi_size_1d+1]
+            
+            my_roi_bg = self.determine_background(my_roi)
+            stack[roi_index, :, :] = my_roi - my_roi_bg
+        
+        mean = np.mean(stack, axis=0)
+        mean_sum = np.sum(mean)
+        mean = mean/np.max(mean) #normalize
+        
+        for roi_index, roi in enumerate(self.roi_locations):
+            y = int(roi[0])
+            x = int(roi[1]) 
+            
+            my_roi = frame[y-self.roi_size_1d:y+self.roi_size_1d+1, 
+                           x-self.roi_size_1d:x+self.roi_size_1d+1]
+            
+            my_roi_bg = self.determine_background(my_roi)
+            my_roi = my_roi - my_roi_bg
+            
+            remain = my_roi - mean*np.max(my_roi)
+            
+            remain_sum = np.sum(remain)
+            shape_factor = remain_sum / mean_sum
+            
+            if shape_factor > self.shape:
+                keep_boolean[roi_index] = False
+            
+        
+        self.roi_locations = self.roi_locations[keep_boolean, :] 
+        
+    def sigma_limit(self, frame, fitter):
+        
+        keep_boolean = np.ones(self.roi_locations.shape[0], dtype=bool)
+        
+        for roi_index, roi in enumerate(self.roi_locations):
+            y = int(roi[0])
+            x = int(roi[1]) 
+            
+            my_roi = frame[y-self.roi_size_1d:y+self.roi_size_1d+1, 
+                           x-self.roi_size_1d:x+self.roi_size_1d+1]
+            my_roi_bg = self.determine_background(my_roi)
+            my_roi = my_roi - my_roi_bg
+        
+            result, its, success = fitter.fitgaussian(my_roi, roi_index)
+            
+            if result[4] < self.sigma_min or result[3] < self.sigma_min:
+                keep_boolean[roi_index] = False
+            if result[4] > self.sigma_max or result[3] > self.sigma_max:
+                keep_boolean[roi_index] = False
+                
+        self.roi_locations = self.roi_locations[keep_boolean, :] 
     
-    def main(self, frame):
+    def main(self, frame, fitter):
         
         roi_boolean = self.find_within_intensity_range(frame)
         
@@ -207,11 +330,7 @@ class roi_finder():
         
         #self.roi_shape(frame) # check shape of roi
         
-        
-        
-        
-        
-        
+        self.sigma_limit(frame, fitter)        
         
         return self.roi_locations
         

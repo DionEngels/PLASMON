@@ -133,7 +133,7 @@ class scipy_last_fit_guess(base_phasor):
     Build-in scipy least squares fitting, with last fit as initial guess
     """
     
-    def __init__(self, metadata, ROI_size, wavelength, threshold, ROI_locations, METHOD, num_fit_params):
+    def __init__(self, metadata, ROI_size, wavelength, threshold, METHOD, num_fit_params):
         """
 
         Parameters
@@ -152,14 +152,13 @@ class scipy_last_fit_guess(base_phasor):
         self.result = []
         self.ROI_size = ROI_size
         self.ROI_size_1D = int((self.ROI_size-1)/2)
-        self.ROI_locations = ROI_locations
         self.init_sig = wavelength/(2*metadata['NA']*math.sqrt(8*math.log(2)))/(metadata['calibration_um']*1000)*2 #*2 for better guess
         self.threshold_sigma = threshold
         self.__name__ = METHOD
         
         
         self.num_fit_params = num_fit_params
-        self.params = np.zeros((self.ROI_locations.shape[0],num_fit_params))
+        self.params = np.zeros((1000,num_fit_params))
         
         self.x_scale = np.ones(num_fit_params)
         self.active_mask = np.zeros_like(self.x_scale, dtype=int)
@@ -328,7 +327,7 @@ class scipy_last_fit_guess(base_phasor):
         return frame_result
     
     
-    def main(self, frames, metadata):
+    def main(self, frames, metadata, roi_locations):
         """
         Main for every fitter method, calls fitter function and returns fits
 
@@ -342,6 +341,9 @@ class scipy_last_fit_guess(base_phasor):
         All localizations
 
         """
+        self.ROI_locations = roi_locations
+        self.params = np.zeros((self.ROI_locations.shape[0],self.num_fit_params))
+        
         tot_fits = 0
         
         for frame_index, frame in enumerate(frames):
@@ -464,7 +466,7 @@ class phasor_only_ROI_loop():
     """
     Phasor localizer over ROIs
     """
-    def __init__(self, metadata, ROI_size, wavelength, threshold, ROI_locations, METHOD):
+    def __init__(self, metadata, ROI_size, wavelength, threshold, METHOD):
         """
         Parameters
         ----------
@@ -483,7 +485,6 @@ class phasor_only_ROI_loop():
         self.result = []
         self.ROI_size = ROI_size
         self.ROI_size_1D = int((self.ROI_size-1)/2)
-        self.ROI_locations = ROI_locations
         self.init_sig = wavelength/(2*metadata['NA']*math.sqrt(8*math.log(2)))/(metadata['calibration_um']*1000)*2 #*2 for better guess
         self.threshold_sigma = threshold
         self.__name__ = METHOD
@@ -538,7 +539,7 @@ class phasor_only_ROI_loop():
         return roi_result
                 
             
-    def main(self, frames, metadata):
+    def main(self, frames, metadata, roi_locations):
         """
         Main for phasor over ROI loop, calls fitter function and returns fits.
 
@@ -552,6 +553,8 @@ class phasor_only_ROI_loop():
         All localizations
 
         """
+        self.ROI_locations = roi_locations
+        
         frame_stack_total = Frame(frames)
         
         tot_fits = 0

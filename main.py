@@ -58,8 +58,8 @@ FILETYPES = [("ND2", ".nd2")]
 
 filenames = ("C:/Users/s150127/Downloads/_MBx dataset/1nMimager_newGNRs_100mW.nd2",)
 
-METHOD = "ScipyLastFitGuess"
-DATASET = "YUYANG" # "MATLAB, "MATLAB_v2" OR "YUYANG"
+METHOD = "ScipyLastFitGuessBackground"
+DATASET = "MATLAB_v2" # "MATLAB, "MATLAB_v2" OR "YUYANG"
 ROI_FINDER = "SELF" # "SELF" OR "PRE"
 #%% Main loop cell
 
@@ -96,7 +96,7 @@ for name in filenames:
             frames = ND2
             metadata = ND2.metadata
             #frames = frames[360:]
-
+           
         #%% Find ROIs (for standard NP2 file)
         print('Starting to find ROIs')
         
@@ -122,7 +122,8 @@ for name in filenames:
         elif ROI_FINDER == "SELF":
             roi_finder = analysis.roi_finder(None, None, None, None, None, None, ROI_SIZE)
             roi_finder.determine_standard_values(frames[0])
-            ROI_locations = roi_finder.main(frames[0])
+            fitter = gaussian_fitting.scipy_last_fit_guess(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, METHOD, 5)
+            ROI_locations = roi_finder.main(frames[0], fitter)
 
         plt.imshow(frames[0], extent=[0,frames[0].shape[1],frames[0].shape[0],0], aspect='auto')
         #takes x,y hence the switched order
@@ -136,17 +137,17 @@ for name in filenames:
         start = time.time()
         
         if METHOD == "PhasorOnlyROI":
-            fitter = gaussian_fitting.phasor_only_ROI_loop(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
+            fitter = gaussian_fitting.phasor_only_ROI_loop(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, METHOD)
         elif METHOD == "PhasorOnlyROIDumb":
-            fitter = gaussian_fitting.phasor_only_ROI_loop_dumb(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD)
+            fitter = gaussian_fitting.phasor_only_ROI_loop_dumb(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, METHOD)
         elif METHOD == "ScipyLastFitGuess":
-            fitter = gaussian_fitting.scipy_last_fit_guess(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD, 5)
+            fitter = gaussian_fitting.scipy_last_fit_guess(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, METHOD, 5)
         elif METHOD == "ScipyLastFitGuessBackground":
-            fitter = gaussian_fitting.scipy_last_fit_guess_background(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD, 6)
+            fitter = gaussian_fitting.scipy_last_fit_guess_background(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, METHOD, 6)
         elif METHOD == "ScipyPhasorFitGuess":
-            fitter = gaussian_fitting.scipy_phasor_fit_guess(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, ROI_locations, METHOD, 5)
+            fitter = gaussian_fitting.scipy_phasor_fit_guess(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, METHOD, 5)
 
-        results = fitter.main(frames, metadata) 
+        results = fitter.main(frames, metadata, ROI_locations) 
         
         print('Time taken: ' + str(round(time.time() - start, 3)) + ' s. Fits done: ' + str(results.shape[0]))
 
