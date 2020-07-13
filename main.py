@@ -122,7 +122,9 @@ for name in filenames:
             #ROI_locations = ROI_locations[147:148,:]
         elif ROI_FINDER == "SELF":
             roi_finder = roi_finding.roi_finder(ROI_SIZE, frames[0], intensity_min = 800)
-            fitter = fitting.scipy_last_fit_guess(metadata, ROI_SIZE, WAVELENGTH, THRESHOLD, METHOD, 5)
+            fitter = fitting.scipy_last_fit_guess(metadata, ROI_SIZE,
+                                                  WAVELENGTH, THRESHOLD, 
+                                                  "ScipyLastFitGuess", 5)
             ROI_locations = roi_finder.main(frames[0], fitter)
 
         tools.plot_rois(frames[0], ROI_locations, ROI_SIZE)

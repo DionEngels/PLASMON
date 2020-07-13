@@ -26,6 +26,7 @@ mpl.use("TkAgg") #set back end to TK
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
 from matplotlib import style
+import matplotlib.patches as patches
 
 ## GUI
 import tkinter as tk # for GUI
@@ -51,7 +52,7 @@ THRESHOLD = 5 # X*sigma
 FILETYPES = [("ND2", ".nd2")]
 
 LARGE_FONT = ("Verdana", 12)
-style.use("ggplot")
+#style.use("ggplot")
 
 fit_options = ["Phasor with intensity", "Phasor without intensity",
                    "Gaussian with background", "Gaussian without background"]
@@ -178,23 +179,110 @@ class fitting_page(tk.Frame):
     def update_init(self, filenames):
         
         self.filenames = filenames
-        dataset_roi_status = tk.Label(self, text = "Dataset 1 of " + str(len(filenames)))
+        self.roi_locations = {}
+        self.dataset_index = 0
+        
+        dataset_roi_status = tk.Label(self, text = "Dataset " + str(self.dataset_index + 1) + " of " + str(len(filenames)))
         dataset_roi_status.grid(row = 9, column = 1, columnspan = 4) 
         
         roi_status = tk.Label(self, text = "0 of " + str(len(filenames)) + " have settings")
         roi_status.grid(row = 21, column = 0, columnspan = 6)
         
+        self.ND2 = ND2_Reader(filenames[0])
+        self.frames = self.ND2
+        self.metadata = self.ND2.metadata
         
-        with ND2_Reader(filenames[0]) as ND2:
-            self.frames = ND2
-            self.metadata = ND2.metadata
-            self.fig_sub = plt.imshow(self.frames[0], extent=[0,self.frames[0].shape[1],self.frames[0].shape[0],0],
-                       aspect='auto')
-            
-            canvas = FigureCanvasTkAgg(self.fig, self)
-            canvas.draw()
-            canvas.get_tk_widget().grid(row = 0, column = 10, rowspan = 16, sticky = 'E')
+        fig_sub = self.fig.add_subplot(111)
+        fig_sub.imshow(self.frames[0], extent=[0,self.frames[0].shape[1],self.frames[0].shape[0],0],
+                   aspect='auto')
         
+        canvas = FigureCanvasTkAgg(self.fig, self)
+        canvas.draw()
+        canvas.get_tk_widget().grid(row = 0, column = 10, rowspan = 16, sticky = 'E')
+        
+        self.roi_finder = roi_finding.roi_finder(9, self.frames[0])
+                
+        self.min_int_slider = tk.Scale(self, from_ = 0, to = self.roi_finder.intensity_max, 
+                                  orient = 'horizontal')
+        self.min_int_slider.set(self.roi_finder.intensity_min)
+        self.min_int_slider.grid(row = 1, column = 0, columnspan = 3)
+        
+        self.max_int_slider = tk.Scale(self, from_ = 0, to = self.roi_finder.intensity_max, orient = 'horizontal')
+        self.max_int_slider.set(self.roi_finder.intensity_max)
+        self.max_int_slider.grid(row = 3, column = 0, columnspan = 3)
+                  
+        self.min_sigma_slider = tk.Scale(self, from_ = 0, to = self.roi_finder.sigma_max, orient = 'horizontal')
+        self.min_sigma_slider.set(self.roi_finder.sigma_min)
+        self.min_sigma_slider.grid(row = 1, column = 3, columnspan = 3)
+                    
+        self.max_sigma_slider = tk.Scale(self, from_ = 0, to = self.roi_finder.sigma_max, orient = 'horizontal')
+        self.max_sigma_slider.set(self.roi_finder.sigma_max)
+        self.max_sigma_slider.grid(row = 3, column = 3, columnspan = 3)
+        
+    def fit_rois(self):
+        
+        min_int = self.min_int_slider.get()
+        max_int = self.max_int_slider.get()
+        min_sigma = self.min_sigma_slider.get()
+        max_sigma = self.max_sigma_slider.get()
+        
+        self.roi_finder.change_settings(intensity_min = min_int, 
+                        intensity_max = max_int,
+                        sigma_min = min_sigma, sigma_max = max_sigma)
+        
+        fitter = fitting.scipy_last_fit_guess(self.metadata, ROI_SIZE,
+                                                  WAVELENGTH, THRESHOLD, 
+                                                  "ScipyLastFitGuess", 5)
+        
+        self.temp_roi_locations = self.roi_finder.main(self.frames[0], fitter)
+        
+        self.fig.clear()
+        fig_sub = self.fig.add_subplot(111)      
+        
+        fig_sub.imshow(self.frames[0], extent=[0,self.frames[0].shape[1],self.frames[0].shape[0],0],
+                   aspect='auto')
+        
+        roi_locations_temp = self.temp_roi_locations - self.roi_finder.roi_size_1d
+        roi_size = self.roi_finder.roi_size
+        
+        for roi in roi_locations_temp:
+            rect = patches.Rectangle((roi[1], roi[0]), roi_size, roi_size,
+                                 linewidth=0.5, edgecolor='r', facecolor='none')
+            fig_sub.add_patch(rect)
+        
+        canvas = FigureCanvasTkAgg(self.fig, self)
+        canvas.draw()
+        canvas.get_tk_widget().grid(row = 0, column = 10, rowspan = 16, sticky = 'E')
+        
+    def save_roi_settings(self):
+        
+        self.roi_locations[self.dataset_index] = self.temp_roi_locations
+        
+        roi_status = tk.Label(self, text = str(len(self.roi_locations)) + 
+                              " of " + str(len(filenames)) + " have settings")
+        roi_status.grid(row = 21, column = 0, columnspan = 6)
+        
+    
+    def restore_default(self):
+        
+        self.roi_finder = roi_finding.roi_finder(9, self.frames[0])
+                
+        self.min_int_slider = tk.Scale(self, from_ = 0, to = self.roi_finder.intensity_max, 
+                                  orient = 'horizontal')
+        self.min_int_slider.set(self.roi_finder.intensity_min)
+        self.min_int_slider.grid(row = 1, column = 0, columnspan = 3)
+        
+        self.max_int_slider = tk.Scale(self, from_ = 0, to = self.roi_finder.intensity_max, orient = 'horizontal')
+        self.max_int_slider.set(self.roi_finder.intensity_max)
+        self.max_int_slider.grid(row = 3, column = 0, columnspan = 3)
+                  
+        self.min_sigma_slider = tk.Scale(self, from_ = 0, to = self.roi_finder.sigma_max, orient = 'horizontal')
+        self.min_sigma_slider.set(self.roi_finder.sigma_min)
+        self.min_sigma_slider.grid(row = 1, column = 3, columnspan = 3)
+                    
+        self.max_sigma_slider = tk.Scale(self, from_ = 0, to = self.roi_finder.sigma_max, orient = 'horizontal')
+        self.max_sigma_slider.set(self.roi_finder.sigma_max)
+        self.max_sigma_slider.grid(row = 3, column = 3, columnspan = 3)
     
     def __init__(self, parent, controller):
         
@@ -203,26 +291,26 @@ class fitting_page(tk.Frame):
         min_int_label = tk.Label(self, text = "Minimum Intensity", font = LARGE_FONT)
         min_int_label.grid(row = 0, column = 0, columnspan = 3)
         
-        min_int_slider = tk.Scale(self, from_ = 0, to = 1000, orient = 'horizontal')
-        min_int_slider.grid(row = 1, column = 0, columnspan = 3)
+        self.min_int_slider = tk.Scale(self, from_ = 0, to = 1000, orient = 'horizontal')
+        self.min_int_slider.grid(row = 1, column = 0, columnspan = 3)
         
         max_int_label = tk.Label(self, text = "Maximum Intensity", font = LARGE_FONT)
         max_int_label.grid(row = 2, column = 0, columnspan = 3)
         
-        max_int_slider = tk.Scale(self, from_ = 0, to = 5000, orient = 'horizontal')
-        max_int_slider.grid(row = 3, column = 0, columnspan = 3)
+        self.max_int_slider = tk.Scale(self, from_ = 0, to = 5000, orient = 'horizontal')
+        self.max_int_slider.grid(row = 3, column = 0, columnspan = 3)
         
-        min_int_label = tk.Label(self, text = "Minimum Sigma", font = LARGE_FONT)
-        min_int_label.grid(row = 0, column = 3, columnspan = 3)
+        min_sigma_label = tk.Label(self, text = "Minimum Sigma", font = LARGE_FONT)
+        min_sigma_label.grid(row = 0, column = 3, columnspan = 3)
         
-        min_int_slider = tk.Scale(self, from_ = 0, to = 5, orient = 'horizontal')
-        min_int_slider.grid(row = 1, column = 3, columnspan = 3)
+        self.min_sigma_slider = tk.Scale(self, from_ = 0, to = 5, orient = 'horizontal')
+        self.min_sigma_slider.grid(row = 1, column = 3, columnspan = 3)
         
-        max_int_label = tk.Label(self, text = "Maximum Sigma", font = LARGE_FONT)
-        max_int_label.grid(row = 2, column = 3, columnspan = 3)
+        max_sigma_label = tk.Label(self, text = "Maximum Sigma", font = LARGE_FONT)
+        max_sigma_label.grid(row = 2, column = 3, columnspan = 3)
         
-        max_int_slider = tk.Scale(self, from_ = 0, to = 10, orient = 'horizontal')
-        max_int_slider.grid(row = 3, column = 3, columnspan = 3)
+        self.max_sigma_slider = tk.Scale(self, from_ = 0, to = 10, orient = 'horizontal')
+        self.max_sigma_slider.grid(row = 3, column = 3, columnspan = 3)
         
         button_left = ttk.Button(self, text = "<<")
         button_left.grid(row = 9, column = 0)
@@ -233,23 +321,27 @@ class fitting_page(tk.Frame):
         button_right = ttk.Button(self, text = ">>")
         button_right.grid(row = 9, column = 5)
         
-        button_fit = ttk.Button(self, text = "Fit", command= lambda: prints("Joejoe"))
+        button_fit = ttk.Button(self, text = "Fit", command= lambda: self.fit_rois())
         button_fit.grid(row = 12, column = 0, columnspan = 2)
         
-        button_save = ttk.Button(self, text = "Save these settings")
-        button_save.grid(row = 12, column = 2, columnspan = 4)
+        button_restore = ttk.Button(self, text = "Restore default", 
+                                 command = lambda: self.restore_default())
+        button_restore.grid(row = 12, column = 2, columnspan = 2)
+        
+        button_save = ttk.Button(self, text = "Save these settings", 
+                                 command = lambda: self.save_roi_settings())
+        button_save.grid(row = 12, column = 4, columnspan = 2)
                 
         self.fig = Figure(figsize = (GUI_HEIGHT/DPI*0.7,GUI_HEIGHT/DPI*0.7), dpi = DPI)
-        self.fig_sub = self.fig.add_subplot(111)
-        # #fig_sub.plot([1,2,3,4,5], [3,5,1,5,2])
+        #self.fig_sub = self.fig.add_subplot(111)
         
         canvas = FigureCanvasTkAgg(self.fig, self)
         canvas.draw()
-        canvas.get_tk_widget().grid(row = 0, column = 10, rowspan = 16, sticky = 'E')
+        canvas.get_tk_widget().grid(row = 0, column = 10, rowspan = 14, sticky = 'E')
         
-        # toolbar = NavigationToolbar2Tk(canvas, self)
-        # toolbar.update()
-        # # canvas._tkcanvas.grid(row = 1, column = 9)
+        #toolbar = NavigationToolbar2Tk(canvas, self)
+        #toolbar.update()
+        #canvas._tkcanvas.grid(row = 15, column = 10)
         
         line = ttk.Separator(self, orient='horizontal')
         line.grid(column=0, row=18, rowspan = 2,  columnspan = 10, sticky='we')
@@ -266,14 +358,14 @@ class fitting_page(tk.Frame):
         frame_begin_label = tk.Label(self, text = "Begin frame", font = LARGE_FONT)
         frame_begin_label.grid(row = 27, column = 0, columnspan = 3)
         
-        frame_begin_input = entry_placeholder(self, "Leave empty for start")
-        frame_begin_input.grid(row = 28, column = 0, columnspan = 3)
+        self.frame_begin_input = entry_placeholder(self, "Leave empty for start")
+        self.frame_begin_input.grid(row = 28, column = 0, columnspan = 3)
         
         frame_end_label = tk.Label(self, text = "End frame", font = LARGE_FONT)
         frame_end_label.grid(row = 27, column = 3, columnspan = 3)
         
-        frame_end_input = entry_placeholder(self, "Leave empty for end")
-        frame_end_input.grid(row = 28, column = 3, columnspan = 3)
+        self.frame_end_input = entry_placeholder(self, "Leave empty for end")
+        self.frame_end_input.grid(row = 28, column = 3, columnspan = 3)
         
         button_fit = my_button(self, text = "FIT", height = int(GUI_HEIGHT/8), 
                              width = int(GUI_WIDTH/8))#, style= 'my.TButton')

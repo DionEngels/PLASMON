@@ -109,15 +109,21 @@ class roi_finder():
         
         return mean+self.threshold_sigma*std
     
-    def __init__(self, roi_size, frame, intensity_min = None, intensity_max = np.inf, 
-                 sigma_min = 0, sigma_max = np.inf, ):
+    def __init__(self, roi_size, frame, intensity_min = None, intensity_max = None, 
+                 sigma_min = 0, sigma_max = 10):
         
         self.threshold_sigma = 5
+        
         if intensity_min == None:
             self.intensity_min = self.determine_threshold_min(frame)
         else:
             self.intensity_min = intensity_min
-        self.intensity_max = intensity_max
+            
+        if intensity_max == None:
+            self.intensity_max = 65535 # max of unsigned integer 16 bits
+        else:
+            self.intensity_max = intensity_max
+            
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
         
@@ -127,6 +133,17 @@ class roi_finder():
         
         self.empty_background = np.zeros(self.roi_size*2+(self.roi_size-2)*2, dtype=np.uint16)
              
+    def change_settings(self, intensity_min = None, 
+                        intensity_max = None,
+                        sigma_min = 0, sigma_max = 10):
+        if intensity_min != None:
+            self.intensity_min = intensity_min
+        if intensity_max != None:
+            self.intensity_max = intensity_max
+        
+        self.sigma_min = sigma_min
+        self.sigma_max = sigma_max
+        
     def find_within_intensity_range(self, frame):
         
         boolean_int_min = frame > self.intensity_min
