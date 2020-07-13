@@ -77,3 +77,4 @@ def plot_rois(frame, roi_locations, roi_size):
         
     plt.title("ROI locations")
     plt.show()
+    
