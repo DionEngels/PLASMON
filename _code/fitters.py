@@ -327,7 +327,7 @@ class scipy_last_fit_guess(base_phasor):
         return frame_result
     
     
-    def main(self, frames, metadata, roi_locations):
+    def main(self, frames, metadata, roi_locations, verbose = False, gui = None):
         """
         Main for every fitter method, calls fitter function and returns fits
 
@@ -539,7 +539,7 @@ class phasor_only_ROI_loop():
         return roi_result
                 
             
-    def main(self, frames, metadata, roi_locations):
+    def main(self, frames, metadata, roi_locations, gui = None):
         """
         Main for phasor over ROI loop, calls fitter function and returns fits.
 
@@ -580,11 +580,17 @@ class phasor_only_ROI_loop():
                 self.result[tot_fits:tot_fits+n_fits,:] = roi_result
                 tot_fits += n_fits
                 
-            if roi_index % (round(self.ROI_locations.shape[0]/10,0)) == 0:
-                print('Done fitting ROI '+str(roi_index)+' of ' + str(self.ROI_locations.shape[0]))
-            #print('Done fitting ROI '+str(roi_index)+' of ' + str(self.ROI_locations.shape[0]))
+            if roi_index % (round(self.ROI_locations.shape[0]/10,0)) == 0:    
+                if gui == None:
+                    print('Done fitting ROI '+str(roi_index)+' of ' + str(self.ROI_locations.shape[0]))
+                else:
+                    gui.update_status(roi_index+1, len(self.ROI_locations)+1)
+                
             
         self.result = np.delete(self.result, range(tot_fits,len(frames)*self.ROI_locations.shape[0]), axis=0)
+        
+        if gui != None:
+            gui.update_status(len(self.ROI_locations), len(self.ROI_locations))
                                 
         return self.result
     
