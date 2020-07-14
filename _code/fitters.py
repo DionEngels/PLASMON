@@ -60,12 +60,15 @@ v6.2: stricter rejection and only save params if succesful
 v6.3: threshold from ROI finder
 v6.4: ROI size 7 implementation
 v6.5: own norm
+v6.6: FORTRAN tools: max, norm, and calc bg
+v7.0: cleanup and declare_functions function
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
 import math
 import numpy as np
-import _code.MBx_FORTRAN_v4 as fortran_tools
+import _code.MBx_FORTRAN_v4 as fortran_linalg
+import _code.MBx_FORTRAN_TOOLS_v1 as fortran_tools
 
 #%% Base Phasor
 
@@ -173,33 +176,38 @@ class scipy_last_fit_guess(base_phasor):
         self.rel_step = EPS**(1/3)
         self.comp = np.ones(num_fit_params)
         
-    def gaussian(self, x, data):
- 
-        if self.ROI_size == 9:
-            return fortran_tools.gaussian(*x, self.ROI_size, data)
-        else:
-            return fortran_tools.gaussian7(*x, self.ROI_size, data)
-    
-    def jacobian(self, x0, data):
+        self.declare_functions()        
+        
+    def declare_functions(self):
         
         if self.ROI_size == 9:
-            return fortran_tools.dense_dif(x0, self.rel_step, self.comp,
+            self.fun_find_max = lambda roi: fortran_tools.max9(roi)
+            self.fun_calc_bg = lambda roi: fortran_tools.calc_bg9(roi)
+        elif self.ROI_size == 7:
+            self.fun_find_max = lambda roi: fortran_tools.max7(roi)
+            self.fun_calc_bg = lambda roi: fortran_tools.calc_bg7(roi)
+            
+        if self.num_fit_params == 5:
+            self.fun_norm = lambda g: fortran_tools.norm5(g)
+        elif self.num_fit_params == 6:
+            self.fun_norm = lambda g: fortran_tools.norm6(g)
+            
+        if self.num_fit_params == 5 and self.ROI_size == 9:
+            self.fun_gaussian = lambda x, data: fortran_linalg.gaussian(*x, self.ROI_size, data)
+            self.fun_jacobian = lambda x0, data: fortran_linalg.dense_dif(x0, self.rel_step, self.comp,
                                        self.num_fit_params, self.ROI_size, data)
-        else:
-            return fortran_tools.dense_dif7(x0, self.rel_step, self.comp,
+        elif self.num_fit_params == 5 and self.ROI_size == 7:
+            self.fun_gaussian = lambda x, data: fortran_linalg.gaussian7(*x, self.ROI_size, data)
+            self.fun_jacobian = lambda x0, data: fortran_linalg.dense_dif7(x0, self.rel_step, self.comp,
                                        self.num_fit_params, self.ROI_size, data)
-                    
-    def norm(self, g):
-        
-        g_norm = 0
-    
-        for number in g:
-            if number > g_norm:
-                g_norm = number
-            elif -number > g_norm:
-                g_norm = -number
-        
-        return g_norm
+        elif self.num_fit_params == 6 and self.ROI_size == 9:
+            self.fun_gaussian = lambda x, data: fortran_linalg.gs_bg(*x, self.ROI_size, data)
+            self.fun_jacobian = lambda x0, data: fortran_linalg.dense_dif_bg(x0, self.rel_step, self.comp,
+                                       self.num_fit_params, self.ROI_size, data)
+        elif self.num_fit_params == 6 and self.ROI_size == 7:
+            self.fun_gaussian = lambda x, data: fortran_linalg.gs_bg7(*x, self.ROI_size, data)
+            self.fun_jacobian = lambda x0, data: fortran_linalg.dense_dif_bg7(x0, self.rel_step, self.comp,
+                                       self.num_fit_params, self.ROI_size, data)
     
     def call_minpack(self, fun, x0, f0, data, jac, ftol, xtol, gtol, max_nfev, diag):
 
@@ -218,11 +226,11 @@ class scipy_last_fit_guess(base_phasor):
     
         f = info['fvec']
         
-        j = self.jacobian(x0, data)
+        j = self.fun_jacobian(x0, data)
         
         cost = 0.5 * np.dot(f, f)
         g = j.T.dot(f)
-        g_norm = self.norm(g)
+        g_norm = self.fun_norm(g)
     
         nfev = info['nfev']
         njev = info.get('njev', None)
@@ -239,7 +247,7 @@ class scipy_last_fit_guess(base_phasor):
         
         def fun_wrapped(x):
             
-            return self.gaussian(x, data)
+            return self.fun_gaussian(x, data)
         
         if max_nfev is not None and max_nfev <= 0:
             raise ValueError("`max_nfev` must be None or positive integer.")
@@ -265,16 +273,6 @@ class scipy_last_fit_guess(base_phasor):
         result.success = result.status > 0
     
         return result
-    
-    def determine_background(self, my_roi):
-       
-        roi_background = self.empty_background
-        roi_background[0:self.ROI_size] = my_roi[:, 0]
-        roi_background[self.ROI_size:self.ROI_size*2] = my_roi[:, -1]
-        roi_background[self.ROI_size*2:self.ROI_size*2+self.ROI_size-2] = my_roi[0, 1:-1]
-        roi_background[self.ROI_size*2+self.ROI_size-2:] = my_roi[-1, 1:-1]
-        
-        return np.mean(roi_background)
     
     def phasor_guess(self, data):
         """ Returns an initial guess based on phasor fitting"""
@@ -319,10 +317,10 @@ class scipy_last_fit_guess(base_phasor):
             x = int(peak[1])
 
             my_roi = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
-            my_roi_bg = self.determine_background(my_roi)
+            my_roi_bg = self.fun_calc_bg(my_roi)
             my_roi = my_roi - my_roi_bg
             
-            if np.max(my_roi)+my_roi_bg < self.threshold:
+            if self.fun_find_max(my_roi)+my_roi_bg < self.threshold:
                 continue
 
             result, its, success = self.fitgaussian(my_roi, peak_index)
@@ -402,26 +400,10 @@ class scipy_last_fit_guess_background(scipy_last_fit_guess):
     def phasor_guess(self, data):
         """ Returns an initial guess based on phasor fitting"""
         pos_x, pos_y = self.phasor_fit(data)
-        background = self.determine_background(data)
+        background = self.fun_calc_bg(data)
         height = data[int(pos_y+0.5), int(pos_x+0.5)]-background
         
         return np.array([height, pos_y, pos_x, self.init_sig, self.init_sig, background])
-    
-    def gaussian(self, x, data):
- 
-        if self.ROI_size == 9:
-            return fortran_tools.gs_bg(*x, self.ROI_size, data)
-        else:
-            return fortran_tools.gs_bg7(*x, self.ROI_size, data)
-        
-    def jacobian(self, x0, data):
-        
-        if self.ROI_size == 9:
-            return fortran_tools.dense_dif_bg(x0, self.rel_step, self.comp,
-                                       self.num_fit_params, self.ROI_size, data)
-        else:
-            return fortran_tools.dense_dif_bg7(x0, self.rel_step, self.comp,
-                                       self.num_fit_params, self.ROI_size, data)
     
     def fitter(self, frame_index, frame, peaks):
         """
@@ -448,7 +430,7 @@ class scipy_last_fit_guess_background(scipy_last_fit_guess):
 
             my_roi = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
 
-            if np.max(my_roi) < self.threshold:
+            if self.fun_find_max(my_roi) < self.threshold:
                 continue
 
             result, its, success = self.fitgaussian(my_roi, peak_index)
@@ -521,14 +503,27 @@ class phasor_only_ROI_loop():
         self.init_sig = wavelength/(2*metadata['NA']*math.sqrt(8*math.log(2)))/(metadata['calibration_um']*1000)*2 #*2 for better guess
         self.threshold = threshold
         self.__name__ = METHOD
+        
+        self.declare_functions()
+    
+    def declare_functions(self):
+        
+        if self.ROI_size == 9:
+            self.fun_find_max = lambda roi: fortran_tools.max9(roi)
+            self.fun_calc_bg = lambda roi: fortran_tools.calc_bg9(roi)
+        elif self.ROI_size == 7:
+            self.fun_find_max = lambda roi: fortran_tools.max7(roi)
+            self.fun_calc_bg = lambda roi: fortran_tools.calc_bg7(roi)
     
     def phasor_fit_stack(self, frame_stack, roi, roi_index, y, x):
         
         roi_result = np.zeros([frame_stack.shape[0], 6])
         
         roi_bb = pyfftw.empty_aligned(frame_stack.shape, dtype='float64')
-        roi_bf = pyfftw.empty_aligned((frame_stack.shape[0], 9, 5), dtype='complex128')
-        fft_values_list = pyfftw.FFTW(roi_bb, roi_bf,axes=(1,2),flags=('FFTW_MEASURE',), direction='FFTW_FORWARD')
+        roi_bf = pyfftw.empty_aligned((frame_stack.shape[0], self.ROI_size, self.ROI_size_1D+1), dtype='complex128')
+        fft_values_list = pyfftw.FFTW(roi_bb, roi_bf, axes=(1,2), 
+                                      flags=('FFTW_MEASURE',), 
+                                      direction='FFTW_FORWARD')
         roi_bb = frame_stack
         fft_values_list = fft_values_list(roi_bb)
         
@@ -536,9 +531,10 @@ class phasor_only_ROI_loop():
         
         for frame_index, (fft_values, frame) in enumerate(zip(fft_values_list, frame_stack)):
             
-            my_frame_bg = np.mean(np.append(np.append(np.append(frame[:, 0],frame[:, -1]), np.transpose(frame[0, 1:-2])), np.transpose(frame[-1, 1:-2])))
-        
-            if np.max(frame) < self.threshold:
+            my_frame_bg = self.fun_calc_bg(frame)
+            frame_max = self.fun_find_max(frame)
+            
+            if frame_max < self.threshold:
                 continue
             
             ang_x = cmath.phase(fft_values[0, 1])
@@ -564,7 +560,7 @@ class phasor_only_ROI_loop():
             #start position plus from center in ROI + half for indexing of pixels
             roi_result[frame_index, 2] = y+pos_y-self.ROI_size_1D+0.5
             roi_result[frame_index, 3] = x+pos_x-self.ROI_size_1D+0.5
-            roi_result[frame_index, 4] = np.max(frame) - my_frame_bg # returns max peak
+            roi_result[frame_index, 4] = frame_max - my_frame_bg # returns max peak
             roi_result[frame_index, 5] = my_frame_bg # background
     
         roi_result = roi_result[roi_result[:, 2] > 0]    
@@ -636,8 +632,10 @@ class phasor_only_ROI_loop_dumb(phasor_only_ROI_loop):
         roi_result = np.zeros([frame_stack.shape[0], 4])
         
         roi_bb = pyfftw.empty_aligned(frame_stack.shape, dtype='float64')
-        roi_bf = pyfftw.empty_aligned((frame_stack.shape[0], 9, 5), dtype='complex128')
-        fft_values_list = pyfftw.FFTW(roi_bb, roi_bf,axes=(1,2),flags=('FFTW_MEASURE',), direction='FFTW_FORWARD')
+        roi_bf = pyfftw.empty_aligned((frame_stack.shape[0], self.ROI_size, self.ROI_size_1D+1), dtype='complex128')
+        fft_values_list = pyfftw.FFTW(roi_bb, roi_bf, axes=(1,2), 
+                                      flags=('FFTW_MEASURE',), 
+                                      direction='FFTW_FORWARD')
         roi_bb = frame_stack
         fft_values_list = fft_values_list(roi_bb)
         

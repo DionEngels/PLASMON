@@ -15,6 +15,7 @@ v0.3, rainSTORM inspired working v1: 04/06/2020
 v1.0, main working for .nd2 loading, no custom ROI fitting: 05/06/2020
 v1.1. MATLAB loading: 15/06/2020
 v1.2: own ROI finder: 11/07/2020
+v1.3: 7x7 and 9x9 ROIs: 13/07/2020
 
  """
 
@@ -58,7 +59,7 @@ FILETYPES = [("ND2", ".nd2")]
 
 filenames = ("C:/Users/s150127/Downloads/_MBx dataset/1nMimager_newGNRs_100mW.nd2",)
 
-METHOD = "ScipyLastFitGuessBackground"
+METHOD = "ScipyLastFitGuess"
 DATASET = "MATLAB_v2" # "MATLAB, "MATLAB_v2" OR "YUYANG"
 ROI_FINDER = "SELF" # "SELF" OR "PRE"
 #%% Main loop cell
