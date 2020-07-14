@@ -57,6 +57,7 @@ v5.14: cleanup of FORTRAN and Python code
 v6.0: FORTRAN enabled without cache, ST
 v6.1: cutoff intensity
 v6.2: stricter rejection and only save params if succesful
+v6.3: threshold from ROI finder
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
@@ -141,7 +142,7 @@ class scipy_last_fit_guess(base_phasor):
         metadata : metadata of ND2
         ROI_size : ROI size
         wavelength : laser wavelength
-        threshold : # of standard deviations for threhsold
+        threshold : minimum intensity to be fitted
         ROI_locations : found ROIs
 
         Returns
@@ -153,7 +154,7 @@ class scipy_last_fit_guess(base_phasor):
         self.ROI_size = ROI_size
         self.ROI_size_1D = int((self.ROI_size-1)/2)
         self.init_sig = wavelength/(2*metadata['NA']*math.sqrt(8*math.log(2)))/(metadata['calibration_um']*1000)*2 #*2 for better guess
-        self.threshold_sigma = threshold
+        self.threshold = threshold
         self.__name__ = METHOD
         
         
@@ -301,7 +302,7 @@ class scipy_last_fit_guess(base_phasor):
             my_roi_bg = self.determine_background(my_roi)
             my_roi = my_roi - my_roi_bg
             
-            if np.max(my_roi) < np.sqrt(my_roi_bg)*self.threshold_sigma:
+            if np.max(my_roi)+my_roi_bg < self.threshold:
                 continue
 
             result, its, success = self.fitgaussian(my_roi, peak_index)
@@ -415,7 +416,7 @@ class scipy_last_fit_guess_background(scipy_last_fit_guess):
 
             my_roi = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
 
-            if frame_index > 0 and np.max(my_roi) < np.sqrt(self.params[peak_index,-1])*self.threshold_sigma:
+            if np.max(my_roi) < self.threshold:
                 continue
 
             result, its, success = self.fitgaussian(my_roi, peak_index)
@@ -473,7 +474,7 @@ class phasor_only_ROI_loop():
         metadata : metadata of ND2
         ROI_size : ROI size
         wavelength : laser wavelength
-        threshold : # of standard deviations for threhsold
+        threshold : minimum intensity for fitting
         ROI_locations : found ROIs
 
         Returns
@@ -486,7 +487,7 @@ class phasor_only_ROI_loop():
         self.ROI_size = ROI_size
         self.ROI_size_1D = int((self.ROI_size-1)/2)
         self.init_sig = wavelength/(2*metadata['NA']*math.sqrt(8*math.log(2)))/(metadata['calibration_um']*1000)*2 #*2 for better guess
-        self.threshold_sigma = threshold
+        self.threshold = threshold
         self.__name__ = METHOD
     
     def phasor_fit_stack(self, frame_stack, roi, roi_index, y, x):
@@ -505,7 +506,7 @@ class phasor_only_ROI_loop():
             
             my_frame_bg = np.mean(np.append(np.append(np.append(frame[:, 0],frame[:, -1]), np.transpose(frame[0, 1:-2])), np.transpose(frame[-1, 1:-2])))
         
-            if np.max(frame) < my_frame_bg + math.sqrt(my_frame_bg)*self.threshold_sigma:
+            if np.max(frame) < self.threshold:
                 continue
             
             ang_x = cmath.phase(fft_values[0, 1])

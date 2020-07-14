@@ -11,12 +11,15 @@ Frame Analysis
 
 v1.0, ROI detection:  31/05/2020
 v1.1, conventional naming: 04/06/2020
+v2.0: self-made ROI finding: 10/07/2020
+v2.1: tweaks with standard min intensity: 14/07/2020
 
 """
 import time # to sleep to ensure that matlab licence is registered
 import numpy as np # for linear algebra
 import matlab.engine # to run matlab
 import scipy.io as sio # to load in .mat
+from scipy.signal import medfilt2d
 
 
  #%% Adapted from FindParticles.m from SPectraA4
@@ -102,8 +105,13 @@ class roi_finder():
     
     def determine_threshold_min(self, frame):
         
+        frame_convert = frame.astype('float32')
+        frame_filter = medfilt2d(frame_convert, self.roi_size)
         frame_ravel = np.ravel(frame)
-        for _ in range(4):
+        frame_filter_ravel = np.ravel(frame_filter)
+        mean, std = norm.fit(frame_filter_ravel)
+        
+        for _ in range(10):
             mean, std = norm.fit(frame_ravel)
             frame_ravel = frame_ravel[frame_ravel < mean+std*5]
         
@@ -112,6 +120,8 @@ class roi_finder():
     def __init__(self, roi_size, frame, intensity_min = None, intensity_max = None, 
                  sigma_min = 0, sigma_max = 10):
         
+        self.roi_size = int(roi_size)
+        self.roi_size_1d = int((roi_size-1)/2)        
         self.threshold_sigma = 5
         
         if intensity_min == None:
@@ -126,9 +136,7 @@ class roi_finder():
             
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
-        
-        self.roi_size = int(roi_size)
-        self.roi_size_1d = int((roi_size-1)/2)
+            
         self.roi_locations = []
         
         self.empty_background = np.zeros(self.roi_size*2+(self.roi_size-2)*2, dtype=np.uint16)
