@@ -487,15 +487,16 @@ class fitting_page(tk.Frame):
             roi_locations = self.roi_locations[dataset_index]
             
             wavelength = self.saved_settings[dataset_index]['wavelength']
+            min_intensity = self.saved_settings[dataset_index]['min_int']
         
             if method == "Phasor with intensity":
-                fitter = fitting.phasor_only_ROI_loop(self.metadata, roi_size, wavelength, THRESHOLD, method)
+                fitter = fitting.phasor_only_ROI_loop(self.metadata, roi_size, wavelength, min_intensity, method)
             elif method == "Phasor without intensity":
-                fitter = fitting.phasor_only_ROI_loop_dumb(self.metadata, roi_size, wavelength, THRESHOLD, method)
+                fitter = fitting.phasor_only_ROI_loop_dumb(self.metadata, roi_size, wavelength, min_intensity, method)
             elif method == "Gaussian without background":
-                fitter = fitting.scipy_last_fit_guess(self.metadata, roi_size, wavelength, THRESHOLD, method, 5)
+                fitter = fitting.scipy_last_fit_guess(self.metadata, roi_size, wavelength, min_intensity, method, 5)
             elif method == "Gaussian with background":
-                fitter = fitting.scipy_last_fit_guess_background(self.metadata, roi_size, wavelength, THRESHOLD, method, 6)
+                fitter = fitting.scipy_last_fit_guess_background(self.metadata, roi_size, wavelength, min_intensity, method, 6)
                 
             if start_frame == "Leave empty for start" and end_frame == "Leave empty for end":
                 to_fit = self.frames
