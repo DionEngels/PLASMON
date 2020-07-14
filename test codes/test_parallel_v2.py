@@ -17,7 +17,7 @@ def main(i, q):
 
 if __name__ == '__main__':
     q = mp.Queue()
-    processes = [mp.Process(target=main, args=(i, q)) for i in range(2,3)]
+    processes = [mp.Process(target=main, args=(i, q)) for i in range(2,5)]
 
     for p in processes:
         p.start()

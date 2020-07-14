@@ -504,16 +504,30 @@ class phasor_only_ROI_loop():
         self.threshold = threshold
         self.__name__ = METHOD
         
-        self.declare_functions()
-    
-    def declare_functions(self):
+        #self.declare_functions()
+        
+    def fun_find_max(self, roi):
         
         if self.ROI_size == 9:
-            self.fun_find_max = lambda roi: fortran_tools.max9(roi)
-            self.fun_calc_bg = lambda roi: fortran_tools.calc_bg9(roi)
+            return fortran_tools.max9(roi)
         elif self.ROI_size == 7:
-            self.fun_find_max = lambda roi: fortran_tools.max7(roi)
-            self.fun_calc_bg = lambda roi: fortran_tools.calc_bg7(roi)
+            return fortran_tools.max7(roi)
+        
+    def fun_calc_bg(self, roi):
+        
+        if self.ROI_size == 9:
+            return fortran_tools.calc_bg9(roi)
+        elif self.ROI_size == 7:
+            return fortran_tools.calc_bg7(roi)
+    
+    # def declare_functions(self):
+        
+    #     if self.ROI_size == 9:
+    #         self.fun_find_max = lambda roi: fortran_tools.max9(roi)
+    #         self.fun_calc_bg = lambda roi: fortran_tools.calc_bg9(roi)
+    #     elif self.ROI_size == 7:
+    #         self.fun_find_max = lambda roi: fortran_tools.max7(roi)
+    #         self.fun_calc_bg = lambda roi: fortran_tools.calc_bg7(roi)
     
     def phasor_fit_stack(self, frame_stack, roi, roi_index, y, x):
         
