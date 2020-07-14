@@ -61,7 +61,7 @@ v6.3: threshold from ROI finder
 v6.4: ROI size 7 implementation
 v6.5: own norm
 v6.6: FORTRAN tools: max, norm, and calc bg
-v7.0: cleanup and declare_functions function
+v7.0: cleanup and declare_functions function: 14/07/2020
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import

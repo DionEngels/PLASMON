@@ -1,9 +1,9 @@
 %clear all
 close all
 %% load in data
-load v6_Yuyang/Last_Fit_6_2
-load v6_Yuyang/metadata
-load v6_Yuyang/ROI_locations
+load v7_Yuyang/Last_Fit_7x7
+load v7_Yuyang/metadata
+load v7_Yuyang/ROI_locations
 
 
 %% fit checker setup
@@ -40,7 +40,7 @@ x_pos = data(data(:,2)==123,x_column);
 y_pos = data(data(:,2)==123,y_column);
 
 
-intensity = data(data(:,2)==123,5);
+intensity = data(data(:,2)==124,5);
 plot(frames,intensity)
 
 
