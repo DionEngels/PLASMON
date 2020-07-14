@@ -9,6 +9,7 @@ v1.0: first version GUI: 13/07/2020
 v1.1: Adding ROI size, wavelength to GUI: 13/07/2020
 v1.2: Small additions, 7x7 ROI
 v1.3: Disabling buttons, removing from grid
+v1.4: Save and change wavelength per dataset
 
 """
 
@@ -257,7 +258,7 @@ class fitting_page(tk.Frame):
             self.button_left.grid_forget()
             self.button_left = ttk.Button(self, text = "<<", command = lambda: self.previous_dataset())
             self.button_left.grid(row = 9, column = 0)
-            
+                        
     #%% Fitting page, fit ROIs
         
     def fit_rois(self):
@@ -447,13 +448,21 @@ class fitting_page(tk.Frame):
             self.button_restore_saved = ttk.Button(self, text = "Restore saved", 
                                  command = lambda: self.restore_saved())
             self.button_restore_saved.grid(row = 12, column = 3, columnspan = 2)
+            
+            wavelength = self.saved_settings[self.dataset_index]['wavelength']
+            self.wavelength_input = entry_placeholder(self, "wavelength in nm")
+            self.wavelength_input.grid(row = 12, column = 6, columnspan = 3)
+            self.wavelength_input.foc_in()
+            self.wavelength_input.insert(0, str(wavelength))
         else:
             self.button_restore_saved.grid_forget()
             self.button_restore_saved = ttk.Button(self, text = "Restore saved", 
                                                    state = 'disabled',
                                  command = lambda: self.restore_saved())
-            self.button_restore_saved.grid(row = 12, column = 3, columnspan = 2)
+            self.button_restore_saved.grid(row = 12, column = 3, columnspan = 2)   
             
+            self.wavelength_input = entry_placeholder(self, "wavelength in nm")
+            self.wavelength_input.grid(row = 12, column = 6, columnspan = 3)
         
     def previous_dataset(self):
         
@@ -524,12 +533,21 @@ class fitting_page(tk.Frame):
             self.button_restore_saved = ttk.Button(self, text = "Restore saved", 
                                  command = lambda: self.restore_saved())
             self.button_restore_saved.grid(row = 12, column = 3, columnspan = 2)
+            
+            wavelength = self.saved_settings[self.dataset_index]['wavelength']
+            self.wavelength_input = entry_placeholder(self, "wavelength in nm")
+            self.wavelength_input.grid(row = 12, column = 6, columnspan = 3)
+            self.wavelength_input.foc_in()
+            self.wavelength_input.insert(0, str(wavelength))
         else:
             self.button_restore_saved.grid_forget()
             self.button_restore_saved = ttk.Button(self, text = "Restore saved", 
                                                    state = 'disabled',
                                  command = lambda: self.restore_saved())
             self.button_restore_saved.grid(row = 12, column = 3, columnspan = 2)
+            
+            self.wavelength_input = entry_placeholder(self, "wavelength in nm")
+            self.wavelength_input.grid(row = 12, column = 6, columnspan = 3)
             
     #%% Fitting page, start fitting
             
@@ -674,6 +692,12 @@ class fitting_page(tk.Frame):
                                          orient = 'horizontal', resolution = 0.01)
         self.max_sigma_slider.set(settings['max_sigma'])
         self.max_sigma_slider.grid(row = 3, column = 3, columnspan = 3)
+        
+        wavelength = settings['wavelength']
+        self.wavelength_input = entry_placeholder(self, "wavelength in nm")
+        self.wavelength_input.grid(row = 12, column = 6, columnspan = 3)
+        self.wavelength_input.foc_in()
+        self.wavelength_input.insert(0, str(wavelength))
         
     #%% Fitting page, initial decleration
         
