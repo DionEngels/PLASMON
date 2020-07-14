@@ -37,8 +37,8 @@ loops = list(range(0, num_loop))
 start = time.time()
 
 for loop in loops:
-    my_roi_bg = np.mean(np.append(np.append(np.append(roi[:, 0], 
-    roi[:, -1]), np.transpose(roi[0, 0:-2])), np.transpose(roi[-1, 0:-2])))
+    roi_bg1 = np.mean(np.append(np.append(np.append(roi[:, 0], 
+    roi[:, -1]), np.transpose(roi[0, 1:-1])), np.transpose(roi[-1, 1:-1])))
 
 print('Time taken build-in: ' + str(round(time.time() - start, 3)) + ' s. Loops: ' + str(len(loops)))
 
@@ -46,16 +46,27 @@ def determine_background(empty_background, my_roi):
         roi_background = empty_background
         roi_background[0:9] = my_roi[:, 0]
         roi_background[9:9*2] = my_roi[:, -1]
-        roi_background[9*2:9*2+9-2] = my_roi[0, 0:-2]
-        roi_background[9*2+9-2:] = my_roi[-1, 0:-2]
+        roi_background[9*2:9*2+9-2] = my_roi[0, 1:-1]
+        roi_background[9*2+9-2:] = my_roi[-1, 1:-1]
         
         return np.mean(roi_background)
 
 start = time.time()
 
-empty_background = np.zeros(9*2+(9-2)*2, dtype=np.uint16)
+empty_background = np.zeros(9*2+(9-2)*2)
     
 for loop in loops:
-    roi_bg = determine_background(empty_background, roi)
+    roi_bg2 = determine_background(empty_background, roi)
 
 print('Time taken build-in v2: ' + str(round(time.time() - start, 3)) + ' s. Loops: ' + str(len(loops)))
+
+import MBx_FORTRAN_TEST_v1 as fortran
+
+start = time.time()
+    
+for loop in loops:
+    roi_bg3 = fortran.calc_max(roi)
+
+print('Time taken FORTRAN: ' + str(round(time.time() - start, 3)) + ' s. Loops: ' + str(len(loops)))
+
+

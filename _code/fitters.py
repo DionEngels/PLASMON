@@ -59,6 +59,7 @@ v6.1: cutoff intensity
 v6.2: stricter rejection and only save params if succesful
 v6.3: threshold from ROI finder
 v6.4: ROI size 7 implementation
+v6.5: own norm
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
@@ -106,7 +107,6 @@ class base_phasor():
         return pos_x, pos_y
                    
 #%% Scipy last fit guess exlcuding background 
-from numpy.linalg import norm
 from scipy.optimize import _minpack, OptimizeResult
 from scipy.optimize._lsq.common import EPS
 
@@ -189,6 +189,18 @@ class scipy_last_fit_guess(base_phasor):
             return fortran_tools.dense_dif7(x0, self.rel_step, self.comp,
                                        self.num_fit_params, self.ROI_size, data)
                     
+    def norm(self, g):
+        
+        g_norm = 0
+    
+        for number in g:
+            if number > g_norm:
+                g_norm = number
+            elif -number > g_norm:
+                g_norm = -number
+        
+        return g_norm
+    
     def call_minpack(self, fun, x0, f0, data, jac, ftol, xtol, gtol, max_nfev, diag):
 
         n = x0.size
@@ -210,7 +222,7 @@ class scipy_last_fit_guess(base_phasor):
         
         cost = 0.5 * np.dot(f, f)
         g = j.T.dot(f)
-        g_norm = norm(g, ord=np.inf)
+        g_norm = self.norm(g)
     
         nfev = info['nfev']
         njev = info.get('njev', None)
@@ -259,8 +271,8 @@ class scipy_last_fit_guess(base_phasor):
         roi_background = self.empty_background
         roi_background[0:self.ROI_size] = my_roi[:, 0]
         roi_background[self.ROI_size:self.ROI_size*2] = my_roi[:, -1]
-        roi_background[self.ROI_size*2:self.ROI_size*2+self.ROI_size-2] = my_roi[0, 0:-2]
-        roi_background[self.ROI_size*2+self.ROI_size-2:] = my_roi[-1, 0:-2]
+        roi_background[self.ROI_size*2:self.ROI_size*2+self.ROI_size-2] = my_roi[0, 1:-1]
+        roi_background[self.ROI_size*2+self.ROI_size-2:] = my_roi[-1, 1:-1]
         
         return np.mean(roi_background)
     
@@ -369,12 +381,17 @@ class scipy_last_fit_guess(base_phasor):
                 n_fits = frame_result.shape[0]
                 self.result[tot_fits:tot_fits+n_fits,:] = frame_result
                 tot_fits += n_fits
-
-            if frame_index % (round(metadata['sequence_count']/10,0)) == 0:
-                print('Done fitting frame '+str(frame_index)+' of ' + str(metadata['sequence_count']))
-            #print('Done fitting frame '+str(frame_index)+' of ' + str(metadata['sequence_count']))
+            
+            if frame_index % (round(metadata['sequence_count']/10,0)) == 0:    
+                if gui == None:
+                    print('Done fitting frame '+str(frame_index)+' of ' + str(metadata['sequence_count']))
+                else:
+                    gui.update_status(frame_index+1, metadata['sequence_count']+1)
         
         self.result = np.delete(self.result, range(tot_fits,len(frames)*self.ROI_locations.shape[0]), axis=0)
+        
+        if gui != None:
+            gui.update_status(metadata['sequence_count'], metadata['sequence_count'])
 
         return self.result
     
