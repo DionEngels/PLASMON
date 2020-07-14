@@ -7,6 +7,7 @@ MBx Python Data Analysis
 
 v1.0: first version GUI: 13/07/2020
 v1.1: Adding ROI size, wavelength to GUI: 13/07/2020
+v1.2: Small additions, 7x7 ROI
 
 """
 
@@ -57,7 +58,7 @@ LARGE_FONT = ("Verdana", 12)
 fit_options = ["Phasor with intensity", "Phasor without intensity",
                    "Gaussian with background", "Gaussian without background"]
 
-roi_size_options = ["9x9"]
+roi_size_options = ["7x7", "9x9"]
 
 ttk_style = ttk.Style()
 #ttk_style.configure('my.TButton', font=('Verdana', 12))

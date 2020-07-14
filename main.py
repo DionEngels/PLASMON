@@ -46,7 +46,7 @@ import _code.roi_finding as roi_finding
 import _code.fitters as fitting
 import _code.tools as tools
 #%% Inputs
-ROI_SIZE = 9 
+ROI_SIZE = 7
 WAVELENGTH = 637 #nm
 
 #%% Initializations
@@ -58,8 +58,8 @@ FILETYPES = [("ND2", ".nd2")]
 
 filenames = ("C:/Users/s150127/Downloads/_MBx dataset/1nMimager_newGNRs_100mW.nd2",)
 
-METHOD = "PhasorOnlyROI"
-DATASET = "MATLAB_v2" # "MATLAB, "MATLAB_v2" OR "YUYANG"
+METHOD = "ScipyLastFitGuess"
+DATASET = "YUYANG" # "MATLAB, "MATLAB_v2" OR "YUYANG"
 ROI_FINDER = "SELF" # "SELF" OR "PRE"
 #%% Main loop cell
 

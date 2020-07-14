@@ -58,12 +58,13 @@ v6.0: FORTRAN enabled without cache, ST
 v6.1: cutoff intensity
 v6.2: stricter rejection and only save params if succesful
 v6.3: threshold from ROI finder
+v6.4: ROI size 7 implementation
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
 import math
 import numpy as np
-import _code.MBx_FORTRAN_v3 as fortran_tools
+import _code.MBx_FORTRAN_v4 as fortran_tools
 
 #%% Base Phasor
 
@@ -174,11 +175,18 @@ class scipy_last_fit_guess(base_phasor):
         
     def gaussian(self, x, data):
  
-        return fortran_tools.gaussian(*x, self.ROI_size, data)
+        if self.ROI_size == 9:
+            return fortran_tools.gaussian(*x, self.ROI_size, data)
+        else:
+            return fortran_tools.gaussian7(*x, self.ROI_size, data)
     
     def jacobian(self, x0, data):
         
-        return fortran_tools.dense_dif(x0, self.rel_step, self.comp,
+        if self.ROI_size == 9:
+            return fortran_tools.dense_dif(x0, self.rel_step, self.comp,
+                                       self.num_fit_params, self.ROI_size, data)
+        else:
+            return fortran_tools.dense_dif7(x0, self.rel_step, self.comp,
                                        self.num_fit_params, self.ROI_size, data)
                     
     def call_minpack(self, fun, x0, f0, data, jac, ftol, xtol, gtol, max_nfev, diag):
@@ -384,11 +392,18 @@ class scipy_last_fit_guess_background(scipy_last_fit_guess):
     
     def gaussian(self, x, data):
  
-         return fortran_tools.gs_bg(*x, self.ROI_size, data)
+        if self.ROI_size == 9:
+            return fortran_tools.gs_bg(*x, self.ROI_size, data)
+        else:
+            return fortran_tools.gs_bg7(*x, self.ROI_size, data)
         
     def jacobian(self, x0, data):
         
-        return fortran_tools.dense_dif_bg(x0, self.rel_step, self.comp,
+        if self.ROI_size == 9:
+            return fortran_tools.dense_dif_bg(x0, self.rel_step, self.comp,
+                                       self.num_fit_params, self.ROI_size, data)
+        else:
+            return fortran_tools.dense_dif_bg7(x0, self.rel_step, self.comp,
                                        self.num_fit_params, self.ROI_size, data)
     
     def fitter(self, frame_index, frame, peaks):
