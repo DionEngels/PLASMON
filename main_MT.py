@@ -10,6 +10,7 @@ Multiprocessing main
 ----------------------------
 
 v1.0: ROI split: 15/07/2020
+v1.1: Bugfix saving correct info
 
 """
 
@@ -24,7 +25,7 @@ import _code.roi_finding as roi_finding
 import _code.tools as tools
 import cProfile
 
-pr = cProfile.Profile()
+#pr = cProfile.Profile()
 
 #%% Init
 ROI_SIZE = 7
@@ -59,7 +60,7 @@ def main(name, fitter, roi_locations, shared, q):
 #%% Main
 if __name__ == '__main__':
 
-    pr.enable()
+    #pr.enable()
 
     for name in filenames:
         with ND2_Reader(name) as ND2:
@@ -119,7 +120,7 @@ if __name__ == '__main__':
                 
             print(result)
                             
-            result = result[result[:,3] != 0]
+            result = result[result[:, 3] != 0]
             print(result)
             
             print('Time taken: ' + str(round(time.time() - start, 3)) + ' s. Fits done: ' + str(result.shape[0]))
@@ -132,12 +133,12 @@ if __name__ == '__main__':
             ROI_locations_dict = dict(zip(['x', 'y'], roi_locations.T))
 
             ## Localization dict
-            results_dict = {'Localizations': results}
+            results_dict = {'Localizations': result}
 
             # %% save everything
             tools.save_to_csv_mat('metadata', metadata_filtered, directory)
             tools.save_to_csv_mat('ROI_locations', ROI_locations_dict, directory)
             tools.save_to_csv_mat('Localizations', results_dict, directory)
 
-    pr.disable()
-    pr.print_stats(sort='time')
+    #pr.disable()
+    #pr.print_stats(sort='time')

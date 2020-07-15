@@ -10,7 +10,7 @@ number_y = 10;
 
 n_frames = 1000;
 %% load in data
-load v7/Phasor_7x7
+load v7/7_1_Last_Fit_7x7_MT
 
 %% fit checker setup
 x_column = 4; %what column has x-pos in the return data
