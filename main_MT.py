@@ -2,9 +2,17 @@
 """
 Created on Wed Jun 10 00:38:19 2020
 
-@author: s150127
+@author: Dion Engels
+MBx Python Data Analysis
+
+Multiprocessing main
+
+----------------------------
+
+v1.0: ROI split: 15/07/2020
+
+ """
 """
-#import sys
 import numpy as np
 from pims import ND2_Reader # reader of ND2 files
 import time
@@ -14,6 +22,7 @@ import os
 import _code.fitters as fitting
 import _code.roi_finding as roi_finding
 import _code.tools as tools
+import cProfile
 
 pr = cProfile.Profile()
 
@@ -23,7 +32,6 @@ WAVELENGTH = 637 #nm
 filenames = ("C:/Users/s150127/Downloads/_MBx dataset/1nMimager_newGNRs_100mW.nd2",)
 
 n_processes = int(mp.cpu_count())
-
 
 #%% Main
 
@@ -50,8 +58,8 @@ def main(name, fitter, roi_locations, shared, q):
 
 #%% Main
 if __name__ == '__main__':
-    
-    #pr.enable()
+
+    pr.enable()
 
     for name in filenames:
         with ND2_Reader(name) as ND2:
@@ -115,9 +123,6 @@ if __name__ == '__main__':
             print(result)
             
             print('Time taken: ' + str(round(time.time() - start, 3)) + ' s. Fits done: ' + str(result.shape[0]))
-                
-            #pr.disable()
-            #pr.print_stats(sort='time')
 
             metadata_filtered = {k: v for k, v in metadata.items() if v is not None}
             del metadata_filtered['time_start']
@@ -133,3 +138,6 @@ if __name__ == '__main__':
             tools.save_to_csv_mat('metadata', metadata_filtered, directory)
             tools.save_to_csv_mat('ROI_locations', ROI_locations_dict, directory)
             tools.save_to_csv_mat('Localizations', results_dict, directory)
+
+    pr.disable()
+    pr.print_stats(sort='time')

@@ -62,6 +62,7 @@ v6.4: ROI size 7 implementation
 v6.5: own norm
 v6.6: FORTRAN tools: max, norm, and calc bg
 v7.0: cleanup and declare_functions function: 14/07/2020
+v7.1: revert lambda implementation for MT
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
