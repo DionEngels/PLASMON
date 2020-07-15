@@ -176,37 +176,84 @@ class scipy_last_fit_guess(base_phasor):
         self.rel_step = EPS**(1/3)
         self.comp = np.ones(num_fit_params)
         
-        self.declare_functions()        
+        # self.declare_functions()        
         
-    def declare_functions(self):
+    # def declare_functions(self):
+        
+    #     if self.ROI_size == 9:
+    #         self.fun_find_max = lambda roi: fortran_tools.max9(roi)
+    #         self.fun_calc_bg = lambda roi: fortran_tools.calc_bg9(roi)
+    #     elif self.ROI_size == 7:
+    #         self.fun_find_max = lambda roi: fortran_tools.max7(roi)
+    #         self.fun_calc_bg = lambda roi: fortran_tools.calc_bg7(roi)
+            
+    #     if self.num_fit_params == 5:
+    #         self.fun_norm = lambda g: fortran_tools.norm5(g)
+    #     elif self.num_fit_params == 6:
+    #         self.fun_norm = lambda g: fortran_tools.norm6(g)
+            
+    #     if self.num_fit_params == 5 and self.ROI_size == 9:
+    #         self.fun_gaussian = lambda x, data: fortran_linalg.gaussian(*x, self.ROI_size, data)
+    #         self.fun_jacobian = lambda x0, data: fortran_linalg.dense_dif(x0, self.rel_step, self.comp,
+    #                                    self.num_fit_params, self.ROI_size, data)
+    #     elif self.num_fit_params == 5 and self.ROI_size == 7:
+    #         self.fun_gaussian = lambda x, data: fortran_linalg.gaussian7(*x, self.ROI_size, data)
+    #         self.fun_jacobian = lambda x0, data: fortran_linalg.dense_dif7(x0, self.rel_step, self.comp,
+    #                                    self.num_fit_params, self.ROI_size, data)
+    #     elif self.num_fit_params == 6 and self.ROI_size == 9:
+    #         self.fun_gaussian = lambda x, data: fortran_linalg.gs_bg(*x, self.ROI_size, data)
+    #         self.fun_jacobian = lambda x0, data: fortran_linalg.dense_dif_bg(x0, self.rel_step, self.comp,
+    #                                    self.num_fit_params, self.ROI_size, data)
+    #     elif self.num_fit_params == 6 and self.ROI_size == 7:
+    #         self.fun_gaussian = lambda x, data: fortran_linalg.gs_bg7(*x, self.ROI_size, data)
+    #         self.fun_jacobian = lambda x0, data: fortran_linalg.dense_dif_bg7(x0, self.rel_step, self.comp,
+    #                                    self.num_fit_params, self.ROI_size, data)
+            
+    def fun_find_max(self, roi):
         
         if self.ROI_size == 9:
-            self.fun_find_max = lambda roi: fortran_tools.max9(roi)
-            self.fun_calc_bg = lambda roi: fortran_tools.calc_bg9(roi)
+            return fortran_tools.max9(roi)
         elif self.ROI_size == 7:
-            self.fun_find_max = lambda roi: fortran_tools.max7(roi)
-            self.fun_calc_bg = lambda roi: fortran_tools.calc_bg7(roi)
-            
+            return fortran_tools.max7(roi)
+        
+    def fun_calc_bg(self, roi):
+        
+        if self.ROI_size == 9:
+            return fortran_tools.calc_bg9(roi)
+        elif self.ROI_size == 7:
+            return fortran_tools.calc_bg7(roi)        
+        
+    def fun_norm(self, g):
+        
         if self.num_fit_params == 5:
-            self.fun_norm = lambda g: fortran_tools.norm5(g)
+            return fortran_tools.norm5(g)
         elif self.num_fit_params == 6:
-            self.fun_norm = lambda g: fortran_tools.norm6(g)
-            
+            return fortran_tools.norm6(g)
+        
+    def fun_gaussian(self, x, data):
+        
         if self.num_fit_params == 5 and self.ROI_size == 9:
-            self.fun_gaussian = lambda x, data: fortran_linalg.gaussian(*x, self.ROI_size, data)
-            self.fun_jacobian = lambda x0, data: fortran_linalg.dense_dif(x0, self.rel_step, self.comp,
+            return fortran_linalg.gaussian(*x, self.ROI_size, data)
+        elif self.num_fit_params == 5 and self.ROI_size == 7:
+            return fortran_linalg.gaussian7(*x, self.ROI_size, data)
+        elif self.num_fit_params == 6 and self.ROI_size == 9:
+            return fortran_linalg.gs_bg(*x, self.ROI_size, data)
+        elif self.num_fit_params == 6 and self.ROI_size == 7:
+            return fortran_linalg.gs_bg7(*x, self.ROI_size, data)
+        
+    def fun_jacobian(self, x0, data):
+        
+        if self.num_fit_params == 5 and self.ROI_size == 9:
+            return fortran_linalg.dense_dif(x0, self.rel_step, self.comp,
                                        self.num_fit_params, self.ROI_size, data)
         elif self.num_fit_params == 5 and self.ROI_size == 7:
-            self.fun_gaussian = lambda x, data: fortran_linalg.gaussian7(*x, self.ROI_size, data)
-            self.fun_jacobian = lambda x0, data: fortran_linalg.dense_dif7(x0, self.rel_step, self.comp,
+            return fortran_linalg.dense_dif7(x0, self.rel_step, self.comp,
                                        self.num_fit_params, self.ROI_size, data)
         elif self.num_fit_params == 6 and self.ROI_size == 9:
-            self.fun_gaussian = lambda x, data: fortran_linalg.gs_bg(*x, self.ROI_size, data)
-            self.fun_jacobian = lambda x0, data: fortran_linalg.dense_dif_bg(x0, self.rel_step, self.comp,
+            return fortran_linalg.dense_dif_bg(x0, self.rel_step, self.comp,
                                        self.num_fit_params, self.ROI_size, data)
         elif self.num_fit_params == 6 and self.ROI_size == 7:
-            self.fun_gaussian = lambda x, data: fortran_linalg.gs_bg7(*x, self.ROI_size, data)
-            self.fun_jacobian = lambda x0, data: fortran_linalg.dense_dif_bg7(x0, self.rel_step, self.comp,
+            return fortran_linalg.dense_dif_bg7(x0, self.rel_step, self.comp,
                                        self.num_fit_params, self.ROI_size, data)
     
     def call_minpack(self, fun, x0, f0, data, jac, ftol, xtol, gtol, max_nfev, diag):
@@ -623,12 +670,13 @@ class phasor_only_ROI_loop():
                 self.result[tot_fits:tot_fits+n_fits,:] = roi_result
                 tot_fits += n_fits
                 
-            if roi_index % (round(self.ROI_locations.shape[0]/10,0)) == 0:    
-                if gui == None:
-                    print('Done fitting ROI '+str(roi_index)+' of ' + str(self.ROI_locations.shape[0]))
-                else:
-                    gui.update_status(roi_index+1, len(self.ROI_locations)+1)
-                
+            if self.ROI_locations.shape[0] > 10:
+                if roi_index % (round(self.ROI_locations.shape[0]/10,0)) == 0:    
+                    if gui == None:
+                        print('Done fitting ROI '+str(roi_index)+' of ' + str(self.ROI_locations.shape[0]))
+                    else:
+                        gui.update_status(roi_index+1, len(self.ROI_locations)+1)
+                    
             
         self.result = np.delete(self.result, range(tot_fits,len(frames)*self.ROI_locations.shape[0]), axis=0)
         
