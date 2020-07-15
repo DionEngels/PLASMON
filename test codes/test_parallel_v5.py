@@ -26,18 +26,24 @@ ROI_SIZE = 9
 WAVELENGTH = 637 #nm
 filenames = ("C:/Users/s150127/Downloads/_MBx dataset/1nMimager_newGNRs_100mW.nd2",)
 
-n_processes = int(mp.cpu_count())#/4)
+n_processes = int(mp.cpu_count()/4)
 
 
 #%% Main
 
-def main(name, fitter, roi_locations, q):
+def main(name, fitter, roi_locations, shared, q):
     
     ND2 = ND2_Reader(name)
     frames = ND2
     metadata = ND2.metadata
         
-    local_result = fitter.main(frames, metadata, roi_locations)
+    #local_result = fitter.main(frames, metadata, roi_locations)
+    
+    len_roi = len(roi_locations)
+    
+    for roi_index, roi in enumerate(roi_locations):
+        shared[2*roi_index] = roi[0]*2
+        shared[2*roi_index+1] = roi[1]*2
     
     print("Done fiting")
     
@@ -70,9 +76,11 @@ if __name__ == '__main__':
             start = time.time()
             processes=[]
             q = mp.Queue()
+            shared = [None]*n_processes
             for i in range(0, n_processes):
                 roi_locations_split = np.array_split(roi_locations, n_processes)
-                processes.append(mp.Process(target=main, args=(name, fitter, roi_locations_split[i], q)))
+                shared[i] = mp.Array('d', int(192*2/n_processes))
+                processes.append(mp.Process(target=main, args=(name, fitter, roi_locations_split[i], shared[i], q)))
 
             for p in processes:
                 p.start()
@@ -92,6 +100,10 @@ if __name__ == '__main__':
                 else:
                     results = np.vstack((results, res))
             print('Time taken: ' + str(round(time.time() - start, 3)) + ' s. Fits done: ' + str(results.shape[0]))
-            print(results)
+            
+            for share in shared:
+                arr = np.frombuffer(share.get_obj()) # mp_arr and arr share the same memor
+                results = arr.reshape((int(192/n_processes),2))
+                print(results)
             #pr.disable()
             #pr.print_stats(sort='time')
