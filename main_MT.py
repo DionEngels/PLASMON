@@ -12,6 +12,7 @@ Multiprocessing main
 v1.0: ROI split: 15/07/2020
 v1.1: Bugfix saving correct info
 v1.2: Frame split: 16/07/2020
+v1.3: cleanup
 
 """
 
@@ -37,7 +38,7 @@ n_processes = int(mp.cpu_count())
 
 #%% Main
 
-def main(name, fitter, frames_split, roi_locations, shared, q):
+def main(name, fitter, frames_split, roi_locations, shared):
     
     ND2 = ND2_Reader(name)
     frames = ND2
@@ -52,12 +53,8 @@ def main(name, fitter, frames_split, roi_locations, shared, q):
         shared[9*result_index:9*(result_index+1)] = result[:]
         # for index, value in enumerate(result):
         #     shared[9*result_index+index] = value
-        
-    
-    print("Done fiting")
-    
-    q.put(1)
 
+    print("Done fiting")
 
 #%% Main
 if __name__ == '__main__':
@@ -91,17 +88,16 @@ if __name__ == '__main__':
             #fitter = fitting.phasor_only_ROI_loop(metadata, ROI_SIZE, WAVELENGTH, roi_finder.intensity_min, "Phasor")
             
             start = time.time()
-            processes=[]
-            q = mp.Queue()
-            
+
             shared = [None]*n_processes
             result = np.zeros((len(roi_locations)*len(frames), 9))
             
             frames_split = np.array_split(list(range(metadata['sequence_count'])), n_processes)
+            processes = [None]*n_processes
             
             for i in range(0, n_processes):
                 shared[i] = mp.Array('d', int(9*len(roi_locations)*len(frames_split[i])))
-                processes.append(mp.Process(target=main, args=(name, fitter, frames_split[i], roi_locations, shared[i], q)))
+                processes[i] = (mp.Process(target=main, args=(name, fitter, frames_split[i], roi_locations, shared[i])))
 
             for p in processes:
                 p.start()
@@ -109,21 +105,19 @@ if __name__ == '__main__':
             for p in processes:
                 p.join()
 
-            result_icon = [q.get() for p in processes]
-            
             counter = 0
             for i, share in enumerate(shared):
                 arr = np.frombuffer(share.get_obj()) # mp_arr and arr share the same memor
                 results = arr.reshape((len(roi_locations)*len(frames_split[i]), 9))
-                print(results)
+                #print(results)
                 result[counter:counter+len(roi_locations)*len(frames_split[i])] = results
                 counter+=len(roi_locations)*len(frames_split[i])
-                
-            print(result)
-                            
+
+            #print(result)
+
             result = result[result[:, 3] != 0]
-            print(result)
-            
+            #print(result)
+
             print('Time taken: ' + str(round(time.time() - start, 3)) + ' s. Fits done: ' + str(result.shape[0]))
 
             metadata_filtered = {k: v for k, v in metadata.items() if v is not None}
