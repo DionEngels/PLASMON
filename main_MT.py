@@ -14,6 +14,7 @@ v1.1: Bugfix saving correct info
 v1.2: Frame split: 16/07/2020
 v1.3: cleanup
 v1.4: final for now, checked frame splitting
+v1.5: fixed bug frame number
 
 """
 
@@ -63,6 +64,8 @@ def main(name, fitter, frames_split, roi_locations, shared):
     frames = frames[frames_split]
 
     local_result = fitter.main(frames, metadata, roi_locations)
+
+    local_result[:, 0] += frames_split[0]
     
     for result_index, result in enumerate(local_result):
         #print(result)
