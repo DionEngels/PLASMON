@@ -13,6 +13,7 @@ v1.0: ROI split: 15/07/2020
 v1.1: Bugfix saving correct info
 v1.2: Frame split: 16/07/2020
 v1.3: cleanup
+v1.4: final for now, checked frame splitting
 
 """
 
@@ -38,6 +39,21 @@ n_processes = int(mp.cpu_count())
 
 #%% Main
 
+def split_frames(length, n_processes):
+
+    split_result = [None]*n_processes
+    start = 0
+    for j in range(n_processes):
+        if j+1 == n_processes:
+            arr_length = length-start
+        else:
+            arr_length = int(length/n_processes*(1+0.05*(n_processes/2-j)))
+        split_result[j] = np.arange(start, start+arr_length)
+        start += arr_length
+
+    return split_result
+
+
 def main(name, fitter, frames_split, roi_locations, shared):
     
     ND2 = ND2_Reader(name)
@@ -45,7 +61,7 @@ def main(name, fitter, frames_split, roi_locations, shared):
     metadata = ND2.metadata
     metadata['sequence_count'] = len(frames_split)
     frames = frames[frames_split]
-        
+
     local_result = fitter.main(frames, metadata, roi_locations)
     
     for result_index, result in enumerate(local_result):
@@ -93,6 +109,7 @@ if __name__ == '__main__':
             result = np.zeros((len(roi_locations)*len(frames), 9))
             
             frames_split = np.array_split(list(range(metadata['sequence_count'])), n_processes)
+            #frames_split = split_frames(metadata['sequence_count'], n_processes)
             processes = [None]*n_processes
             
             for i in range(0, n_processes):
