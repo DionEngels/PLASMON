@@ -11,6 +11,7 @@ Multiprocessing main
 
 v1.0: ROI split: 15/07/2020
 v1.1: Bugfix saving correct info
+v1.2: Frame split: 16/07/2020
 
 """
 
@@ -23,7 +24,7 @@ import os
 import _code.fitters as fitting
 import _code.roi_finding as roi_finding
 import _code.tools as tools
-import cProfile
+#import cProfile
 
 #pr = cProfile.Profile()
 
@@ -36,12 +37,13 @@ n_processes = int(mp.cpu_count())
 
 #%% Main
 
-def main(name, fitter, roi_locations, shared, q):
+def main(name, fitter, frames_split, roi_locations, shared, q):
     
     ND2 = ND2_Reader(name)
     frames = ND2
     metadata = ND2.metadata
-    #frames = frames[0:2]
+    metadata['sequence_count'] = len(frames_split)
+    frames = frames[frames_split]
         
     local_result = fitter.main(frames, metadata, roi_locations)
     
@@ -95,10 +97,11 @@ if __name__ == '__main__':
             shared = [None]*n_processes
             result = np.zeros((len(roi_locations)*len(frames), 9))
             
+            frames_split = np.array_split(list(range(metadata['sequence_count'])), n_processes)
+            
             for i in range(0, n_processes):
-                roi_locations_split = np.array_split(roi_locations, n_processes)
-                shared[i] = mp.Array('d', int(9*len(roi_locations_split[i])*len(frames)))
-                processes.append(mp.Process(target=main, args=(name, fitter, roi_locations_split[i], shared[i], q)))
+                shared[i] = mp.Array('d', int(9*len(roi_locations)*len(frames_split[i])))
+                processes.append(mp.Process(target=main, args=(name, fitter, frames_split[i], roi_locations, shared[i], q)))
 
             for p in processes:
                 p.start()
@@ -107,16 +110,14 @@ if __name__ == '__main__':
                 p.join()
 
             result_icon = [q.get() for p in processes]
-                        
-            
             
             counter = 0
             for i, share in enumerate(shared):
                 arr = np.frombuffer(share.get_obj()) # mp_arr and arr share the same memor
-                results = arr.reshape((len(roi_locations_split[i])*len(frames), 9))
+                results = arr.reshape((len(roi_locations)*len(frames_split[i]), 9))
                 print(results)
-                result[counter:counter+len(roi_locations_split[i])*len(frames)] = results
-                counter+=len(roi_locations_split[i])*len(frames)
+                result[counter:counter+len(roi_locations)*len(frames_split[i])] = results
+                counter+=len(roi_locations)*len(frames_split[i])
                 
             print(result)
                             

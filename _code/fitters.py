@@ -103,9 +103,9 @@ class base_phasor():
 
         pos_y = abs(ang_y)/(2*pi/roi_size)
 
-        if pos_x > 8.5:
+        if pos_x > roi_size - 0.5:
             pos_x -= roi_size
-        if pos_y > 8.5:
+        if pos_y > roi_size - 0.5:
             pos_y -= roi_size
             
         return pos_x, pos_y
