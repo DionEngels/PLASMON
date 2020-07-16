@@ -12,6 +12,7 @@ v1.3: Disabling buttons, removing from grid
 v1.4: Save and change wavelength per data set
 v1.5: Allow for nm and pixel saving and MT
 v1.6: conforming to standards of Python
+v1.7: further cleanup
 
 """
 
@@ -166,12 +167,12 @@ class EntryPlaceholder(tk.Entry):
         self.insert(0, self.placeholder)
         self['fg'] = self.placeholder_color
 
-    def foc_in(self, *args):
+    def foc_in(self):
         if self['fg'] == self.placeholder_color:
             self.delete('0', 'end')
             self['fg'] = self.default_fg_color
 
-    def foc_out(self, *args):
+    def foc_out(self):
         if not self.get():
             self.put_placeholder()
 
@@ -359,8 +360,8 @@ class FittingPage(tk.Frame):
         if len(self.roi_locations) == len(self.filenames):
             self.button_fit.grid_forget()
             self.button_fit = MyButton(self, text="FIT", height=int(GUI_HEIGHT / 8),
-                                        width=int(GUI_WIDTH / 8),
-                                        command=lambda: self.start_fitting())  # , style= 'my.TButton')
+                                       width=int(GUI_WIDTH / 8),
+                                       command=lambda: self.start_fitting())  # , style= 'my.TButton')
             self.button_fit.grid(row=24, column=10, columnspan=2, rowspan=5)
 
     # %% Fitting page, restore default settings
@@ -590,7 +591,8 @@ class FittingPage(tk.Frame):
 
         if n_processes > 1 and (method == "Phasor with intensity" or method == "Phasor without intensity"):
             cores_check = tk.messagebox.askokcancel("Just a heads up",
-                                                    "Phasor will be used with one core since the overhead only slowes it down")
+                                                    """Phasor will be used with one core since the 
+                                                    overhead only slowes it down""")
             if not cores_check:
                 return
             n_processes = 1
@@ -629,7 +631,7 @@ class FittingPage(tk.Frame):
             elif start_frame != "Leave empty for start" and end_frame == "Leave empty for end":
                 to_fit = self.frames[int(start_frame):]
                 end_frame = self.metadata['sequence_count']
-            elif start_frame != "Leave empty for start" and end_frame != "Leave empty for end":
+            else:  # start_frame != "Leave empty for start" and end_frame != "Leave empty for end":
                 to_fit = self.frames[int(start_frame):int(end_frame)]
 
             if n_processes > 1:
@@ -772,6 +774,15 @@ class FittingPage(tk.Frame):
     def __init__(self, parent, controller):
 
         tk.Frame.__init__(self, parent)
+        self.nd2 = None
+        self.frames = None
+        self.roi_finder = None
+        self.metadata = None
+        self.temp_roi_locations = None
+        self.filenames = None
+        self.start_time = None
+        self.roi_locations = {}
+        self.dataset_index = 0
         self.saved_settings = {}
 
         min_int_label = tk.Label(self, text="Minimum Intensity", font=LARGE_FONT)
