@@ -63,6 +63,7 @@ v6.5: own norm
 v6.6: FORTRAN tools: max, norm, and calc bg
 v7.0: cleanup and declare_functions function: 14/07/2020
 v7.1: revert lambda implementation for MT
+v7.2: change in phasor guess
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
@@ -158,7 +159,7 @@ class scipy_last_fit_guess(base_phasor):
         self.result = []
         self.ROI_size = ROI_size
         self.ROI_size_1D = int((self.ROI_size-1)/2)
-        self.init_sig = wavelength/(2*metadata['NA']*math.sqrt(8*math.log(2)))/(metadata['calibration_um']*1000)*2 #*2 for better guess
+        self.init_sig = wavelength/(2*metadata['NA']*math.sqrt(8*math.log(2)))/(metadata['calibration_um']*1000) #*2 for better guess
         self.threshold = threshold
         self.__name__ = METHOD
         
@@ -292,7 +293,7 @@ class scipy_last_fit_guess(base_phasor):
     def phasor_guess(self, data):
         """ Returns an initial guess based on phasor fitting"""
         pos_x, pos_y = self.phasor_fit(data)
-        height = data[int(pos_y+0.5), int(pos_x+0.5)]-np.min(data)
+        height = data[int(pos_y), int(pos_x)]-np.min(data)
         
         return np.array([height, pos_y, pos_x, self.init_sig, self.init_sig])
             
@@ -416,7 +417,7 @@ class scipy_last_fit_guess_background(scipy_last_fit_guess):
         """ Returns an initial guess based on phasor fitting"""
         pos_x, pos_y = self.phasor_fit(data)
         background = self.fun_calc_bg(data)
-        height = data[int(pos_y+0.5), int(pos_x+0.5)]-background
+        height = data[int(pos_y), int(pos_x)]-background
         
         return np.array([height, pos_y, pos_x, self.init_sig, self.init_sig, background])
     
@@ -481,8 +482,8 @@ class scipy_phasor_fit_guess(scipy_last_fit_guess):
         if self.params[peak_index, 0] == 0:
             params = self.phasor_guess(data)
         else:
-            params = self.params[peak_index, :]
-            params[2], params[1]= self.phasor_fit(data)
+            params = self.phasor_guess(data)
+            params[3:] = self.params[peak_index, 3:]
         p = self.least_squares(params, data)#, gtol=1e-4, ftol=1e-4)
                 
         return [p.x, p.nfev, p.success]
@@ -534,16 +535,7 @@ class phasor_only_ROI_loop():
             return fortran_tools.calc_bg9(roi)
         elif self.ROI_size == 7:
             return fortran_tools.calc_bg7(roi)
-    
-    # def declare_functions(self):
-        
-    #     if self.ROI_size == 9:
-    #         self.fun_find_max = lambda roi: fortran_tools.max9(roi)
-    #         self.fun_calc_bg = lambda roi: fortran_tools.calc_bg9(roi)
-    #     elif self.ROI_size == 7:
-    #         self.fun_find_max = lambda roi: fortran_tools.max7(roi)
-    #         self.fun_calc_bg = lambda roi: fortran_tools.calc_bg7(roi)
-    
+
     def phasor_fit_stack(self, frame_stack, roi, roi_index, y, x):
         
         roi_result = np.zeros([frame_stack.shape[0], 6])
