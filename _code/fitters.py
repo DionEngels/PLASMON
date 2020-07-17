@@ -517,7 +517,7 @@ class phasor_only_ROI_loop():
         self.result = []
         self.ROI_size = ROI_size
         self.ROI_size_1D = int((self.ROI_size-1)/2)
-        self.init_sig = wavelength/(2*metadata['NA']*math.sqrt(8*math.log(2)))/(metadata['calibration_um']*1000)*2 #*2 for better guess
+        self.init_sig = wavelength/(2*metadata['NA']*math.sqrt(8*math.log(2)))/(metadata['calibration_um']*1000) #*2 for better guess
         self.threshold = threshold
         self.__name__ = METHOD
         

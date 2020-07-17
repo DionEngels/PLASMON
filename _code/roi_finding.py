@@ -14,6 +14,7 @@ v1.1, conventional naming: 04/06/2020
 v2.0: self-made ROI finding: 10/07/2020
 v2.1: tweaks with standard min intensity: 14/07/2020
 v2.2: tweaked max sigma and max intensity: 17/07/2020
+v2.3: return sigmas option for histograms
 
 """
 import time # to sleep to ensure that matlab licence is registered
@@ -139,6 +140,7 @@ class roi_finder():
         self.sigma_max = sigma_max
             
         self.roi_locations = []
+        self.sigma_list = []
         
         self.empty_background = np.zeros(self.roi_size*2+(self.roi_size-2)*2, dtype=np.uint16)
              
@@ -308,7 +310,7 @@ class roi_finder():
         
         self.roi_locations = self.roi_locations[keep_boolean, :] 
         
-    def sigma_limit(self, frame, fitter):
+    def sigma_limit(self, frame, fitter, return_sigmas):
         
         keep_boolean = np.ones(self.roi_locations.shape[0], dtype=bool)
         
@@ -323,6 +325,12 @@ class roi_finder():
         
             result, its, success = fitter.fitgaussian(my_roi, roi_index)
             
+            if return_sigmas:
+                if result[4] < 0 or result[3] < 0:
+                    result[3] = result[3]
+                self.sigma_list.append(result[4])
+                self.sigma_list.append(result[3])
+            
             if result[4] < self.sigma_min or result[3] < self.sigma_min:
                 keep_boolean[roi_index] = False
             if result[4] > self.sigma_max or result[3] > self.sigma_max:
@@ -330,7 +338,7 @@ class roi_finder():
                 
         self.roi_locations = self.roi_locations[keep_boolean, :] 
     
-    def main(self, frame, fitter):
+    def main(self, frame, fitter, return_sigmas = False):
         
         roi_boolean = self.find_within_intensity_range(frame)
         
@@ -348,7 +356,10 @@ class roi_finder():
         
         #self.roi_shape(frame) # check shape of roi
         
-        self.sigma_limit(frame, fitter)        
+        self.sigma_limit(frame, fitter, return_sigmas)        
         
-        return self.roi_locations
+        if return_sigmas:
+            return self.sigma_list
+        else:
+            return self.roi_locations
         

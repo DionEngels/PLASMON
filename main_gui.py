@@ -15,6 +15,7 @@ v1.6: conforming to standards of Python
 v1.7: further cleanup
 v1.8: complete reconstruction of labels, sliders, and buttons
 v1.9: tweaked max sigma and max intensity
+v1.10: histograms
 
 """
 
@@ -179,6 +180,9 @@ class NormalSlider(tk.Scale):
         super().set(start)
         super().grid(row=self.row, column=self.column, rowspan=self.rowspan, 
                   columnspan=self.columnspan)
+        self.from_ = from_
+        self.to = to
+        self.start = start
         
         
 class NormalLabel(tk.Label):
@@ -676,6 +680,63 @@ class FittingPage(tk.Frame):
 
         wavelength = settings['wavelength']
         self.wavelength_input.updater(text=str(wavelength))
+        
+    # %% Histogram of sliders
+    
+    def histogram(self, variable):
+        
+        if variable == "min_int" or variable == "max_int":
+            to_hist = np.ravel(self.frames[0])
+        else:
+            wavelength = self.wavelength_input.get()
+            if wavelength == "wavelength in nm":
+                tk.messagebox.showerror("ERROR", "Please give laser wavelength")
+                return
+            else:
+                wavelength = int(wavelength)
+            roi_finder = roi_finding.roi_finder(9, self.frames[0])
+            fitter = fitting.scipy_last_fit_guess(self.metadata, ROI_SIZE,
+                                                  wavelength, THRESHOLD,
+                                                  "ScipyLastFitGuess", 5)
+            to_hist = roi_finder.main(self.frames[0], fitter, return_sigmas=True)
+        
+        fig = plt.figure(figsize = (6.4*1.2, 4.8*1.2))
+        fig_sub = fig.add_subplot(111)
+        fig_sub.hist(to_hist, bins='auto')
+        
+        min_int = self.min_int_slider.get()
+        max_int = self.max_int_slider.get()
+        min_sigma = self.min_sigma_slider.get()
+        max_sigma = self.max_sigma_slider.get()
+        
+        if variable == "min_int":
+            plt.title("Minimum intensity. Click once to change threshold")
+            plt.axvline(x=min_int, color='red',linestyle='--')
+            plt.xscale('log')
+        elif variable == 'max_int':
+            plt.title("Maximum intensity. Click once to change threshold")
+            plt.axvline(x=max_int, color='red',linestyle='--')
+            plt.xscale('log')
+        elif variable == "min_sigma":
+            plt.title("Minimum sigma. Click once to change threshold")
+            plt.axvline(x=min_sigma, color='red',linestyle='--')
+        else:
+            plt.title("Maximum sigma. Click once to change threshold")
+            plt.axvline(x=max_sigma, color='red',linestyle='--')
+        
+        try:
+            #plt.waitforbuttonpress()
+            click = fig.ginput(1)
+            if variable == "min_int":
+                self.min_int_slider.updater(start = int(click[0][0]))
+            elif variable == 'max_int':
+                self.max_int_slider.updater(start = int(click[0][0]))
+            elif variable == "min_sigma":
+                self.min_sigma_slider.updater(start = click[0][0])
+            else:
+                self.max_sigma_slider.updater(start = click[0][0])
+        except:
+            pass
 
     # %% Fitting page, initial declaration
 
@@ -698,29 +759,46 @@ class FittingPage(tk.Frame):
         
         self.min_int_slider = NormalSlider(self, from_=0, to=1000, 
                                            row=1, column=0, columnspan=3)
+        
+        min_int_histogram = ttk.Button(self, text="Graph",
+                                 command=lambda: self.histogram("min_int"))
+        min_int_histogram.grid(row=1, column=3)
 
         max_int_label = tk.Label(self, text="Maximum Intensity", font=LARGE_FONT)
         max_int_label.grid(row=2, column=0, columnspan=3)
         
         self.max_int_slider = NormalSlider(self, from_=0, to=5000, 
                                            row=3, column=0, columnspan=3)
+        
+        max_int_histogram = ttk.Button(self, text="Graph",
+                                 command=lambda: self.histogram("max_int"))
+        max_int_histogram.grid(row=3, column=3)
+
 
         min_sigma_label = tk.Label(self, text="Minimum Sigma", font=LARGE_FONT)
-        min_sigma_label.grid(row=0, column=3, columnspan=3)
+        min_sigma_label.grid(row=0, column=5, columnspan=3)
         
         self.min_sigma_slider = NormalSlider(self, from_=0, to=5, resolution=0.01,
-                                             row=1, column=3, columnspan=3)
+                                             row=1, column=5, columnspan=3)
+        
+        min_sigma_histogram = ttk.Button(self, text="Graph",
+                                 command=lambda: self.histogram("min_sigma"))
+        min_sigma_histogram.grid(row=1, column=8)
 
         max_sigma_label = tk.Label(self, text="Maximum Sigma", font=LARGE_FONT)
-        max_sigma_label.grid(row=2, column=3, columnspan=3)
+        max_sigma_label.grid(row=2, column=5, columnspan=3)
         
         self.max_sigma_slider = NormalSlider(self, from_=0, to=10, resolution=0.01,
-                                             row=3, column=3, columnspan=3)
+                                             row=3, column=5, columnspan=3)
+        
+        max_sigma_histogram = ttk.Button(self, text="Graph",
+                                 command=lambda: self.histogram("max_sigma"))
+        max_sigma_histogram.grid(row=3, column=8)
         
         self.button_left = NormalButton(self, text="<<", row=9, column=0)
         self.dataset_roi_status = NormalLabel(self, text= "TBD",
-                                              row=9, column=1, columnspan=4)
-        self.button_right = NormalButton(self, ">>", row=9, column=5)
+                                              row=9, column=1, columnspan=7)
+        self.button_right = NormalButton(self, ">>", row=9, column=8)
 
         button_fit = ttk.Button(self, text="Fit", command=lambda: self.fit_rois())
         button_fit.grid(row=12, column=0, columnspan=1)
