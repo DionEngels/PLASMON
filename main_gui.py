@@ -715,7 +715,7 @@ class FittingPage(tk.Frame):
 
     # %% Histogram of sliders
 
-    def histogram(self, variable):
+    def fun_histogram(self, variable):
 
         if variable == "min_int" or variable == "max_int":
             self.to_hist = np.ravel(self.frames[0])
@@ -755,6 +755,8 @@ class FittingPage(tk.Frame):
         else:
             plt.title("Maximum sigma. Use graph select to change threshold")
             plt.axvline(x=max_sigma, color='red', linestyle='--')
+
+        plt.show()
 
     def histogram_select(self, variable):
         click = self.histogram.ginput(1)
@@ -819,7 +821,7 @@ class FittingPage(tk.Frame):
                                            row=1, column=0, columnspan=3)
 
         min_int_histogram = ttk.Button(self, text="Graph",
-                                       command=lambda: self.histogram("min_int"))
+                                       command=lambda: self.fun_histogram("min_int"))
         min_int_histogram.grid(row=1, column=3)
 
         min_int_histogram_select = ttk.Button(self, text="Graph select",
@@ -833,7 +835,7 @@ class FittingPage(tk.Frame):
                                            row=5, column=0, columnspan=3)
 
         max_int_histogram = ttk.Button(self, text="Graph",
-                                       command=lambda: self.histogram("max_int"))
+                                       command=lambda: self.fun_histogram("max_int"))
         max_int_histogram.grid(row=5, column=3)
 
         max_int_histogram_select = ttk.Button(self, text="Graph select",
@@ -847,7 +849,7 @@ class FittingPage(tk.Frame):
                                              row=1, column=5, columnspan=3)
 
         min_sigma_histogram = ttk.Button(self, text="Graph",
-                                         command=lambda: self.histogram("min_sigma"))
+                                         command=lambda: self.fun_histogram("min_sigma"))
         min_sigma_histogram.grid(row=1, column=8)
 
         min_sigma_histogram_select = ttk.Button(self, text="Graph select",
@@ -861,7 +863,7 @@ class FittingPage(tk.Frame):
                                              row=5, column=5, columnspan=3)
 
         max_sigma_histogram = ttk.Button(self, text="Graph",
-                                         command=lambda: self.histogram("max_sigma"))
+                                         command=lambda: self.fun_histogram("max_sigma"))
         max_sigma_histogram.grid(row=5, column=8)
 
         max_sigma_histogram_select = ttk.Button(self, text="Graph select",
