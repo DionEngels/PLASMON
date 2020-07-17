@@ -13,6 +13,7 @@ v1.4: Save and change wavelength per data set
 v1.5: Allow for nm and pixel saving and MT
 v1.6: conforming to standards of Python
 v1.7: further cleanup
+v1.8: complete reconstruction of labels, sliders, and buttons
 
 """
 
@@ -65,10 +66,6 @@ fit_options = ["Phasor with intensity", "Phasor without intensity",
 
 roi_size_options = ["7x7", "9x9"]
 
-ttk_style = ttk.Style()
-# ttk_style.configure('my.TButton', font=('Verdana', 12))
-ttk_style.configure('my.TButton', font=('Verdana', 1000))
-
 width = GetSystemMetrics(0)
 height = GetSystemMetrics(1)
 GUI_WIDTH = int(width / 2)
@@ -76,6 +73,8 @@ GUI_HEIGHT = int(height / 2)
 GUI_WIDTH_START = int(width / 4)
 GUI_HEIGHT_START = int(height / 4)
 DPI = 100
+
+# %% Multiprocessing main
 
 
 def mt_main(name, fitter, frames_split, roi_locations, shared):
@@ -91,7 +90,119 @@ def mt_main(name, fitter, frames_split, roi_locations, shared):
     for result_index, result in enumerate(local_result):
         shared[9 * result_index:9 * (result_index + 1)] = result[:]
 
+# %% Own buttons / fields
 
+
+class BigButton(ttk.Frame):
+    def __init__(self, parent, height=None, width=None, text="", command=None, state='enabled'):
+        ttk.Frame.__init__(self, parent, height=height, width=width)
+
+        self.pack_propagate(0)
+        self._btn = ttk.Button(self, text=text, command=command, state=state)
+        self._btn.pack(fill=tk.BOTH, expand=1)
+            
+            
+class EntryPlaceholder(ttk.Entry):
+    def __init__(self, master=None, placeholder="PLACEHOLDER", *args, **kwargs):
+        super().__init__(master, *args, style="Placeholder.TEntry", **kwargs)
+        self.placeholder = placeholder
+
+        self.insert("0", self.placeholder)
+        self.bind("<FocusIn>", self._clear_placeholder)
+        self.bind("<FocusOut>", self._add_placeholder)
+
+    def _clear_placeholder(self, e):
+        if self["style"] == "Placeholder.TEntry":
+            self.delete("0", "end")
+            self["style"] = "TEntry"
+                
+    def _add_placeholder(self, e):
+        if not self.get():
+            self.insert("0", self.placeholder)
+            self["style"] = "Placeholder.TEntry"
+            
+    def updater(self, text=None):
+        self.delete("0", "end")
+        self["style"] = "TEntry"
+        self.insert("0", text)
+
+class NormalButton(ttk.Button):
+    def __init__(self, parent, text=None, row=None, column=None, 
+                 rowspan=1, columnspan=1, command=None, state='enabled'):
+        super().__init__(parent, text=text, command=command, state=state)
+        self.parent = parent
+        self.text = text
+        self.row = row
+        self.column = column
+        self.rowspan = rowspan
+        self.columnspan = columnspan
+        super().grid(row=row, column=column, 
+                  rowspan=rowspan, columnspan=columnspan)
+        
+    def updater(self, command=None, state='enabled', text=None):
+        if text == None:
+            text = self.text
+        super().grid_forget()
+        super().__init__(self.parent, text=text, command=command, state=state)
+        super().grid(row=self.row, column=self.column, rowspan=self.rowspan, 
+                  columnspan=self.columnspan)
+        
+class NormalSlider(tk.Scale):
+    def __init__(self, parent, from_=0, to=np.inf, resolution=1, start=0,
+                 row=None, column=None, rowspan=1, columnspan=1):
+        super().__init__(parent, from_=from_, to=to, orient='horizontal',
+                       resolution=resolution)
+        super().set(start)
+        self.parent = parent
+        self.from_ = from_
+        self.to = to
+        self.resolution = resolution
+        self.start = start
+        self.row = row
+        self.column = column
+        self.rowspan = rowspan
+        self.columnspan = columnspan
+        super().grid(row=self.row, column=self.column, rowspan=self.rowspan, 
+                  columnspan=self.columnspan)
+        
+    def updater(self, from_=None, to=None, start=None):
+        if from_ == None:
+            from_ = self.from_
+        if to == None:
+            to = self.to
+        if start == None:
+            start = self.start
+        super().grid_forget()
+        super().__init__(self.parent, from_=from_, to=to, orient='horizontal',
+                       resolution=self.resolution)
+        super().set(start)
+        super().grid(row=self.row, column=self.column, rowspan=self.rowspan, 
+                  columnspan=self.columnspan)
+        
+        
+class NormalLabel(tk.Label):
+    def __init__(self, parent, text=None, font=None, bd=None, relief=None,
+                 row=None, column=None, rowspan=1, columnspan=1):
+        super().__init__(parent, text=text, font=font, bd=bd, relief=relief)
+        super().grid(row=row, column=column, rowspan=rowspan, 
+                  columnspan=columnspan)
+        self.parent = parent
+        self.text = text
+        self.font = font
+        self.bd = bd
+        self.relief = relief
+        self.row = row
+        self.column = column
+        self.rowspan = rowspan
+        self.columnspan = columnspan
+        
+    def updater(self, text=None):
+        super().grid_forget()
+        super().__init__(self.parent, text=text, font=self.font, 
+                         bd=self.bd, relief=self.relief)    
+        super().grid(row=self.row, column=self.column, rowspan=self.rowspan, 
+                  columnspan=self.columnspan)
+        
 # %% Container
 
 class MbxPython(tk.Tk):
@@ -136,47 +247,6 @@ def quit_program():
     gui.destroy()
     exit(0)
 
-
-# %% Big button
-
-class MyButton(ttk.Frame):
-    def __init__(self, parent, height=None, width=None, text="", command=None, state='enabled'):
-        ttk.Frame.__init__(self, parent, height=height, width=width)
-
-        self.pack_propagate(0)
-        self._btn = ttk.Button(self, text=text, command=command, state=state)
-        self._btn.pack(fill=tk.BOTH, expand=1)
-
-
-# %% Entry with placeholder
-
-class EntryPlaceholder(tk.Entry):
-    def __init__(self, master=None, placeholder="PLACEHOLDER", color='grey'):
-        super().__init__(master)
-
-        self.placeholder = placeholder
-        self.placeholder_color = color
-        self.default_fg_color = self['fg']
-
-        self.bind("<FocusIn>", self.foc_in)
-        self.bind("<FocusOut>", self.foc_out)
-
-        self.put_placeholder()
-
-    def put_placeholder(self):
-        self.insert(0, self.placeholder)
-        self['fg'] = self.placeholder_color
-
-    def foc_in(self):
-        if self['fg'] == self.placeholder_color:
-            self.delete('0', 'end')
-            self['fg'] = self.default_fg_color
-
-    def foc_out(self):
-        if not self.get():
-            self.put_placeholder()
-
-
 # %% Loading page
 
 class LoadPage(tk.Frame):
@@ -184,7 +254,7 @@ class LoadPage(tk.Frame):
     def __init__(self, parent, controller):
         tk.Frame.__init__(self, parent)
 
-        button1 = MyButton(self, text="LOAD", height=int(GUI_HEIGHT / 4),
+        button1 = BigButton(self, text="LOAD", height=int(GUI_HEIGHT / 4),
                            width=int(GUI_WIDTH / 4),  # style= 'my.TButton',
                            command=lambda: self.load_nd2(controller))
         button1.grid(row=0, column=0)
@@ -213,15 +283,9 @@ class FittingPage(tk.Frame):
         self.filenames = filenames
         self.roi_locations = {}
         self.dataset_index = 0
-
-        self.dataset_roi_status.grid_forget()
-        self.dataset_roi_status = tk.Label(self,
-                                           text="Dataset " + str(self.dataset_index + 1) + " of " + str(len(filenames)))
-        self.dataset_roi_status.grid(row=9, column=1, columnspan=4)
-
-        self.roi_status.grid_forget()
-        self.roi_status = tk.Label(self, text="0 of " + str(len(filenames)) + " have settings")
-        self.roi_status.grid(row=21, column=0, columnspan=6)
+        
+        self.dataset_roi_status.updater(text="Dataset " + str(self.dataset_index + 1) + " of " + str(len(filenames)))
+        self.roi_status.updater(text="0 of " + str(len(filenames)) + " have settings")
 
         self.nd2 = ND2_Reader(filenames[self.dataset_index])
         self.frames = self.nd2
@@ -235,49 +299,18 @@ class FittingPage(tk.Frame):
         self.canvas = FigureCanvasTkAgg(self.fig, self)
         self.canvas.draw()
         self.canvas.get_tk_widget().grid(row=0, column=10, columnspan=3, rowspan=14, sticky='E')
-
-        self.roi_finder = roi_finding.roi_finder(9, self.frames[0])
-
-        self.min_int_slider.grid_forget()
-        self.min_int_slider = tk.Scale(self, from_=0, to=self.roi_finder.intensity_max / 4,
-                                       orient='horizontal')
-        self.min_int_slider.set(self.roi_finder.intensity_min)
-        self.min_int_slider.grid(row=1, column=0, columnspan=3)
-
-        self.max_int_slider.grid_forget()
-        self.max_int_slider = tk.Scale(self, from_=0, to=self.roi_finder.intensity_max, orient='horizontal')
-        self.max_int_slider.set(self.roi_finder.intensity_max)
-        self.max_int_slider.grid(row=3, column=0, columnspan=3)
-
-        self.min_sigma_slider.grid_forget()
-        self.min_sigma_slider = tk.Scale(self, from_=0, to=self.roi_finder.sigma_max,
-                                         orient='horizontal', resolution=0.01)
-        self.min_sigma_slider.set(self.roi_finder.sigma_min)
-        self.min_sigma_slider.grid(row=1, column=3, columnspan=3)
-
-        self.max_sigma_slider.grid_forget()
-        self.max_sigma_slider = tk.Scale(self, from_=0, to=self.roi_finder.sigma_max,
-                                         orient='horizontal', resolution=0.01)
-        self.max_sigma_slider.set(self.roi_finder.sigma_max)
-        self.max_sigma_slider.grid(row=3, column=3, columnspan=3)
+        
+        self.restore_default()
 
         if self.dataset_index == len(filenames) - 1:
-            self.button_right.grid_forget()
-            self.button_right = ttk.Button(self, text=">>", state='disabled')
-            self.button_right.grid(row=9, column=5)
+            self.button_right.updater(state='disabled')
         else:
-            self.button_right.grid_forget()
-            self.button_right = ttk.Button(self, text=">>", command=lambda: self.next_dataset())
-            self.button_right.grid(row=9, column=5)
+            self.button_right.updater(command=lambda: self.next_dataset())
 
         if self.dataset_index == 0:
-            self.button_left.grid_forget()
-            self.button_left = ttk.Button(self, text="<<", state='disabled')
-            self.button_left.grid(row=9, column=0)
+            self.button_left.updater(state='disabled')
         else:
-            self.button_left.grid_forget()
-            self.button_left = ttk.Button(self, text="<<", command=lambda: self.previous_dataset())
-            self.button_left.grid(row=9, column=0)
+            self.button_left.updater(command=lambda: self.previous_dataset())
 
     # %% Fitting page, fit ROIs
 
@@ -342,26 +375,22 @@ class FittingPage(tk.Frame):
         min_sigma = self.min_sigma_slider.get()
         max_sigma = self.max_sigma_slider.get()
 
-        settings = {'max_int': max_int, 'min_int': min_int, 'min_sigma': min_sigma, 'max_sigma': max_sigma,
+        settings = {'max_int': max_int, 'min_int': min_int, 
+                    'min_sigma': min_sigma, 'max_sigma': max_sigma,
                     'wavelength': wavelength}
 
         self.saved_settings[self.dataset_index] = settings
 
-        self.roi_status.grid_forget()
-        self.roi_status = tk.Label(self, text=str(len(self.roi_locations)) +
-                                              " of " + str(len(self.filenames)) + " have settings")
-        self.roi_status.grid(row=21, column=0, columnspan=6)
-
-        self.button_restore_saved.grid_forget()
-        self.button_restore_saved = ttk.Button(self, text="Restore saved",
-                                               command=lambda: self.restore_saved())
-        self.button_restore_saved.grid(row=12, column=3, columnspan=2)
+        self.roi_status.updater(text=str(len(self.roi_locations)) + 
+                                " of " + str(len(self.filenames)) + 
+                                " have settings")
+        self.button_restore_saved.updater(command=lambda: self.restore_saved())
 
         if len(self.roi_locations) == len(self.filenames):
             self.button_fit.grid_forget()
-            self.button_fit = MyButton(self, text="FIT", height=int(GUI_HEIGHT / 8),
+            self.button_fit = BigButton(self, text="FIT", height=int(GUI_HEIGHT / 8),
                                        width=int(GUI_WIDTH / 8),
-                                       command=lambda: self.start_fitting())  # , style= 'my.TButton')
+                                       command=lambda: self.start_fitting())
             self.button_fit.grid(row=24, column=10, columnspan=2, rowspan=5)
 
     # %% Fitting page, restore default settings
@@ -369,40 +398,24 @@ class FittingPage(tk.Frame):
     def restore_default(self):
 
         self.roi_finder = roi_finding.roi_finder(9, self.frames[0])
-
-        self.min_int_slider.grid_forget()
-        self.min_int_slider = tk.Scale(self, from_=0, to=self.roi_finder.intensity_max / 4,
-                                       orient='horizontal')
-        self.min_int_slider.set(self.roi_finder.intensity_min)
-        self.min_int_slider.grid(row=1, column=0, columnspan=3)
-
-        self.max_int_slider.grid_forget()
-        self.max_int_slider = tk.Scale(self, from_=0, to=self.roi_finder.intensity_max, orient='horizontal')
-        self.max_int_slider.set(self.roi_finder.intensity_max)
-        self.max_int_slider.grid(row=3, column=0, columnspan=3)
-
-        self.min_sigma_slider.grid_forget()
-        self.min_sigma_slider = tk.Scale(self, from_=0, to=self.roi_finder.sigma_max,
-                                         orient='horizontal', resolution=0.01)
-        self.min_sigma_slider.set(self.roi_finder.sigma_min)
-        self.min_sigma_slider.grid(row=1, column=3, columnspan=3)
-
-        self.max_sigma_slider.grid_forget()
-        self.max_sigma_slider = tk.Scale(self, from_=0, to=self.roi_finder.sigma_max,
-                                         orient='horizontal', resolution=0.01)
-        self.max_sigma_slider.set(self.roi_finder.sigma_max)
-        self.max_sigma_slider.grid(row=3, column=3, columnspan=3)
+        
+        self.min_int_slider.updater(from_=0, to=self.roi_finder.intensity_max / 4, 
+                                    start=self.roi_finder.intensity_min)
+        self.max_int_slider.updater(from_=0, to=self.roi_finder.intensity_max,
+                                    start=self.roi_finder.intensity_max)
+        self.min_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
+                                      start=self.roi_finder.sigma_min)
+        self.max_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
+                                      start=self.roi_finder.sigma_max)
 
     # %% Fitting page, switch between datasets
 
     def next_dataset(self):
 
         self.dataset_index += 1
-
-        self.dataset_roi_status.grid_forget()
-        self.dataset_roi_status = tk.Label(self, text="Dataset " + str(self.dataset_index + 1) + " of " + str(
-            len(self.filenames)))
-        self.dataset_roi_status.grid(row=9, column=1, columnspan=4)
+        self.dataset_roi_status.updater(text="Dataset " + 
+                                        str(self.dataset_index + 1) + " of " 
+                                        + str(len(self.filenames)))
 
         self.nd2.close()
         self.nd2 = ND2_Reader(self.filenames[self.dataset_index])
@@ -417,79 +430,36 @@ class FittingPage(tk.Frame):
         self.canvas = FigureCanvasTkAgg(self.fig, self)
         self.canvas.draw()
         self.canvas.get_tk_widget().grid(row=0, column=10, columnspan=3, rowspan=14, sticky='E')
-
-        self.roi_finder = roi_finding.roi_finder(9, self.frames[0])
-
-        self.min_int_slider.grid_forget()
-        self.min_int_slider = tk.Scale(self, from_=0, to=self.roi_finder.intensity_max / 4,
-                                       orient='horizontal')
-        self.min_int_slider.set(self.roi_finder.intensity_min)
-        self.min_int_slider.grid(row=1, column=0, columnspan=3)
-
-        self.max_int_slider.grid_forget()
-        self.max_int_slider = tk.Scale(self, from_=0, to=self.roi_finder.intensity_max, orient='horizontal')
-        self.max_int_slider.set(self.roi_finder.intensity_max)
-        self.max_int_slider.grid(row=3, column=0, columnspan=3)
-
-        self.min_sigma_slider.grid_forget()
-        self.min_sigma_slider = tk.Scale(self, from_=0, to=self.roi_finder.sigma_max,
-                                         orient='horizontal', resolution=0.01)
-        self.min_sigma_slider.set(self.roi_finder.sigma_min)
-        self.min_sigma_slider.grid(row=1, column=3, columnspan=3)
-
-        self.max_sigma_slider.grid_forget()
-        self.max_sigma_slider = tk.Scale(self, from_=0, to=self.roi_finder.sigma_max,
-                                         orient='horizontal', resolution=0.01)
-        self.max_sigma_slider.set(self.roi_finder.sigma_max)
-        self.max_sigma_slider.grid(row=3, column=3, columnspan=3)
+        
+        self.restore_default()
 
         if self.dataset_index == len(self.filenames) - 1:
-            self.button_right.grid_forget()
-            self.button_right = ttk.Button(self, text=">>", state='disabled')
-            self.button_right.grid(row=9, column=5)
+            self.button_right.updater(state='disabled')
         else:
-            self.button_right.grid_forget()
-            self.button_right = ttk.Button(self, text=">>", command=lambda: self.next_dataset())
-            self.button_right.grid(row=9, column=5)
+            self.button_right.updater(command=lambda: self.next_dataset())
 
         if self.dataset_index == 0:
-            self.button_left.grid_forget()
-            self.button_left = ttk.Button(self, text="<<", state='disabled')
-            self.button_left.grid(row=9, column=0)
+            self.button_left.updater(state='disabled')
         else:
-            self.button_left.grid_forget()
-            self.button_left = ttk.Button(self, text="<<", command=lambda: self.previous_dataset())
-            self.button_left.grid(row=9, column=0)
+            self.button_left.updater(command=lambda: self.previous_dataset())
 
         if self.dataset_index in self.saved_settings:
-            self.button_restore_saved.grid_forget()
-            self.button_restore_saved = ttk.Button(self, text="Restore saved",
-                                                   command=lambda: self.restore_saved())
-            self.button_restore_saved.grid(row=12, column=3, columnspan=2)
+            self.button_restore_saved.updater(command=lambda: self.restore_saved())
 
             wavelength = self.saved_settings[self.dataset_index]['wavelength']
-            self.wavelength_input = EntryPlaceholder(self, "wavelength in nm")
-            self.wavelength_input.grid(row=12, column=6, columnspan=3)
-            self.wavelength_input.foc_in()
-            self.wavelength_input.insert(0, str(wavelength))
+            self.wavelength_input.updater(text=str(wavelength))
         else:
-            self.button_restore_saved.grid_forget()
-            self.button_restore_saved = ttk.Button(self, text="Restore saved",
-                                                   state='disabled',
-                                                   command=lambda: self.restore_saved())
-            self.button_restore_saved.grid(row=12, column=3, columnspan=2)
-
+            self.button_restore_saved.updater(state='disabled')
+            
             self.wavelength_input = EntryPlaceholder(self, "wavelength in nm")
             self.wavelength_input.grid(row=12, column=6, columnspan=3)
 
     def previous_dataset(self):
 
         self.dataset_index -= 1
-
-        self.dataset_roi_status.grid_forget()
-        self.dataset_roi_status = tk.Label(self,
-                                           text="Dataset " + str(self.dataset_index + 1) + " of " + str(len(filenames)))
-        self.dataset_roi_status.grid(row=9, column=1, columnspan=4)
+        self.dataset_roi_status.updater(text="Dataset " + 
+                                        str(self.dataset_index + 1) + " of " 
+                                        + str(len(self.filenames)))
 
         self.nd2.close()
         self.nd2 = ND2_Reader(filenames[self.dataset_index])
@@ -504,68 +474,27 @@ class FittingPage(tk.Frame):
         self.canvas = FigureCanvasTkAgg(self.fig, self)
         self.canvas.draw()
         self.canvas.get_tk_widget().grid(row=0, column=10, columnspan=3, rowspan=14, sticky='E')
-
-        self.roi_finder = roi_finding.roi_finder(9, self.frames[0])
-
-        self.min_int_slider.grid_forget()
-        self.min_int_slider = tk.Scale(self, from_=0, to=self.roi_finder.intensity_max / 4,
-                                       orient='horizontal')
-        self.min_int_slider.set(self.roi_finder.intensity_min)
-        self.min_int_slider.grid(row=1, column=0, columnspan=3)
-
-        self.max_int_slider.grid_forget()
-        self.max_int_slider = tk.Scale(self, from_=0, to=self.roi_finder.intensity_max, orient='horizontal')
-        self.max_int_slider.set(self.roi_finder.intensity_max)
-        self.max_int_slider.grid(row=3, column=0, columnspan=3)
-
-        self.min_sigma_slider.grid_forget()
-        self.min_sigma_slider = tk.Scale(self, from_=0, to=self.roi_finder.sigma_max,
-                                         orient='horizontal', resolution=0.01)
-        self.min_sigma_slider.set(self.roi_finder.sigma_min)
-        self.min_sigma_slider.grid(row=1, column=3, columnspan=3)
-
-        self.max_sigma_slider.grid_forget()
-        self.max_sigma_slider = tk.Scale(self, from_=0, to=self.roi_finder.sigma_max,
-                                         orient='horizontal', resolution=0.01)
-        self.max_sigma_slider.set(self.roi_finder.sigma_max)
-        self.max_sigma_slider.grid(row=3, column=3, columnspan=3)
+        
+        self.restore_default()
 
         if self.dataset_index == len(self.filenames) - 1:
-            self.button_right.grid_forget()
-            self.button_right = ttk.Button(self, text=">>", state='disabled')
-            self.button_right.grid(row=9, column=5)
+            self.button_right.updater(state='disabled')
         else:
-            self.button_right.grid_forget()
-            self.button_right = ttk.Button(self, text=">>", command=lambda: self.next_dataset())
-            self.button_right.grid(row=9, column=5)
+            self.button_right.updater(command=lambda: self.next_dataset())
 
         if self.dataset_index == 0:
-            self.button_left.grid_forget()
-            self.button_left = ttk.Button(self, text="<<", state='disabled')
-            self.button_left.grid(row=9, column=0)
+            self.button_left.updater(state='disabled')
         else:
-            self.button_left.grid_forget()
-            self.button_left = ttk.Button(self, text="<<", command=lambda: self.previous_dataset())
-            self.button_left.grid(row=9, column=0)
+            self.button_left.updater(command=lambda: self.previous_dataset())
 
         if self.dataset_index in self.saved_settings:
-            self.button_restore_saved.grid_forget()
-            self.button_restore_saved = ttk.Button(self, text="Restore saved",
-                                                   command=lambda: self.restore_saved())
-            self.button_restore_saved.grid(row=12, column=3, columnspan=2)
+            self.button_restore_saved.updater(command=lambda: self.restore_saved())
 
             wavelength = self.saved_settings[self.dataset_index]['wavelength']
-            self.wavelength_input = EntryPlaceholder(self, "wavelength in nm")
-            self.wavelength_input.grid(row=12, column=6, columnspan=3)
-            self.wavelength_input.foc_in()
-            self.wavelength_input.insert(0, str(wavelength))
+            self.wavelength_input.updater(text=str(wavelength))
         else:
-            self.button_restore_saved.grid_forget()
-            self.button_restore_saved = ttk.Button(self, text="Restore saved",
-                                                   state='disabled',
-                                                   command=lambda: self.restore_saved())
-            self.button_restore_saved.grid(row=12, column=3, columnspan=2)
-
+            self.button_restore_saved.updater(state='disabled')
+            
             self.wavelength_input = EntryPlaceholder(self, "wavelength in nm")
             self.wavelength_input.grid(row=12, column=6, columnspan=3)
 
@@ -715,17 +644,12 @@ class FittingPage(tk.Frame):
         tr = time.localtime(time_done_estimate)
 
         progress_text = str(round(progress, 1)) + "% done"
-        time_text = str(tr[3]) + ":" + str(tr[4]) + ":" + str(tr[5]) + " " + str(tr[2]) + "/" + str(tr[1])
+        time_text = str(tr[3]) + ":" + str(tr[4]) + ":" + str(tr[5]) + " " 
+        + str(tr[2]) + "/" + str(tr[1])
+        
+        self.progress_status_label.updater(text=progress_text)
+        self.time_status_label.udpater(text=time_text)
 
-        self.progress_status_label.grid_forget()
-        self.progress_status_label = tk.Label(self, text=progress_text,
-                                              bd=1, relief='sunken')
-        self.progress_status_label.grid(row=25, column=12)
-
-        self.time_status_label.grid_forget()
-        self.time_status_label = tk.Label(self, text=time_text,
-                                          bd=1, relief='sunken')
-        self.time_status_label.grid(row=28, column=12)
         self.update()
 
     # %% Fitting page, return to load page
@@ -739,35 +663,18 @@ class FittingPage(tk.Frame):
     def restore_saved(self):
 
         settings = self.saved_settings[self.dataset_index]
-
-        self.min_int_slider.grid_forget()
-        self.min_int_slider = tk.Scale(self, from_=0, to=self.roi_finder.intensity_max / 4,
-                                       orient='horizontal')
-        self.min_int_slider.set(settings['min_int'])
-        self.min_int_slider.grid(row=1, column=0, columnspan=3)
-
-        self.max_int_slider.grid_forget()
-        self.max_int_slider = tk.Scale(self, from_=0, to=self.roi_finder.intensity_max, orient='horizontal')
-        self.max_int_slider.set(settings['max_int'])
-        self.max_int_slider.grid(row=3, column=0, columnspan=3)
-
-        self.min_sigma_slider.grid_forget()
-        self.min_sigma_slider = tk.Scale(self, from_=0, to=self.roi_finder.sigma_max,
-                                         orient='horizontal', resolution=0.01)
-        self.min_sigma_slider.set(settings['min_sigma'])
-        self.min_sigma_slider.grid(row=1, column=3, columnspan=3)
-
-        self.max_sigma_slider.grid_forget()
-        self.max_sigma_slider = tk.Scale(self, from_=0, to=self.roi_finder.sigma_max,
-                                         orient='horizontal', resolution=0.01)
-        self.max_sigma_slider.set(settings['max_sigma'])
-        self.max_sigma_slider.grid(row=3, column=3, columnspan=3)
+        
+        self.min_int_slider.updater(from_=0, to=self.roi_finder.intensity_max / 4, 
+                                    start=settings['min_int'])
+        self.max_int_slider.updater(from_=0, to=self.roi_finder.intensity_max,
+                                    start=settings['max_int'])
+        self.min_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
+                                      start=settings['min_sigma'])
+        self.max_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
+                                      start=settings['max_sigma'])
 
         wavelength = settings['wavelength']
-        self.wavelength_input = EntryPlaceholder(self, "wavelength in nm")
-        self.wavelength_input.grid(row=12, column=6, columnspan=3)
-        self.wavelength_input.foc_in()
-        self.wavelength_input.insert(0, str(wavelength))
+        self.wavelength_input.updater(text=str(wavelength))
 
     # %% Fitting page, initial declaration
 
@@ -784,41 +691,35 @@ class FittingPage(tk.Frame):
         self.roi_locations = {}
         self.dataset_index = 0
         self.saved_settings = {}
-
+        
         min_int_label = tk.Label(self, text="Minimum Intensity", font=LARGE_FONT)
         min_int_label.grid(row=0, column=0, columnspan=3)
-
-        self.min_int_slider = tk.Scale(self, from_=0, to=1000, orient='horizontal')
-        self.min_int_slider.grid(row=1, column=0, columnspan=3)
+        
+        self.min_int_slider = NormalSlider(self, from_=0, to=1000, 
+                                           row=1, column=0, columnspan=3)
 
         max_int_label = tk.Label(self, text="Maximum Intensity", font=LARGE_FONT)
         max_int_label.grid(row=2, column=0, columnspan=3)
-
-        self.max_int_slider = tk.Scale(self, from_=0, to=5000, orient='horizontal')
-        self.max_int_slider.grid(row=3, column=0, columnspan=3)
+        
+        self.max_int_slider = NormalSlider(self, from_=0, to=5000, 
+                                           row=3, column=0, columnspan=3)
 
         min_sigma_label = tk.Label(self, text="Minimum Sigma", font=LARGE_FONT)
         min_sigma_label.grid(row=0, column=3, columnspan=3)
-
-        self.min_sigma_slider = tk.Scale(self, from_=0, to=5,
-                                         orient='horizontal', resolution=0.01)
-        self.min_sigma_slider.grid(row=1, column=3, columnspan=3)
+        
+        self.min_sigma_slider = NormalSlider(self, from_=0, to=5, resolution=0.01,
+                                             row=1, column=3, columnspan=3)
 
         max_sigma_label = tk.Label(self, text="Maximum Sigma", font=LARGE_FONT)
         max_sigma_label.grid(row=2, column=3, columnspan=3)
-
-        self.max_sigma_slider = tk.Scale(self, from_=0, to=10,
-                                         orient='horizontal', resolution=0.01)
-        self.max_sigma_slider.grid(row=3, column=3, columnspan=3)
-
-        self.button_left = ttk.Button(self, text="<<")
-        self.button_left.grid(row=9, column=0)
-
-        self.dataset_roi_status = tk.Label(self, text="TBD")
-        self.dataset_roi_status.grid(row=9, column=1, columnspan=4)
-
-        self.button_right = ttk.Button(self, text=">>")
-        self.button_right.grid(row=9, column=5)
+        
+        self.max_sigma_slider = NormalSlider(self, from_=0, to=10, resolution=0.01,
+                                             row=3, column=3, columnspan=3)
+        
+        self.button_left = NormalButton(self, text="<<", row=9, column=0)
+        self.dataset_roi_status = NormalLabel(self, text= "TBD",
+                                              row=9, column=1, columnspan=4)
+        self.button_right = NormalButton(self, ">>", row=9, column=5)
 
         button_fit = ttk.Button(self, text="Fit", command=lambda: self.fit_rois())
         button_fit.grid(row=12, column=0, columnspan=1)
@@ -826,11 +727,12 @@ class FittingPage(tk.Frame):
         button_restore = ttk.Button(self, text="Restore default",
                                     command=lambda: self.restore_default())
         button_restore.grid(row=12, column=1, columnspan=2)
-
-        self.button_restore_saved = ttk.Button(self, text="Restore saved",
-                                               state='disabled',
-                                               command=lambda: self.restore_saved())
-        self.button_restore_saved.grid(row=12, column=3, columnspan=2)
+        
+        self.button_restore_saved = NormalButton(self, text="Restore saved",
+                                                 state='disabled',
+                                                 command=lambda: self.restore_saved(),
+                                                 row=12, column=3, 
+                                                  columnspan=2)
 
         button_save = ttk.Button(self, text="Save",
                                  command=lambda: self.save_roi_settings())
@@ -854,9 +756,9 @@ class FittingPage(tk.Frame):
 
         line = ttk.Separator(self, orient='horizontal')
         line.grid(column=0, row=18, rowspan=2, columnspan=10, sticky='we')
-
-        self.roi_status = tk.Label(self, text="TBD")
-        self.roi_status.grid(row=21, column=0, columnspan=6)
+        
+        self.roi_status = NormalLabel(self, text="TBD", 
+                                      row=21, column=0, columnspan=6)
 
         method_label = tk.Label(self, text="Method", font=LARGE_FONT)
         method_label.grid(column=0, row=23, columnspan=3)
@@ -907,24 +809,24 @@ class FittingPage(tk.Frame):
         self.dimension_drop = tk.OptionMenu(self, self.dimension, *dimension_options)
         self.dimension_drop.grid(row=28, column=6)
 
-        self.button_fit = MyButton(self, text="FIT", height=int(GUI_HEIGHT / 8),
+        self.button_fit = BigButton(self, text="FIT", height=int(GUI_HEIGHT / 8),
                                    width=int(GUI_WIDTH / 8), state='disabled',
                                    command=lambda: self.start_fitting())  # , style= 'my.TButton')
         self.button_fit.grid(row=24, column=10, columnspan=2, rowspan=5)
 
         progress_label = tk.Label(self, text="Progress", font=LARGE_FONT)
         progress_label.grid(row=24, column=12)
-
-        self.progress_status_label = tk.Label(self, text="Not yet started",
-                                              bd=1, relief='sunken')
-        self.progress_status_label.grid(row=25, column=12)
+        
+        self.progress_status_label = NormalLabel(self, text="Not yet started",
+                                              bd=1, relief='sunken',
+                                              row=25, column=12)
 
         time_label = tk.Label(self, text="Estimated time done", font=LARGE_FONT)
         time_label.grid(row=27, column=12)
-
-        self.time_status_label = tk.Label(self, text="Not yet started",
-                                          bd=1, relief='sunken')
-        self.time_status_label.grid(row=28, column=12)
+        
+        self.time_status_label = NormalLabel(self, text="Not yet started",
+                                          bd=1, relief='sunken',
+                                          row=28, column=12)
 
         button_quit = ttk.Button(self, text="Quit", command=quit_program)
         button_quit.grid(row=50, column=8)
@@ -944,3 +846,7 @@ if __name__ == '__main__':
     gui = MbxPython()
     gui.geometry(str(GUI_WIDTH) + "x" + str(GUI_HEIGHT) + "+" + str(GUI_WIDTH_START) + "+" + str(GUI_HEIGHT_START))
     gui.mainloop()
+    
+    ttk_style = ttk.Style(gui)
+    ttk_style.configure('my.TButton', font=('Verdana', 1000))
+    ttk_style.configure("Placeholder.TEntry", foreground="#d5d5d5")
