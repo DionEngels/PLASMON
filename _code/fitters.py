@@ -65,6 +65,7 @@ v7.0: cleanup and declare_functions function: 14/07/2020
 v7.1: revert lambda implementation for MT
 v7.2: change in phasor guess
 v7.3: further change in phasor bounds.
+v7.4: changes for MP status updates
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
@@ -310,7 +311,7 @@ class scipy_last_fit_guess(base_phasor):
                 
         return [p.x, p.nfev, p.success]
            
-    def fitter(self, frame_index, frame, peaks):
+    def fitter(self, frame_index, frame, start_frame):
         """
         Fits all peaks by scipy least squares fitting
 
@@ -326,9 +327,9 @@ class scipy_last_fit_guess(base_phasor):
 
         """
 
-        frame_result = np.zeros([peaks.shape[0], 9])
+        frame_result = np.zeros([self.ROI_locations.shape[0], 9])
                 
-        for peak_index, peak in enumerate(peaks):
+        for peak_index, peak in enumerate(self.ROI_locations):
 
             y = int(peak[0])
             x = int(peak[1])
@@ -347,7 +348,7 @@ class scipy_last_fit_guess(base_phasor):
 
             self.params[peak_index, :] = result            
 
-            frame_result[peak_index, 0] = frame_index
+            frame_result[peak_index, 0] = frame_index + start_frame
             frame_result[peak_index, 1] = peak_index
             #start position plus from center in ROI + half for indexing of pixels
             frame_result[peak_index, 2] = result[1]+y-self.ROI_size_1D+0.5
@@ -363,7 +364,8 @@ class scipy_last_fit_guess(base_phasor):
         return frame_result
     
     
-    def main(self, frames, metadata, roi_locations, verbose = False, gui = None):
+    def main(self, frames, metadata, roi_locations, gui = None, q = None, 
+             start_frame = 0, n_frames = None):
         """
         Main for every fitter method, calls fitter function and returns fits
 
@@ -377,6 +379,9 @@ class scipy_last_fit_guess(base_phasor):
         All localizations
 
         """
+        if n_frames == None:
+            n_frames = metadata['sequence_count']
+            
         self.ROI_locations = roi_locations
         self.params = np.zeros((self.ROI_locations.shape[0],self.num_fit_params))
         
@@ -384,7 +389,7 @@ class scipy_last_fit_guess(base_phasor):
         
         for frame_index, frame in enumerate(frames):
             if frame_index == 0:
-                frame_result = self.fitter(frame_index, frame, self.ROI_locations)
+                frame_result = self.fitter(frame_index, frame, start_frame)
                 n_fits = frame_result.shape[0]
                 width = frame_result.shape[1]
                 height = len(frames)*self.ROI_locations.shape[0]
@@ -392,21 +397,25 @@ class scipy_last_fit_guess(base_phasor):
                 self.result[tot_fits:tot_fits+n_fits,:] = frame_result
                 tot_fits += n_fits
             else:
-                frame_result = self.fitter(frame_index, frame, self.ROI_locations)
+                frame_result = self.fitter(frame_index, frame, start_frame)
                 n_fits = frame_result.shape[0]
                 self.result[tot_fits:tot_fits+n_fits,:] = frame_result
                 tot_fits += n_fits
             
-            if frame_index % (round(metadata['sequence_count']/10,0)) == 0:    
-                if gui == None:
-                    print('Done fitting frame '+str(frame_index)+' of ' + str(metadata['sequence_count']))
-                else:
-                    gui.update_status(frame_index+1, metadata['sequence_count']+1)
+            if frame_index % (round(n_frames/10,0)) == 0:    
+                if gui != None:
+                    gui.update_status(frame_index+1, n_frames+1)
+                elif q != None:
+                    q.put([start_frame, frame_index+1])
+                else:            
+                    print('Done fitting frame '+str(frame_index)+' of ' + str(n_frames))
         
         self.result = np.delete(self.result, range(tot_fits,len(frames)*self.ROI_locations.shape[0]), axis=0)
         
         if gui != None:
-            gui.update_status(metadata['sequence_count'], metadata['sequence_count'])
+            gui.update_status(n_frames, n_frames)
+        if q != None:
+            q.put([start_frame, frame_index+1])
 
         return self.result
     
@@ -422,7 +431,7 @@ class scipy_last_fit_guess_background(scipy_last_fit_guess):
         
         return np.array([height, pos_y, pos_x, self.init_sig, self.init_sig, background])
     
-    def fitter(self, frame_index, frame, peaks):
+    def fitter(self, frame_index, frame, start_frame):
         """
         Fits all peaks by scipy least squares fitting
 
@@ -438,9 +447,9 @@ class scipy_last_fit_guess_background(scipy_last_fit_guess):
 
         """
 
-        frame_result = np.zeros([peaks.shape[0], 9])
+        frame_result = np.zeros([self.ROI_locations.shape[0], 9])
         
-        for peak_index, peak in enumerate(peaks):
+        for peak_index, peak in enumerate(self.ROI_locations):
 
             y = int(peak[0])
             x = int(peak[1])
@@ -457,7 +466,7 @@ class scipy_last_fit_guess_background(scipy_last_fit_guess):
             
             self.params[peak_index, :] = result
 
-            frame_result[peak_index, 0] = frame_index
+            frame_result[peak_index, 0] = frame_index + start_frame
             frame_result[peak_index, 1] = peak_index
             #start position plus from center in ROI + half for indexing of pixels
             frame_result[peak_index, 2] = result[1]+y-self.ROI_size_1D+0.5 #y
@@ -590,7 +599,7 @@ class phasor_only_ROI_loop():
         return roi_result
                 
             
-    def main(self, frames, metadata, roi_locations, gui = None):
+    def main(self, frames, metadata, roi_locations, gui = None, n_frames = None):
         """
         Main for phasor over ROI loop, calls fitter function and returns fits.
 
@@ -638,7 +647,6 @@ class phasor_only_ROI_loop():
                     else:
                         gui.update_status(roi_index+1, len(self.ROI_locations)+1)
                     
-            
         self.result = np.delete(self.result, range(tot_fits,len(frames)*self.ROI_locations.shape[0]), axis=0)
         
         if gui != None:

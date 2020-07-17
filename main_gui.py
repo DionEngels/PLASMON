@@ -17,6 +17,7 @@ v1.8: complete reconstruction of labels, sliders, and buttons
 v1.9: tweaked max sigma and max intensity
 v1.10: histograms
 v1.11: interactive histograms
+v1.12: Status for MP
 
 """
 
@@ -30,7 +31,7 @@ from win32api import GetSystemMetrics  # Get sys info
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 import matplotlib.patches as patches
 
@@ -77,21 +78,23 @@ GUI_WIDTH_START = int(width / 4)
 GUI_HEIGHT_START = int(height / 4)
 DPI = 100
 
+
 # %% Multiprocessing main
 
 
-def mt_main(name, fitter, frames_split, roi_locations, shared):
+def mt_main(name, fitter, frames_split, roi_locations, shared, q):
     nd2 = ND2_Reader(name)
     frames = nd2
     metadata = nd2.metadata
     metadata['sequence_count'] = len(frames_split)
     frames = frames[frames_split]
 
-    local_result = fitter.main(frames, metadata, roi_locations)
-    local_result[:, 0] += frames_split[0]
+    local_result = fitter.main(frames, metadata, roi_locations, 
+                               q=q, start_frame=frames_split[0])
 
     for result_index, result in enumerate(local_result):
         shared[9 * result_index:9 * (result_index + 1)] = result[:]
+
 
 # %% Own buttons / fields
 
@@ -103,8 +106,8 @@ class BigButton(ttk.Frame):
         self.pack_propagate(0)
         self._btn = ttk.Button(self, text=text, command=command, state=state)
         self._btn.pack(fill=tk.BOTH, expand=1)
-            
-            
+
+
 class EntryPlaceholder(ttk.Entry):
     def __init__(self, master=None, placeholder="PLACEHOLDER", *args, **kwargs):
         super().__init__(master, *args, style="Placeholder.TEntry", **kwargs)
@@ -118,19 +121,20 @@ class EntryPlaceholder(ttk.Entry):
         if self["style"] == "Placeholder.TEntry":
             self.delete("0", "end")
             self["style"] = "TEntry"
-                
+
     def _add_placeholder(self, e):
         if not self.get():
             self.insert("0", self.placeholder)
             self["style"] = "Placeholder.TEntry"
-            
+
     def updater(self, text=None):
         self.delete("0", "end")
         self["style"] = "TEntry"
         self.insert("0", text)
 
+
 class NormalButton(ttk.Button):
-    def __init__(self, parent, text=None, row=None, column=None, 
+    def __init__(self, parent, text=None, row=None, column=None,
                  rowspan=1, columnspan=1, command=None, state='enabled'):
         super().__init__(parent, text=text, command=command, state=state)
         self.parent = parent
@@ -139,22 +143,23 @@ class NormalButton(ttk.Button):
         self.column = column
         self.rowspan = rowspan
         self.columnspan = columnspan
-        super().grid(row=row, column=column, 
-                  rowspan=rowspan, columnspan=columnspan)
-        
+        super().grid(row=row, column=column,
+                     rowspan=rowspan, columnspan=columnspan)
+
     def updater(self, command=None, state='enabled', text=None):
         if text == None:
             text = self.text
         super().grid_forget()
         super().__init__(self.parent, text=text, command=command, state=state)
-        super().grid(row=self.row, column=self.column, rowspan=self.rowspan, 
-                  columnspan=self.columnspan)
-        
+        super().grid(row=self.row, column=self.column, rowspan=self.rowspan,
+                     columnspan=self.columnspan)
+
+
 class NormalSlider(tk.Scale):
     def __init__(self, parent, from_=0, to=np.inf, resolution=1, start=0,
                  row=None, column=None, rowspan=1, columnspan=1):
         super().__init__(parent, from_=from_, to=to, orient='horizontal',
-                       resolution=resolution)
+                         resolution=resolution)
         super().set(start)
         self.parent = parent
         self.from_ = from_
@@ -165,9 +170,9 @@ class NormalSlider(tk.Scale):
         self.column = column
         self.rowspan = rowspan
         self.columnspan = columnspan
-        super().grid(row=self.row, column=self.column, rowspan=self.rowspan, 
-                  columnspan=self.columnspan)
-        
+        super().grid(row=self.row, column=self.column, rowspan=self.rowspan,
+                     columnspan=self.columnspan)
+
     def updater(self, from_=None, to=None, start=None):
         if from_ == None:
             from_ = self.from_
@@ -177,21 +182,21 @@ class NormalSlider(tk.Scale):
             start = self.start
         super().grid_forget()
         super().__init__(self.parent, from_=from_, to=to, orient='horizontal',
-                       resolution=self.resolution)
+                         resolution=self.resolution)
         super().set(start)
-        super().grid(row=self.row, column=self.column, rowspan=self.rowspan, 
-                  columnspan=self.columnspan)
+        super().grid(row=self.row, column=self.column, rowspan=self.rowspan,
+                     columnspan=self.columnspan)
         self.from_ = from_
         self.to = to
         self.start = start
-        
-        
+
+
 class NormalLabel(tk.Label):
     def __init__(self, parent, text=None, font=None, bd=None, relief=None,
                  row=None, column=None, rowspan=1, columnspan=1):
         super().__init__(parent, text=text, font=font, bd=bd, relief=relief)
-        super().grid(row=row, column=column, rowspan=rowspan, 
-                  columnspan=columnspan)
+        super().grid(row=row, column=column, rowspan=rowspan,
+                     columnspan=columnspan)
         self.parent = parent
         self.text = text
         self.font = font
@@ -201,14 +206,15 @@ class NormalLabel(tk.Label):
         self.column = column
         self.rowspan = rowspan
         self.columnspan = columnspan
-        
+
     def updater(self, text=None):
         super().grid_forget()
-        super().__init__(self.parent, text=text, font=self.font, 
-                         bd=self.bd, relief=self.relief)    
-        super().grid(row=self.row, column=self.column, rowspan=self.rowspan, 
-                  columnspan=self.columnspan)
-        
+        super().__init__(self.parent, text=text, font=self.font,
+                         bd=self.bd, relief=self.relief)
+        super().grid(row=self.row, column=self.column, rowspan=self.rowspan,
+                     columnspan=self.columnspan)
+
+
 # %% Container
 
 class MbxPython(tk.Tk):
@@ -253,6 +259,7 @@ def quit_program():
     gui.destroy()
     exit(0)
 
+
 # %% Loading page
 
 class LoadPage(tk.Frame):
@@ -261,8 +268,8 @@ class LoadPage(tk.Frame):
         tk.Frame.__init__(self, parent)
 
         button1 = BigButton(self, text="LOAD", height=int(GUI_HEIGHT / 4),
-                           width=int(GUI_WIDTH / 4),  # style= 'my.TButton',
-                           command=lambda: self.load_nd2(controller))
+                            width=int(GUI_WIDTH / 4),  # style= 'my.TButton',
+                            command=lambda: self.load_nd2(controller))
         button1.grid(row=0, column=0)
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -289,7 +296,7 @@ class FittingPage(tk.Frame):
         self.filenames = filenames
         self.roi_locations = {}
         self.dataset_index = 0
-        
+
         self.dataset_roi_status.updater(text="Dataset " + str(self.dataset_index + 1) + " of " + str(len(filenames)))
         self.roi_status.updater(text="0 of " + str(len(filenames)) + " have settings")
 
@@ -305,7 +312,7 @@ class FittingPage(tk.Frame):
         self.canvas = FigureCanvasTkAgg(self.fig, self)
         self.canvas.draw()
         self.canvas.get_tk_widget().grid(row=0, column=10, columnspan=3, rowspan=14, sticky='E')
-        
+
         self.restore_default()
 
         if self.dataset_index == len(filenames) - 1:
@@ -381,22 +388,22 @@ class FittingPage(tk.Frame):
         min_sigma = self.min_sigma_slider.get()
         max_sigma = self.max_sigma_slider.get()
 
-        settings = {'max_int': max_int, 'min_int': min_int, 
+        settings = {'max_int': max_int, 'min_int': min_int,
                     'min_sigma': min_sigma, 'max_sigma': max_sigma,
                     'wavelength': wavelength}
 
         self.saved_settings[self.dataset_index] = settings
 
-        self.roi_status.updater(text=str(len(self.roi_locations)) + 
-                                " of " + str(len(self.filenames)) + 
-                                " have settings")
+        self.roi_status.updater(text=str(len(self.roi_locations)) +
+                                     " of " + str(len(self.filenames)) +
+                                     " have settings")
         self.button_restore_saved.updater(command=lambda: self.restore_saved())
 
         if len(self.roi_locations) == len(self.filenames):
             self.button_fit.grid_forget()
             self.button_fit = BigButton(self, text="FIT", height=int(GUI_HEIGHT / 8),
-                                       width=int(GUI_WIDTH / 8),
-                                       command=lambda: self.start_fitting())
+                                        width=int(GUI_WIDTH / 8),
+                                        command=lambda: self.start_fitting())
             self.button_fit.grid(row=24, column=10, columnspan=2, rowspan=5)
 
     # %% Fitting page, restore default settings
@@ -404,8 +411,8 @@ class FittingPage(tk.Frame):
     def restore_default(self):
 
         self.roi_finder = roi_finding.roi_finder(9, self.frames[0])
-        
-        self.min_int_slider.updater(from_=0, to=self.roi_finder.intensity_max / 2, 
+
+        self.min_int_slider.updater(from_=0, to=self.roi_finder.intensity_max / 2,
                                     start=self.roi_finder.intensity_min)
         self.max_int_slider.updater(from_=0, to=self.roi_finder.intensity_max,
                                     start=self.roi_finder.intensity_max)
@@ -419,9 +426,9 @@ class FittingPage(tk.Frame):
     def next_dataset(self):
 
         self.dataset_index += 1
-        self.dataset_roi_status.updater(text="Dataset " + 
-                                        str(self.dataset_index + 1) + " of " 
-                                        + str(len(self.filenames)))
+        self.dataset_roi_status.updater(text="Dataset " +
+                                             str(self.dataset_index + 1) + " of "
+                                             + str(len(self.filenames)))
 
         self.nd2.close()
         self.nd2 = ND2_Reader(self.filenames[self.dataset_index])
@@ -436,7 +443,7 @@ class FittingPage(tk.Frame):
         self.canvas = FigureCanvasTkAgg(self.fig, self)
         self.canvas.draw()
         self.canvas.get_tk_widget().grid(row=0, column=10, columnspan=3, rowspan=14, sticky='E')
-        
+
         self.restore_default()
 
         if self.dataset_index == len(self.filenames) - 1:
@@ -456,16 +463,16 @@ class FittingPage(tk.Frame):
             self.wavelength_input.updater(text=str(wavelength))
         else:
             self.button_restore_saved.updater(state='disabled')
-            
+
             self.wavelength_input = EntryPlaceholder(self, "wavelength in nm")
             self.wavelength_input.grid(row=12, column=6, columnspan=3)
 
     def previous_dataset(self):
 
         self.dataset_index -= 1
-        self.dataset_roi_status.updater(text="Dataset " + 
-                                        str(self.dataset_index + 1) + " of " 
-                                        + str(len(self.filenames)))
+        self.dataset_roi_status.updater(text="Dataset " +
+                                             str(self.dataset_index + 1) + " of "
+                                             + str(len(self.filenames)))
 
         self.nd2.close()
         self.nd2 = ND2_Reader(filenames[self.dataset_index])
@@ -480,7 +487,7 @@ class FittingPage(tk.Frame):
         self.canvas = FigureCanvasTkAgg(self.fig, self)
         self.canvas.draw()
         self.canvas.get_tk_widget().grid(row=0, column=10, columnspan=3, rowspan=14, sticky='E')
-        
+
         self.restore_default()
 
         if self.dataset_index == len(self.filenames) - 1:
@@ -500,7 +507,7 @@ class FittingPage(tk.Frame):
             self.wavelength_input.updater(text=str(wavelength))
         else:
             self.button_restore_saved.updater(state='disabled')
-            
+
             self.wavelength_input = EntryPlaceholder(self, "wavelength in nm")
             self.wavelength_input.grid(row=12, column=6, columnspan=3)
 
@@ -557,17 +564,23 @@ class FittingPage(tk.Frame):
                                                                  method, 6)
 
             if start_frame == "Leave empty for start" and end_frame == "Leave empty for end":
+                end_frame = self.metadata['sequence_count']
+                start_frame = 0
                 to_fit = self.frames
-                end_frame = self.metadata['sequence_count']
-                start_frame = 0
             elif start_frame == "Leave empty for start" and end_frame != "Leave empty for end":
-                to_fit = self.frames[:int(end_frame)]
                 start_frame = 0
+                end_frame = int(end_frame)
+                to_fit = self.frames[:end_frame]
             elif start_frame != "Leave empty for start" and end_frame == "Leave empty for end":
-                to_fit = self.frames[int(start_frame):]
+                start_frame = int(start_frame)
                 end_frame = self.metadata['sequence_count']
+                to_fit = self.frames[start_frame:]
             else:  # start_frame != "Leave empty for start" and end_frame != "Leave empty for end":
-                to_fit = self.frames[int(start_frame):int(end_frame)]
+                start_frame = int(start_frame)
+                end_frame = int(end_frame)
+                to_fit = self.frames[start_frame:end_frame]
+
+            num_frames = end_frame-start_frame
 
             if n_processes > 1:
                 shared = [None] * n_processes
@@ -575,17 +588,33 @@ class FittingPage(tk.Frame):
 
                 frames_split = np.array_split(list(range(start_frame, end_frame)), n_processes)
                 processes = [None] * n_processes
+                q = mp.Queue()
+
+                self.update_status(0, num_frames)
 
                 for i in range(0, n_processes):
                     shared[i] = mp.Array('d', int(9 * len(roi_locations) * len(frames_split[i])))
-                    processes[i] = (
-                        mp.Process(target=mt_main, args=(filename, fitter, frames_split[i], roi_locations, shared[i])))
+                    processes[i] = (mp.Process(target=mt_main, 
+                                               args=(filename, fitter, 
+                                                     frames_split[i], roi_locations, 
+                                                     shared[i], q)))
 
                 for p in processes:
                     p.start()
+                    
+                queue_dict = {}
+                frames_fitted = 0
+                while frames_fitted < num_frames*0.95:
+                    for p in processes:
+                        queue = q.get()
+                        queue_dict[queue[0]] = queue[1]
+                        frames_fitted = sum(queue_dict.values())
+                        self.update_status(frames_fitted, num_frames)
 
                 for p in processes:
                     p.join()
+
+                self.update_status(num_frames, num_frames)
 
                 counter = 0
                 for i, share in enumerate(shared):
@@ -597,7 +626,7 @@ class FittingPage(tk.Frame):
                 results = results[results[:, 3] != 0]
             else:
                 results = fitter.main(to_fit, self.metadata, roi_locations,
-                                      gui=self)
+                                      gui=self, n_frames=num_frames)
 
             nm_or_pixels = self.dimension.get()
             if nm_or_pixels == "nm":
@@ -644,17 +673,19 @@ class FittingPage(tk.Frame):
         file_progress = progress / comparator * 100 / num_files
         progress = base_progress + file_progress
 
-        current_time = time.time()
-        time_taken = current_time - self.start_time
-        time_done_estimate = time_taken * 100 / progress + self.start_time
-        tr = time.localtime(time_done_estimate)
-
         progress_text = str(round(progress, 1)) + "% done"
-        time_text = str(tr[3]) + ":" + str(tr[4]) + ":" + str(tr[5]) + " " 
-        + str(tr[2]) + "/" + str(tr[1])
-        
+
+        if progress == 0:
+            self.time_status_label.updater(text="TBD")
+        else:
+            current_time = time.time()
+            time_taken = current_time - self.start_time
+            time_done_estimate = time_taken * 100 / progress + self.start_time
+            tr = time.localtime(time_done_estimate)
+            time_text = str(tr[3]) + ":" + str(tr[4]) + ":" + str(tr[5]) + " " + str(tr[2]) + "/" + str(tr[1])
+
+            self.time_status_label.updater(text=time_text)
         self.progress_status_label.updater(text=progress_text)
-        self.time_status_label.udpater(text=time_text)
 
         self.update()
 
@@ -669,8 +700,8 @@ class FittingPage(tk.Frame):
     def restore_saved(self):
 
         settings = self.saved_settings[self.dataset_index]
-        
-        self.min_int_slider.updater(from_=0, to=self.roi_finder.intensity_max / 4, 
+
+        self.min_int_slider.updater(from_=0, to=self.roi_finder.intensity_max / 4,
                                     start=settings['min_int'])
         self.max_int_slider.updater(from_=0, to=self.roi_finder.intensity_max,
                                     start=settings['max_int'])
@@ -681,11 +712,11 @@ class FittingPage(tk.Frame):
 
         wavelength = settings['wavelength']
         self.wavelength_input.updater(text=str(wavelength))
-        
+
     # %% Histogram of sliders
-    
+
     def histogram(self, variable):
-        
+
         if variable == "min_int" or variable == "max_int":
             self.to_hist = np.ravel(self.frames[0])
         else:
@@ -700,69 +731,68 @@ class FittingPage(tk.Frame):
                                                   wavelength, THRESHOLD,
                                                   "ScipyLastFitGuess", 5)
             self.to_hist = roi_finder.main(self.frames[0], fitter, return_sigmas=True)
-        
-        self.histogram = plt.figure(figsize = (6.4*1.2, 4.8*1.2))
+
+        self.histogram = plt.figure(figsize=(6.4 * 1.2, 4.8 * 1.2))
         fig_sub = self.histogram.add_subplot(111)
         fig_sub.hist(self.to_hist, bins='auto')
-        
+
         min_int = self.min_int_slider.get()
         max_int = self.max_int_slider.get()
         min_sigma = self.min_sigma_slider.get()
         max_sigma = self.max_sigma_slider.get()
-        
+
         if variable == "min_int":
             plt.title("Minimum intensity. Use graph select to change threshold")
-            plt.axvline(x=min_int, color='red',linestyle='--')
+            plt.axvline(x=min_int, color='red', linestyle='--')
             plt.xscale('log')
         elif variable == 'max_int':
             plt.title("Maximum intensity. Use graph select to change threshold")
-            plt.axvline(x=max_int, color='red',linestyle='--')
+            plt.axvline(x=max_int, color='red', linestyle='--')
             plt.xscale('log')
         elif variable == "min_sigma":
             plt.title("Minimum sigma. Use graph select to change threshold")
-            plt.axvline(x=min_sigma, color='red',linestyle='--')
+            plt.axvline(x=min_sigma, color='red', linestyle='--')
         else:
             plt.title("Maximum sigma. Use graph select to change threshold")
-            plt.axvline(x=max_sigma, color='red',linestyle='--')
-        
+            plt.axvline(x=max_sigma, color='red', linestyle='--')
+
     def histogram_select(self, variable):
         click = self.histogram.ginput(1)
-        
+
         if variable == "min_int":
-            self.min_int_slider.updater(start = int(click[0][0]))
+            self.min_int_slider.updater(start=int(click[0][0]))
         elif variable == 'max_int':
-            self.max_int_slider.updater(start = int(click[0][0]))
+            self.max_int_slider.updater(start=int(click[0][0]))
         elif variable == "min_sigma":
-            self.min_sigma_slider.updater(start = click[0][0])
+            self.min_sigma_slider.updater(start=click[0][0])
         else:
-            self.max_sigma_slider.updater(start = click[0][0])      
-            
+            self.max_sigma_slider.updater(start=click[0][0])
+
         self.histogram.clear()
         fig_sub = self.histogram.add_subplot(111)
         fig_sub.hist(self.to_hist, bins='auto')
-        
+
         min_int = self.min_int_slider.get()
         max_int = self.max_int_slider.get()
         min_sigma = self.min_sigma_slider.get()
         max_sigma = self.max_sigma_slider.get()
-        
+
         if variable == "min_int":
             plt.title("Minimum intensity. Use graph select to change threshold")
-            plt.axvline(x=min_int, color='red',linestyle='--')
+            plt.axvline(x=min_int, color='red', linestyle='--')
             plt.xscale('log')
         elif variable == 'max_int':
             plt.title("Maximum intensity. Use graph select to change threshold")
-            plt.axvline(x=max_int, color='red',linestyle='--')
+            plt.axvline(x=max_int, color='red', linestyle='--')
             plt.xscale('log')
         elif variable == "min_sigma":
             plt.title("Minimum sigma. Use graph select to change threshold")
-            plt.axvline(x=min_sigma, color='red',linestyle='--')
+            plt.axvline(x=min_sigma, color='red', linestyle='--')
         else:
             plt.title("Maximum sigma. Use graph select to change threshold")
-            plt.axvline(x=max_sigma, color='red',linestyle='--')
-        
+            plt.axvline(x=max_sigma, color='red', linestyle='--')
+
         plt.show()
-        
 
     # %% Fitting page, initial declaration
 
@@ -779,65 +809,67 @@ class FittingPage(tk.Frame):
         self.roi_locations = {}
         self.dataset_index = 0
         self.saved_settings = {}
-        
+        self.histogram = None
+        self.to_hist = None
+
         min_int_label = tk.Label(self, text="Minimum Intensity", font=LARGE_FONT)
         min_int_label.grid(row=0, column=0, columnspan=3)
-        
-        self.min_int_slider = NormalSlider(self, from_=0, to=1000, 
+
+        self.min_int_slider = NormalSlider(self, from_=0, to=1000,
                                            row=1, column=0, columnspan=3)
-        
+
         min_int_histogram = ttk.Button(self, text="Graph",
-                                 command=lambda: self.histogram("min_int"))
+                                       command=lambda: self.histogram("min_int"))
         min_int_histogram.grid(row=1, column=3)
-        
+
         min_int_histogram_select = ttk.Button(self, text="Graph select",
-                                 command=lambda: self.histogram_select("min_int"))
+                                              command=lambda: self.histogram_select("min_int"))
         min_int_histogram_select.grid(row=2, column=3)
 
         max_int_label = tk.Label(self, text="Maximum Intensity", font=LARGE_FONT)
         max_int_label.grid(row=4, column=0, columnspan=3)
-        
-        self.max_int_slider = NormalSlider(self, from_=0, to=5000, 
+
+        self.max_int_slider = NormalSlider(self, from_=0, to=5000,
                                            row=5, column=0, columnspan=3)
-        
+
         max_int_histogram = ttk.Button(self, text="Graph",
-                                 command=lambda: self.histogram("max_int"))
+                                       command=lambda: self.histogram("max_int"))
         max_int_histogram.grid(row=5, column=3)
-        
+
         max_int_histogram_select = ttk.Button(self, text="Graph select",
-                                 command=lambda: self.histogram_select("max_int"))
+                                              command=lambda: self.histogram_select("max_int"))
         max_int_histogram_select.grid(row=6, column=3)
 
         min_sigma_label = tk.Label(self, text="Minimum Sigma", font=LARGE_FONT)
         min_sigma_label.grid(row=0, column=5, columnspan=3)
-        
+
         self.min_sigma_slider = NormalSlider(self, from_=0, to=5, resolution=0.01,
                                              row=1, column=5, columnspan=3)
-        
+
         min_sigma_histogram = ttk.Button(self, text="Graph",
-                                 command=lambda: self.histogram("min_sigma"))
+                                         command=lambda: self.histogram("min_sigma"))
         min_sigma_histogram.grid(row=1, column=8)
-        
+
         min_sigma_histogram_select = ttk.Button(self, text="Graph select",
-                                 command=lambda: self.histogram_select("min_sigma"))
+                                                command=lambda: self.histogram_select("min_sigma"))
         min_sigma_histogram_select.grid(row=2, column=8)
 
         max_sigma_label = tk.Label(self, text="Maximum Sigma", font=LARGE_FONT)
         max_sigma_label.grid(row=4, column=5, columnspan=3)
-        
+
         self.max_sigma_slider = NormalSlider(self, from_=0, to=10, resolution=0.01,
                                              row=5, column=5, columnspan=3)
-        
+
         max_sigma_histogram = ttk.Button(self, text="Graph",
-                                 command=lambda: self.histogram("max_sigma"))
+                                         command=lambda: self.histogram("max_sigma"))
         max_sigma_histogram.grid(row=5, column=8)
-        
+
         max_sigma_histogram_select = ttk.Button(self, text="Graph select",
-                                 command=lambda: self.histogram_select("max_sigma"))
+                                                command=lambda: self.histogram_select("max_sigma"))
         max_sigma_histogram_select.grid(row=6, column=8)
-        
+
         self.button_left = NormalButton(self, text="<<", row=9, column=0)
-        self.dataset_roi_status = NormalLabel(self, text= "TBD",
+        self.dataset_roi_status = NormalLabel(self, text="TBD",
                                               row=9, column=1, columnspan=7)
         self.button_right = NormalButton(self, ">>", row=9, column=8)
 
@@ -847,12 +879,12 @@ class FittingPage(tk.Frame):
         button_restore = ttk.Button(self, text="Restore default",
                                     command=lambda: self.restore_default())
         button_restore.grid(row=12, column=1, columnspan=2)
-        
+
         self.button_restore_saved = NormalButton(self, text="Restore saved",
                                                  state='disabled',
                                                  command=lambda: self.restore_saved(),
-                                                 row=12, column=3, 
-                                                  columnspan=2)
+                                                 row=12, column=3,
+                                                 columnspan=2)
 
         button_save = ttk.Button(self, text="Save",
                                  command=lambda: self.save_roi_settings())
@@ -864,10 +896,6 @@ class FittingPage(tk.Frame):
         self.canvas.draw()
         self.canvas.get_tk_widget().grid(row=0, column=10, columnspan=3, rowspan=14, sticky='E')
 
-        # toolbar = NavigationToolbar2Tk(canvas, self)
-        # toolbar.update()
-        # canvas._tkcanvas.grid(row = 15, column = 10)
-
         wavelength_label = tk.Label(self, text="Laser Wavelength", font=LARGE_FONT)
         wavelength_label.grid(row=10, column=6, columnspan=3)
 
@@ -876,8 +904,8 @@ class FittingPage(tk.Frame):
 
         line = ttk.Separator(self, orient='horizontal')
         line.grid(column=0, row=18, rowspan=2, columnspan=10, sticky='we')
-        
-        self.roi_status = NormalLabel(self, text="TBD", 
+
+        self.roi_status = NormalLabel(self, text="TBD",
                                       row=21, column=0, columnspan=6)
 
         method_label = tk.Label(self, text="Method", font=LARGE_FONT)
@@ -930,23 +958,23 @@ class FittingPage(tk.Frame):
         self.dimension_drop.grid(row=28, column=6)
 
         self.button_fit = BigButton(self, text="FIT", height=int(GUI_HEIGHT / 8),
-                                   width=int(GUI_WIDTH / 8), state='disabled',
-                                   command=lambda: self.start_fitting())  # , style= 'my.TButton')
+                                    width=int(GUI_WIDTH / 8), state='disabled',
+                                    command=lambda: self.start_fitting())  # , style= 'my.TButton')
         self.button_fit.grid(row=24, column=10, columnspan=2, rowspan=5)
 
         progress_label = tk.Label(self, text="Progress", font=LARGE_FONT)
         progress_label.grid(row=24, column=12)
-        
+
         self.progress_status_label = NormalLabel(self, text="Not yet started",
-                                              bd=1, relief='sunken',
-                                              row=25, column=12)
+                                                 bd=1, relief='sunken',
+                                                 row=25, column=12)
 
         time_label = tk.Label(self, text="Estimated time done", font=LARGE_FONT)
         time_label.grid(row=27, column=12)
-        
+
         self.time_status_label = NormalLabel(self, text="Not yet started",
-                                          bd=1, relief='sunken',
-                                          row=28, column=12)
+                                             bd=1, relief='sunken',
+                                             row=28, column=12)
 
         button_quit = ttk.Button(self, text="Quit", command=quit_program)
         button_quit.grid(row=50, column=8)
@@ -966,7 +994,7 @@ if __name__ == '__main__':
     gui = MbxPython()
     gui.geometry(str(GUI_WIDTH) + "x" + str(GUI_HEIGHT) + "+" + str(GUI_WIDTH_START) + "+" + str(GUI_HEIGHT_START))
     gui.mainloop()
-    
+
     ttk_style = ttk.Style(gui)
     ttk_style.configure('my.TButton', font=('Verdana', 1000))
     ttk_style.configure("Placeholder.TEntry", foreground="#d5d5d5")
