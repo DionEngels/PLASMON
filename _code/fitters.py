@@ -64,6 +64,7 @@ v6.6: FORTRAN tools: max, norm, and calc bg
 v7.0: cleanup and declare_functions function: 14/07/2020
 v7.1: revert lambda implementation for MT
 v7.2: change in phasor guess
+v7.3: further change in phasor bounds.
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
@@ -104,9 +105,9 @@ class base_phasor():
 
         pos_y = abs(ang_y)/(2*pi/roi_size)
 
-        if pos_x > roi_size - 0.5:
+        if pos_x > roi_size:
             pos_x -= roi_size
-        if pos_y > roi_size - 0.5:
+        if pos_y > roi_size:
             pos_y -= roi_size
             
         return pos_x, pos_y
