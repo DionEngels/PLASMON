@@ -13,6 +13,7 @@ v1.0, ROI detection:  31/05/2020
 v1.1, conventional naming: 04/06/2020
 v2.0: self-made ROI finding: 10/07/2020
 v2.1: tweaks with standard min intensity: 14/07/2020
+v2.2: tweaked max sigma and max intensity: 17/07/2020
 
 """
 import time # to sleep to ensure that matlab licence is registered
@@ -118,7 +119,7 @@ class roi_finder():
         return mean+self.threshold_sigma*std
     
     def __init__(self, roi_size, frame, intensity_min = None, intensity_max = None, 
-                 sigma_min = 0, sigma_max = 10):
+                 sigma_min = 0, sigma_max = 5):
         
         self.roi_size = int(roi_size)
         self.roi_size_1d = int((roi_size-1)/2)        
@@ -130,7 +131,7 @@ class roi_finder():
             self.intensity_min = intensity_min
             
         if intensity_max == None:
-            self.intensity_max = 65535 # max of unsigned integer 16 bits
+            self.intensity_max = np.max(frame)+10 # max of unsigned integer 16 bits
         else:
             self.intensity_max = intensity_max
             

@@ -14,6 +14,7 @@ v1.5: Allow for nm and pixel saving and MT
 v1.6: conforming to standards of Python
 v1.7: further cleanup
 v1.8: complete reconstruction of labels, sliders, and buttons
+v1.9: tweaked max sigma and max intensity
 
 """
 
@@ -399,7 +400,7 @@ class FittingPage(tk.Frame):
 
         self.roi_finder = roi_finding.roi_finder(9, self.frames[0])
         
-        self.min_int_slider.updater(from_=0, to=self.roi_finder.intensity_max / 4, 
+        self.min_int_slider.updater(from_=0, to=self.roi_finder.intensity_max / 2, 
                                     start=self.roi_finder.intensity_min)
         self.max_int_slider.updater(from_=0, to=self.roi_finder.intensity_max,
                                     start=self.roi_finder.intensity_max)
