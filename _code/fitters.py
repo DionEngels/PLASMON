@@ -68,6 +68,8 @@ v7.3: further change in phasor bounds.
 v7.4: changes for MP status updates
 v7.5: removed any wavelength dependancy
 v7.6: add FORTRAN fft and min
+v7.7: variance as fit test
+v7.8: back to sigma as fit
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
@@ -353,8 +355,12 @@ class scipy_last_fit_guess(base_phasor):
 
             result, its, success = self.fitgaussian(my_roi, peak_index)
 
-            if success == 0 or result[2]< 0 or result[2] > self.ROI_size or result[1] < 0 or result[1] > self.ROI_size:
+            if success == 0 or result[0] < 0 or result[2]< 0 or result[2] > self.ROI_size or result[1] < 0 or result[1] > self.ROI_size:
                 continue
+            
+            if its > 200:
+                my_roi = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
+                my_roi = my_roi
 
             self.params[peak_index, :] = result            
 

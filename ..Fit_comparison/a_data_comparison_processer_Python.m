@@ -68,7 +68,7 @@ for i=1:size(positions,1)
         counts = mean_intensity*2*pi;
         res_crlb(row, column) = sqrt(sigma_mean^2/counts+mic_pixelsize^2/12/counts + 4*sqrt(pi)*mic_pixelsize^3*mean_background/mic_pixelsize/counts^2);
     end
-    
+        
     
     
     

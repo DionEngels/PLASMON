@@ -44,7 +44,7 @@ import _code.roi_finding as roi_finding
 import _code.fitters as fitting
 import _code.tools as tools
 #%% Inputs
-ROI_SIZE = 9 # 7 or 9
+ROI_SIZE = 7 # 7 or 9
 #%% Initializations
 
 FILETYPES = [("ND2", ".nd2")]
@@ -91,7 +91,7 @@ for name in filenames:
             ## parse ND2 info
             frames = ND2
             metadata = ND2.metadata
-            #frames = frames[0:200]
+            frames = frames[0:200]
            
         #%% Find ROIs (for standard NP2 file)
         print('Starting to find ROIs')

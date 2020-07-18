@@ -15,6 +15,7 @@ v2.0: self-made ROI finding: 10/07/2020
 v2.1: tweaks with standard min intensity: 14/07/2020
 v2.2: tweaked max sigma and max intensity: 17/07/2020
 v2.3: return sigmas option for histograms
+v2.4: tweaking removing ROIs with nearby ROIs: 18/07/2020
 
 """
 import time # to sleep to ensure that matlab licence is registered
@@ -164,14 +165,19 @@ class roi_finder():
         
     def find_local_maximum(self, frame):
         
-        data_max = filters.maximum_filter(frame, self.roi_size)
+        data_max = filters.maximum_filter(frame, self.roi_size*2)
         maxima = (frame == data_max)
         
         return maxima
         
-    def adjacent_or_boundary_rois(self, roi_boolean):
+    def adjacent_or_boundary_rois(self, frame):
         
         keep_boolean = np.ones(self.roi_locations.shape[0], dtype=bool)
+        
+        footprint = np.ones((3,3), dtype=bool)
+        data_max = filters.maximum_filter(frame, footprint=footprint)
+        maxima = (frame == data_max)
+        data_min = filters.minimum_filter(frame, self.roi_size)
         
         for roi_index, roi in enumerate(self.roi_locations):
             
@@ -179,11 +185,21 @@ class roi_finder():
             x = int(roi[1])
 
             try:            
-                my_roi = roi_boolean[y-self.roi_size_1d:y+self.roi_size_1d+1, 
+                my_roi = frame[y-self.roi_size_1d:y+self.roi_size_1d+1, 
                                      x-self.roi_size_1d:x+self.roi_size_1d+1]
             except:
                 keep_boolean[roi_index] = False # if this fails, the roi is on the boundary
                 continue
+            
+            my_roi_real = frame[y-self.roi_size_1d-1:y+self.roi_size_1d+2, 
+                                     x-self.roi_size_1d-1:x+self.roi_size_1d+2]
+            
+            boolean_int_max = frame-data_min[y, x] > (frame[y,x]-data_min[y, x])/3
+            
+            maxima_threshold = boolean_int_max & maxima
+            
+            my_roi = maxima_threshold[y-self.roi_size_1d:y+self.roi_size_1d+1, 
+                                     x-self.roi_size_1d:x+self.roi_size_1d+1]
             
             trues_in_roi = np.transpose(np.where(my_roi == True))
             
@@ -348,7 +364,7 @@ class roi_finder():
         
         self.roi_locations = np.transpose(np.where(roi_boolean == True))
         
-        self.adjacent_or_boundary_rois(roi_boolean) # check if any rois too close
+        self.adjacent_or_boundary_rois(frame) # check if any rois too close
         
         self.remove_boundary_rois(frame) # remove rois too close to edge
         
