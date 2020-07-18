@@ -16,6 +16,7 @@ v1.0, main working for .nd2 loading, no custom ROI fitting: 05/06/2020
 v1.1. MATLAB loading: 15/06/2020
 v1.2: own ROI finder: 11/07/2020
 v1.3: 7x7 and 9x9 ROIs: 13/07/2020
+v1.4: removed any wavelength dependancy
 
  """
 
@@ -29,15 +30,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 ## GUI
-from tkinter import Tk # for GUI
 from tkinter.filedialog import askopenfilenames # for popup that asks to select .nd2's
 
 ## ND2 related
 from pims import ND2_Reader # reader of ND2 files
 #from pims import Frame # for converting ND2 generator to one numpy array
-
-## Multiprocessing
-import multiprocessing as mp
 
 ## comparison to other fitters
 import scipy.io
@@ -48,8 +45,6 @@ import _code.fitters as fitting
 import _code.tools as tools
 #%% Inputs
 ROI_SIZE = 7 # 7 or 9
-WAVELENGTH = 637 #nm
-
 #%% Initializations
 
 FILETYPES = [("ND2", ".nd2")]
@@ -59,8 +54,8 @@ FILETYPES = [("ND2", ".nd2")]
 
 filenames = ("C:/Users/s150127/Downloads/_MBx dataset/1nMimager_newGNRs_100mW.nd2",)
 
-METHOD = "ScipyLastFitGuess"
-DATASET = "MATLAB_v2" # "MATLAB, "MATLAB_v2" OR "YUYANG"
+METHOD = "ScipyPhasorFitGuess"
+DATASET = "YUYANG" # "MATLAB, "MATLAB_v2" OR "YUYANG"
 ROI_FINDER = "SELF" # "SELF" OR "PRE"
 #%% Main loop cell
 
@@ -123,7 +118,7 @@ for name in filenames:
         elif ROI_FINDER == "SELF":
             roi_finder = roi_finding.roi_finder(ROI_SIZE, frames[0])#, intensity_min = 800)
             fitter = fitting.scipy_last_fit_guess(metadata, ROI_SIZE,
-                                                  WAVELENGTH, roi_finder.intensity_min, 
+                                                  roi_finder.intensity_min, 
                                                   "ScipyLastFitGuess", 5)
             ROI_locations = roi_finder.main(frames[0], fitter)
 
@@ -134,15 +129,15 @@ for name in filenames:
         start = time.time()
         
         if METHOD == "PhasorOnlyROI":
-            fitter = fitting.phasor_only_ROI_loop(metadata, ROI_SIZE, WAVELENGTH, roi_finder.intensity_min, METHOD)
+            fitter = fitting.phasor_only_ROI_loop(metadata, ROI_SIZE, roi_finder.intensity_min, METHOD)
         elif METHOD == "PhasorOnlyROIDumb":
-            fitter = fitting.phasor_only_ROI_loop_dumb(metadata, ROI_SIZE, WAVELENGTH, roi_finder.intensity_min, METHOD)
+            fitter = fitting.phasor_only_ROI_loop_dumb(metadata, ROI_SIZE, roi_finder.intensity_min, METHOD)
         elif METHOD == "ScipyLastFitGuess":
-            fitter = fitting.scipy_last_fit_guess(metadata, ROI_SIZE, WAVELENGTH, roi_finder.intensity_min, METHOD, 5)
+            fitter = fitting.scipy_last_fit_guess(metadata, ROI_SIZE, roi_finder.intensity_min, METHOD, 5)
         elif METHOD == "ScipyLastFitGuessBackground":
-            fitter = fitting.scipy_last_fit_guess_background(metadata, ROI_SIZE, WAVELENGTH, roi_finder.intensity_min, METHOD, 6)
+            fitter = fitting.scipy_last_fit_guess_background(metadata, ROI_SIZE, roi_finder.intensity_min, METHOD, 6)
         elif METHOD == "ScipyPhasorFitGuess":
-            fitter = fitting.scipy_phasor_fit_guess(metadata, ROI_SIZE, WAVELENGTH, roi_finder.intensity_min, METHOD, 5)
+            fitter = fitting.scipy_phasor_fit_guess(metadata, ROI_SIZE, roi_finder.intensity_min, METHOD, 5)
 
         results = fitter.main(frames, metadata, ROI_locations) 
         

@@ -66,6 +66,7 @@ v7.1: revert lambda implementation for MT
 v7.2: change in phasor guess
 v7.3: further change in phasor bounds.
 v7.4: changes for MP status updates
+v7.5: removed any wavelength dependancy
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
@@ -142,14 +143,13 @@ class scipy_last_fit_guess(base_phasor):
     Build-in scipy least squares fitting, with last fit as initial guess
     """
     
-    def __init__(self, metadata, ROI_size, wavelength, threshold, METHOD, num_fit_params):
+    def __init__(self, metadata, ROI_size, threshold, METHOD, num_fit_params):
         """
 
         Parameters
         ----------
         metadata : metadata of ND2
         ROI_size : ROI size
-        wavelength : laser wavelength
         threshold : minimum intensity to be fitted
         ROI_locations : found ROIs
 
@@ -161,7 +161,7 @@ class scipy_last_fit_guess(base_phasor):
         self.result = []
         self.ROI_size = ROI_size
         self.ROI_size_1D = int((self.ROI_size-1)/2)
-        self.init_sig = wavelength/(2*metadata['NA']*math.sqrt(8*math.log(2)))/(metadata['calibration_um']*1000) #*2 for better guess
+        self.init_sig = 1.3 # Slightly on the high side probably
         self.threshold = threshold
         self.__name__ = METHOD
         
@@ -507,13 +507,12 @@ class phasor_only_ROI_loop():
     """
     Phasor localizer over ROIs
     """
-    def __init__(self, metadata, ROI_size, wavelength, threshold, METHOD):
+    def __init__(self, metadata, ROI_size, threshold, METHOD):
         """
         Parameters
         ----------
         metadata : metadata of ND2
         ROI_size : ROI size
-        wavelength : laser wavelength
         threshold : minimum intensity for fitting
         ROI_locations : found ROIs
 
@@ -526,7 +525,6 @@ class phasor_only_ROI_loop():
         self.result = []
         self.ROI_size = ROI_size
         self.ROI_size_1D = int((self.ROI_size-1)/2)
-        self.init_sig = wavelength/(2*metadata['NA']*math.sqrt(8*math.log(2)))/(metadata['calibration_um']*1000) #*2 for better guess
         self.threshold = threshold
         self.__name__ = METHOD
         

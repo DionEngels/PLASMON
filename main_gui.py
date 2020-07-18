@@ -18,6 +18,7 @@ v1.9: tweaked max sigma and max intensity
 v1.10: histograms
 v1.11: interactive histograms
 v1.12: Status for MP
+v.13: removed wavelength
 
 """
 
@@ -89,7 +90,7 @@ def mt_main(name, fitter, frames_split, roi_locations, shared, q):
     metadata['sequence_count'] = len(frames_split)
     frames = frames[frames_split]
 
-    local_result = fitter.main(frames, metadata, roi_locations, 
+    local_result = fitter.main(frames, metadata, roi_locations,
                                q=q, start_frame=frames_split[0])
 
     for result_index, result in enumerate(local_result):
@@ -333,20 +334,13 @@ class FittingPage(tk.Frame):
         max_int = self.max_int_slider.get()
         min_sigma = self.min_sigma_slider.get()
         max_sigma = self.max_sigma_slider.get()
-        wavelength = self.wavelength_input.get()
-        if wavelength == "wavelength in nm":
-            tk.messagebox.showerror("ERROR", "Please give laser wavelength")
-            return
-        else:
-            wavelength = int(wavelength)
 
         self.roi_finder.change_settings(intensity_min=min_int,
                                         intensity_max=max_int,
                                         sigma_min=min_sigma, sigma_max=max_sigma)
 
         fitter = fitting.scipy_last_fit_guess(self.metadata, ROI_SIZE,
-                                              wavelength, THRESHOLD,
-                                              "ScipyLastFitGuess", 5)
+                                              THRESHOLD, "ScipyLastFitGuess", 5)
 
         self.temp_roi_locations = self.roi_finder.main(self.frames[0], fitter)
 
@@ -372,13 +366,6 @@ class FittingPage(tk.Frame):
 
     def save_roi_settings(self):
 
-        wavelength = self.wavelength_input.get()
-        if wavelength == "wavelength in nm":
-            tk.messagebox.showerror("ERROR", "Please give laser wavelength")
-            return
-        else:
-            wavelength = int(wavelength)
-
         self.fit_rois()
 
         self.roi_locations[self.dataset_index] = self.temp_roi_locations
@@ -389,8 +376,7 @@ class FittingPage(tk.Frame):
         max_sigma = self.max_sigma_slider.get()
 
         settings = {'max_int': max_int, 'min_int': min_int,
-                    'min_sigma': min_sigma, 'max_sigma': max_sigma,
-                    'wavelength': wavelength}
+                    'min_sigma': min_sigma, 'max_sigma': max_sigma}
 
         self.saved_settings[self.dataset_index] = settings
 
@@ -458,14 +444,8 @@ class FittingPage(tk.Frame):
 
         if self.dataset_index in self.saved_settings:
             self.button_restore_saved.updater(command=lambda: self.restore_saved())
-
-            wavelength = self.saved_settings[self.dataset_index]['wavelength']
-            self.wavelength_input.updater(text=str(wavelength))
         else:
             self.button_restore_saved.updater(state='disabled')
-
-            self.wavelength_input = EntryPlaceholder(self, "wavelength in nm")
-            self.wavelength_input.grid(row=12, column=6, columnspan=3)
 
     def previous_dataset(self):
 
@@ -502,14 +482,8 @@ class FittingPage(tk.Frame):
 
         if self.dataset_index in self.saved_settings:
             self.button_restore_saved.updater(command=lambda: self.restore_saved())
-
-            wavelength = self.saved_settings[self.dataset_index]['wavelength']
-            self.wavelength_input.updater(text=str(wavelength))
         else:
             self.button_restore_saved.updater(state='disabled')
-
-            self.wavelength_input = EntryPlaceholder(self, "wavelength in nm")
-            self.wavelength_input.grid(row=12, column=6, columnspan=3)
 
     # %% Fitting page, start fitting
 
@@ -550,17 +524,16 @@ class FittingPage(tk.Frame):
 
             roi_locations = self.roi_locations[dataset_index]
 
-            wavelength = self.saved_settings[dataset_index]['wavelength']
             min_intensity = self.saved_settings[dataset_index]['min_int']
 
             if method == "Phasor with intensity":
-                fitter = fitting.phasor_only_ROI_loop(self.metadata, roi_size, wavelength, min_intensity, method)
+                fitter = fitting.phasor_only_ROI_loop(self.metadata, roi_size, min_intensity, method)
             elif method == "Phasor without intensity":
-                fitter = fitting.phasor_only_ROI_loop_dumb(self.metadata, roi_size, wavelength, min_intensity, method)
+                fitter = fitting.phasor_only_ROI_loop_dumb(self.metadata, roi_size, min_intensity, method)
             elif method == "Gaussian without background":
-                fitter = fitting.scipy_last_fit_guess(self.metadata, roi_size, wavelength, min_intensity, method, 5)
+                fitter = fitting.scipy_last_fit_guess(self.metadata, roi_size, min_intensity, method, 5)
             elif method == "Gaussian with background":
-                fitter = fitting.scipy_last_fit_guess_background(self.metadata, roi_size, wavelength, min_intensity,
+                fitter = fitting.scipy_last_fit_guess_background(self.metadata, roi_size, min_intensity,
                                                                  method, 6)
 
             if start_frame == "Leave empty for start" and end_frame == "Leave empty for end":
@@ -580,7 +553,7 @@ class FittingPage(tk.Frame):
                 end_frame = int(end_frame)
                 to_fit = self.frames[start_frame:end_frame]
 
-            num_frames = end_frame-start_frame
+            num_frames = end_frame - start_frame
 
             if n_processes > 1:
                 shared = [None] * n_processes
@@ -594,17 +567,17 @@ class FittingPage(tk.Frame):
 
                 for i in range(0, n_processes):
                     shared[i] = mp.Array('d', int(9 * len(roi_locations) * len(frames_split[i])))
-                    processes[i] = (mp.Process(target=mt_main, 
-                                               args=(filename, fitter, 
-                                                     frames_split[i], roi_locations, 
+                    processes[i] = (mp.Process(target=mt_main,
+                                               args=(filename, fitter,
+                                                     frames_split[i], roi_locations,
                                                      shared[i], q)))
 
                 for p in processes:
                     p.start()
-                    
+
                 queue_dict = {}
                 frames_fitted = 0
-                while frames_fitted < num_frames*0.95:
+                while frames_fitted < num_frames * 0.95:
                     for p in processes:
                         queue = q.get()
                         queue_dict[queue[0]] = queue[1]
@@ -710,9 +683,6 @@ class FittingPage(tk.Frame):
         self.max_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
                                       start=settings['max_sigma'])
 
-        wavelength = settings['wavelength']
-        self.wavelength_input.updater(text=str(wavelength))
-
     # %% Histogram of sliders
 
     def fun_histogram(self, variable):
@@ -720,16 +690,9 @@ class FittingPage(tk.Frame):
         if variable == "min_int" or variable == "max_int":
             self.to_hist = np.ravel(self.frames[0])
         else:
-            wavelength = self.wavelength_input.get()
-            if wavelength == "wavelength in nm":
-                tk.messagebox.showerror("ERROR", "Please give laser wavelength")
-                return
-            else:
-                wavelength = int(wavelength)
             roi_finder = roi_finding.roi_finder(9, self.frames[0])
             fitter = fitting.scipy_last_fit_guess(self.metadata, ROI_SIZE,
-                                                  wavelength, THRESHOLD,
-                                                  "ScipyLastFitGuess", 5)
+                                                  THRESHOLD, "ScipyLastFitGuess", 5)
             self.to_hist = roi_finder.main(self.frames[0], fitter, return_sigmas=True)
 
         self.histogram = plt.figure(figsize=(6.4 * 1.2, 4.8 * 1.2))
@@ -897,12 +860,6 @@ class FittingPage(tk.Frame):
         self.canvas = FigureCanvasTkAgg(self.fig, self)
         self.canvas.draw()
         self.canvas.get_tk_widget().grid(row=0, column=10, columnspan=3, rowspan=14, sticky='E')
-
-        wavelength_label = tk.Label(self, text="Laser Wavelength", font=LARGE_FONT)
-        wavelength_label.grid(row=10, column=6, columnspan=3)
-
-        self.wavelength_input = EntryPlaceholder(self, "wavelength in nm")
-        self.wavelength_input.grid(row=12, column=6, columnspan=3)
 
         line = ttk.Separator(self, orient='horizontal')
         line.grid(column=0, row=18, rowspan=2, columnspan=10, sticky='we')
