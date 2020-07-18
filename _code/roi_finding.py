@@ -191,8 +191,8 @@ class roi_finder():
                 keep_boolean[roi_index] = False # if this fails, the roi is on the boundary
                 continue
             
-            my_roi_real = frame[y-self.roi_size_1d-1:y+self.roi_size_1d+2, 
-                                     x-self.roi_size_1d-1:x+self.roi_size_1d+2]
+            # my_roi_real = frame[y-self.roi_size_1d-1:y+self.roi_size_1d+2, 
+            #                          x-self.roi_size_1d-1:x+self.roi_size_1d+2]
             
             boolean_int_max = frame-data_min[y, x] > (frame[y,x]-data_min[y, x])/3
             

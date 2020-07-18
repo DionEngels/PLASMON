@@ -91,7 +91,7 @@ for name in filenames:
             ## parse ND2 info
             frames = ND2
             metadata = ND2.metadata
-            frames = frames[0:200]
+            #frames = frames[0:200]
            
         #%% Find ROIs (for standard NP2 file)
         print('Starting to find ROIs')
