@@ -67,13 +67,14 @@ v7.2: change in phasor guess
 v7.3: further change in phasor bounds.
 v7.4: changes for MP status updates
 v7.5: removed any wavelength dependancy
+v7.6: add FORTRAN fft and min
 """
 #%% Generic imports
 from __future__ import division, print_function, absolute_import
 import math
 import numpy as np
 import _code.MBx_FORTRAN_v4 as fortran_linalg
-import _code.MBx_FORTRAN_TOOLS_v1 as fortran_tools
+import _code.MBx_FORTRAN_TOOLS_v2 as fortran_tools
 
 #%% Base Phasor
 
@@ -90,22 +91,24 @@ class base_phasor():
         
         return: pos x, pos y
         """
-        
-        fft_values = np.fft.fft2(data)
-
+        if self.ROI_size == 9:
+            x_re, x_im, y_re, y_im = fortran_tools.fft9(data)
+        else:
+            x_re, x_im, y_re, y_im = fortran_tools.fft7(data)
+            
         roi_size = self.ROI_size
-        ang_x = cmath.phase(fft_values[0, 1])
+        ang_x = math.atan2(x_im,x_re)
         if ang_x>0:
             ang_x=ang_x-2*pi
 
-        pos_x = abs(ang_x)/(2*pi/roi_size)
+        pos_x = abs(ang_x)/(2*pi/roi_size) - 1
 
-        ang_y = cmath.phase(fft_values[1,0])
+        ang_y = math.atan2(y_im,y_re)
 
         if ang_y >0:
             ang_y = ang_y - 2*pi
 
-        pos_y = abs(ang_y)/(2*pi/roi_size)
+        pos_y = abs(ang_y)/(2*pi/roi_size) - 1
 
         if pos_x > roi_size:
             pos_x -= roi_size
@@ -186,6 +189,13 @@ class scipy_last_fit_guess(base_phasor):
             return fortran_tools.max9(roi)
         elif self.ROI_size == 7:
             return fortran_tools.max7(roi)
+        
+    def fun_find_min(self, roi):
+        
+        if self.ROI_size == 9:
+            return fortran_tools.min9(roi)
+        elif self.ROI_size == 7:
+            return fortran_tools.min7(roi)
         
     def fun_calc_bg(self, roi):
         
@@ -295,7 +305,7 @@ class scipy_last_fit_guess(base_phasor):
     def phasor_guess(self, data):
         """ Returns an initial guess based on phasor fitting"""
         pos_x, pos_y = self.phasor_fit(data)
-        height = data[int(pos_y), int(pos_x)]-np.min(data)
+        height = data[int(pos_y), int(pos_x)]-self.fun_find_min(data)
         
         return np.array([height, pos_y, pos_x, self.init_sig, self.init_sig])
             
