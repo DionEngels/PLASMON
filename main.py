@@ -120,7 +120,7 @@ for name in filenames:
             fitter = fitting.scipy_last_fit_guess(metadata, ROI_SIZE,
                                                   roi_finder.intensity_min, 
                                                   "ScipyLastFitGuess", 5)
-            ROI_locations = roi_finder.main(frames[0], fitter)
+            ROI_locations = roi_finder.main_v2(frames[0], fitter)
 
         tools.plot_rois(frames[0], ROI_locations, ROI_SIZE)
 
