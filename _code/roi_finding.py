@@ -19,6 +19,7 @@ v2.4: tweaking removing ROIs with nearby ROIs: 18/07/2020
 v2.5: worked on main_v2, which uses correlation of 2D gaussian
 v3.0: clean up and based on SPectrA; correlation, pixel_int, sigma and int
 v3.1: adaptations to GUI
+v3.2: further adaptations for GUI
 
 """
 import numpy as np # for linear algebra
@@ -41,13 +42,15 @@ class roi_finder():
         return mean+self.threshold_sigma*std
     
     def __init__(self, filter_size, frame, fitter, pixel_min = None, corr_min = 0.05, 
-                 sigma_min = 0, sigma_max = None, int_min = 1, int_max = None):
+                 sigma_min = 0, sigma_max = None, int_min = None, int_max = None):
         
         self.filter_size = int(filter_size)
-        self.roi_size = 9
+        self.roi_size = 7
         self.roi_size_1d = int((self.roi_size-1)/2)
         self.side_distance = 11
         self.roi_distance = 6
+        
+        self.base_frame = frame
         
         background = medfilt(frame, kernel_size = self.filter_size)
         background[background ==  0] = np.min(background[background > 0])       
@@ -70,22 +73,27 @@ class roi_finder():
         self.int_min = int_min
         self.sigma_min = sigma_min
         
-        if sigma_max == None or int_max == None:
+        if sigma_max == None or int_max == None or int_min == None:
             self.sigma_max = 5
             self.int_max = np.inf
+            self.int_min = 0
             self.roi_locations = self.main(fitter)
-            if int_max == None:
+            if int_max == None or int_min == None:
                 self.int_sigma_limit(fitter, True, False)
-                self.int_max = np.max(self.int_list)*1.05 # 5% margin
+                if int_max == None:
+                    self.int_max = np.max(self.int_list)*1.05 # 5% margin
+                if int_min == None:
+                    self.int_min = np.min(self.int_list)/1.05 # 5% margin
             if sigma_max == None:
                 self.int_sigma_limit(fitter, False, True)
-                self.sigma_max = np.max(self.sigma_list)*1.05 # 5% margin
+                self.sigma_max = np.max(self.sigma_list)*1.05 # 5% margin                
         else:
             self.sigma_max = sigma_max
             self.int_max = int_max
         
     def change_settings(self, int_min, int_max, corr_min, pixel_min,
-                        sigma_min, sigma_max):
+                        sigma_min, sigma_max, roi_size,
+                        filter_size, roi_side, inter_roi):
 
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
@@ -95,6 +103,18 @@ class roi_finder():
         
         self.int_max = int_max
         self.int_min = int_min
+        
+        self.roi_size = roi_size
+        self.roi_size_1d = int((self.roi_size-1)/2)
+        
+        self.side_distance = roi_side
+        self.roi_distance = inter_roi
+        
+        if filter_size != self.filter_size:
+            self.filter_size = filter_size
+            background = medfilt(self.base_frame, kernel_size = self.filter_size)
+            background[background ==  0] = np.min(background[background > 0])       
+            self.frame = self.base_frame.astype('float') - background
         
     def adjacent_or_boundary_rois_base(self, roi_boolean):
         
@@ -137,7 +157,7 @@ class roi_finder():
             if return_sigmas:
                 self.sigma_list.append(result[4])
                 self.sigma_list.append(result[3])
-            if return_int:
+            elif return_int:
                 self.int_list.append(result[0])
             
             if result[4] < self.sigma_min or result[3] < self.sigma_min:
