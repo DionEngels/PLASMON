@@ -17,98 +17,24 @@ v2.2: tweaked max sigma and max intensity: 17/07/2020
 v2.3: return sigmas option for histograms
 v2.4: tweaking removing ROIs with nearby ROIs: 18/07/2020
 v2.5: worked on main_v2, which uses correlation of 2D gaussian
+v3.0: clean up and based on SPectrA; correlation, pixel_int, sigma and int
 
 """
-import time # to sleep to ensure that matlab licence is registered
 import numpy as np # for linear algebra
-import matlab.engine # to run matlab
-import scipy.io as sio # to load in .mat
 from scipy.signal import medfilt, convolve2d
-
- #%% Adapted from FindParticles.m from SPectraA4
-
-def ROI_finder(image, ROI_size):
-    """
-    Finds ROIs
-
-    Parameters
-    ----------
-    Image : Image to find ROIs for
-    ROI_size : Size of ROI
-
-    Returns
-    -------
-    Population : ROI info
-
-    """
-
-    threshold = [0.05, 0.75]
-
-    eng = matlab.engine.start_matlab()
-
-    image_list = image.tolist()
-    image_matlab = matlab.double(image_list)
-
-    time.sleep(3)
-
-    [corrected, background] = background_correction_wavelet_set(image_matlab, 4, eng)
-    image = image - background
-
-    image_list = image.tolist()
-    image_matlab = matlab.double(image_list)
-
-    bead_filter_dict = sio.loadmat('Typical_BeadFilter_for_Finding_AuNPs.mat')
-    bead_filter = bead_filter_dict['BeadFilter']
-    bead_filter_list = bead_filter.tolist()
-    bead_filter_matlab = matlab.double(bead_filter_list)
-
-    population_dict_matlab = eng.LocateBeadsProfile(image_matlab, bead_filter_matlab, False, threshold[0], threshold[1], 20)
-
-    population_matlab = population_dict_matlab['Location']
-    population = np.array(population_matlab)
-
-    eng.quit()
-
-    return population
-
-
-
-
- #%% Runs BackgroundCorrection_WaveletSet Version 1.2 by Emiel Visser
-
-def background_correction_wavelet_set(frame_data, level, eng):
-    """
-    Runs BackgroundCorrection_WaveletSet Version 1.2 by Emiel Visser
-
-    Parameters
-    ----------
-    FrameData : Info about frame
-    Level : Some parameters
-    eng : Matlab engine
-
-    Returns
-    -------
-    list : hipass en lowpass info
-
-    """
-
-    hi_pass_matlab =  eng.BackgroundCorrection_WaveletSet(frame_data, level)
-
-    hi_pass = np.array(hi_pass_matlab)
-    low_pass = frame_data - hi_pass
-
-    return [hi_pass, low_pass]
+from scipy.stats import norm
+from scipy.ndimage.filters import maximum_filter
 
 #%% Python ROI finder
-
-from scipy.stats import norm
-import scipy.ndimage.filters as filters
 
 class roi_finder():
     
     def determine_threshold_min(self, frame):
         
-        frame_filter = medfilt(frame, self.roi_size)
+        background = medfilt(frame, kernel_size = self.roi_size)
+        background[background ==  0] = np.min(background[background > 0])       
+        frame_filter = frame.astype('float') - background
+        
         frame_ravel = np.ravel(frame)
         frame_filter_ravel = np.ravel(frame_filter)
         mean, std = norm.fit(frame_filter_ravel)
@@ -119,33 +45,32 @@ class roi_finder():
         
         return mean+self.threshold_sigma*std
     
-    def __init__(self, roi_size, frame, intensity_min = None, intensity_max = None, 
-                 sigma_min = 0, sigma_max = 5):
+    def __init__(self, roi_size, frame, pixel_min = None, corr_min = 0.05, 
+                 sigma_min = 0, sigma_max = 5, int_min = 0, int_max = np.inf):
         
         self.roi_size = int(roi_size)
-        self.roi_size_1d = int((roi_size-1)/2)        
-        self.threshold_sigma = 5
+        self.roi_size_1d = int((roi_size-1)/2)
+        self.side_distance = self.roi_size + 2
+        self.roi_distance = self.roi_size_1d + 2
         
-        if intensity_min == None:
-            self.intensity_min = self.determine_threshold_min(frame)
+        
+        self.threshold_sigma = 3
+        if pixel_min == None:
+            self.pixel_min = self.determine_threshold_min(frame)
         else:
-            self.intensity_min = intensity_min
+            self.pixel_min = pixel_min
             
-        if intensity_max == None:
-            self.intensity_max = np.max(frame)+10 # max of unsigned integer 16 bits
-        else:
-            self.intensity_max = intensity_max
+        self.int_min = int_min
+        self.int_max = int_max
             
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
+        
+        self.corr_min = corr_min
             
         self.roi_locations = []
         self.sigma_list = []
-        
-        self.symmetry = 0.8
-        self.shape = 0.3
-                
-        self.empty_background = np.zeros(self.roi_size*2+(self.roi_size-2)*2, dtype=np.uint16)
+        self.int_list = []
              
     def change_settings(self, intensity_min = None, 
                         intensity_max = None,
@@ -158,58 +83,6 @@ class roi_finder():
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
         
-    def find_within_intensity_range(self, frame):
-        
-        boolean_int_min = frame > self.intensity_min
-        boolean_int_max = frame < self.intensity_max
-        
-        return boolean_int_max & boolean_int_min
-        
-    def find_local_maximum(self, frame):
-        
-        data_max = filters.maximum_filter(frame, self.roi_size*2)
-        maxima = (frame == data_max)
-        
-        return maxima
-        
-    def adjacent_or_boundary_rois(self, frame):
-        
-        keep_boolean = np.ones(self.roi_locations.shape[0], dtype=bool)
-        
-        footprint = np.ones((3,3), dtype=bool)
-        data_max = filters.maximum_filter(frame, footprint=footprint)
-        maxima = (frame == data_max)
-        data_min = filters.minimum_filter(frame, self.roi_size)
-        
-        for roi_index, roi in enumerate(self.roi_locations):
-            
-            y = int(roi[0])
-            x = int(roi[1])
-
-            try:            
-                my_roi = frame[y-self.roi_size_1d:y+self.roi_size_1d+1, 
-                                     x-self.roi_size_1d:x+self.roi_size_1d+1]
-            except:
-                keep_boolean[roi_index] = False # if this fails, the roi is on the boundary
-                continue
-            
-            # my_roi_real = frame[y-self.roi_size_1d-1:y+self.roi_size_1d+2, 
-            #                          x-self.roi_size_1d-1:x+self.roi_size_1d+2]
-            
-            boolean_int_max = frame-data_min[y, x] > (frame[y,x]-data_min[y, x])/3
-            
-            maxima_threshold = boolean_int_max & maxima
-            
-            my_roi = maxima_threshold[y-self.roi_size_1d:y+self.roi_size_1d+1, 
-                                     x-self.roi_size_1d:x+self.roi_size_1d+1]
-            
-            trues_in_roi = np.transpose(np.where(my_roi == True))
-            
-            if trues_in_roi.shape[0] > 1:
-                keep_boolean[roi_index] = False
-                
-        self.roi_locations = self.roi_locations[keep_boolean, :]
-        
     def adjacent_or_boundary_rois_base(self, roi_boolean):
         
         keep_boolean = np.ones(self.roi_locations.shape[0], dtype=bool)
@@ -219,15 +92,14 @@ class roi_finder():
             y = int(roi[0])
             x = int(roi[1])
 
-            try:            
-                my_roi = roi_boolean[y-self.roi_size_1d:y+self.roi_size_1d+1, 
-                                     x-self.roi_size_1d:x+self.roi_size_1d+1]
-            except:
+            my_roi = roi_boolean[y-self.side_distance:y+self.side_distance+1, 
+                                     x-self.side_distance:x+self.side_distance+1]
+            if my_roi.shape != (self.side_distance*2+1, self.side_distance*2+1):
                 keep_boolean[roi_index] = False # if this fails, the roi is on the boundary
                 continue
                                 
-            my_roi = roi_boolean[y-self.roi_size_1d:y+self.roi_size_1d+1, 
-                                     x-self.roi_size_1d:x+self.roi_size_1d+1]
+            my_roi = roi_boolean[y-self.roi_distance:y+self.roi_distance+1, 
+                                     x-self.roi_distance:x+self.roi_distance+1]
             
             trues_in_roi = np.transpose(np.where(my_roi == True))
             
@@ -236,125 +108,7 @@ class roi_finder():
                 
         self.roi_locations = self.roi_locations[keep_boolean, :]
         
-    def remove_boundary_rois(self, frame):
-        
-        keep_boolean = np.ones(self.roi_locations.shape[0], dtype=bool)
-        
-        x_low = self.roi_size
-        x_high = frame.shape[1] - self.roi_size
-        
-        y_low = self.roi_size
-        y_high = frame.shape[0] - self.roi_size
-        
-        for roi_index, roi in enumerate(self.roi_locations):
-            
-            y = int(roi[0])
-            x = int(roi[1]) 
-            if x < x_low or x > x_high:
-                keep_boolean[roi_index] = False
-            if y < y_low or y > y_high:
-                keep_boolean[roi_index] = False
-        
-        self.roi_locations = self.roi_locations[keep_boolean, :] 
-        
-    def determine_background(self, my_roi):
-       
-        roi_background = self.empty_background
-        roi_background[0:self.roi_size] = my_roi[:, 0]
-        roi_background[self.roi_size:self.roi_size*2] = my_roi[:, -1]
-        roi_background[self.roi_size*2:self.roi_size*2+self.roi_size-2] = my_roi[0, 0:-2]
-        roi_background[self.roi_size*2+self.roi_size-2:] = my_roi[-1, 0:-2]
-        
-        return np.mean(roi_background)
-        
-    def roi_symmetry(self, frame):
-        
-        keep_boolean = np.ones(self.roi_locations.shape[0], dtype=bool)
-        
-        for roi_index, roi in enumerate(self.roi_locations):
-            x_range = np.asarray(range(0, self.roi_size))+0.5
-            y_range = np.asarray(range(0, self.roi_size))+0.5
-            
-            y = int(roi[0])
-            x = int(roi[1]) 
-            
-            my_roi = frame[y-self.roi_size_1d:y+self.roi_size_1d+1, 
-                           x-self.roi_size_1d:x+self.roi_size_1d+1]
-            
-           # my_roi_bg = self.determine_background(my_roi)
-           # my_roi = my_roi - my_roi_bg
-            
-            x_sum = np.sum(my_roi, axis=0)
-            y_sum = np.sum(my_roi, axis=1)
-            total = np.sum(x_sum)
-            
-            mu_x = np.sum(x_range*x_sum)/total
-            mu_y = np.sum(y_range*y_sum)/total
-            
-            x_range = x_range - mu_x
-            y_range = y_range - mu_y
-            x_mesh, y_mesh = np.meshgrid(x_range, y_range)
-            
-            roi_symmetry_xy = np.sum(my_roi*x_mesh*y_mesh)/(total-1)
-            roi_symmetry_xx = np.sum(my_roi*x_mesh*x_mesh)/(total-1)
-            roi_symmetry_yx = np.sum(my_roi*y_mesh*x_mesh)/(total-1)
-            roi_symmetry_yy = np.sum(my_roi*y_mesh*y_mesh)/(total-1)
-            
-            C = np.array([[roi_symmetry_xx, roi_symmetry_xy], 
-                 [roi_symmetry_yx, roi_symmetry_yy]])
-            
-            eigenvalues = np.linalg.eigvals(C)
-            
-            roi_symmetry = np.sqrt(np.min(eigenvalues))/np.sqrt(np.max(eigenvalues))
-            
-            if roi_symmetry < self.symmetry:
-                keep_boolean[roi_index] = False
-            
-        self.roi_locations = self.roi_locations[keep_boolean, :] 
-            
-    def roi_shape(self, frame):
-        
-        keep_boolean = np.ones(self.roi_locations.shape[0], dtype=bool)
-        
-        shape = (self.roi_locations.shape[0], self.roi_size, self.roi_size)
-        stack = np.zeros(shape)
-        
-        for roi_index, roi in enumerate(self.roi_locations):
-            y = int(roi[0])
-            x = int(roi[1]) 
-            
-            my_roi = frame[y-self.roi_size_1d:y+self.roi_size_1d+1, 
-                           x-self.roi_size_1d:x+self.roi_size_1d+1]
-            
-            my_roi_bg = self.determine_background(my_roi)
-            stack[roi_index, :, :] = my_roi - my_roi_bg
-        
-        mean = np.mean(stack, axis=0)
-        mean_sum = np.sum(mean)
-        mean = mean/np.max(mean) #normalize
-        
-        for roi_index, roi in enumerate(self.roi_locations):
-            y = int(roi[0])
-            x = int(roi[1]) 
-            
-            my_roi = frame[y-self.roi_size_1d:y+self.roi_size_1d+1, 
-                           x-self.roi_size_1d:x+self.roi_size_1d+1]
-            
-            my_roi_bg = self.determine_background(my_roi)
-            my_roi = my_roi - my_roi_bg
-            
-            remain = my_roi - mean*np.max(my_roi)
-            
-            remain_sum = np.sum(remain)
-            shape_factor = remain_sum / mean_sum
-            
-            if shape_factor > self.shape:
-                keep_boolean[roi_index] = False
-            
-        
-        self.roi_locations = self.roi_locations[keep_boolean, :] 
-        
-    def sigma_limit(self, frame, fitter, return_sigmas):
+    def int_sigma_limit(self, frame, fitter, return_int, return_sigmas):
         
         keep_boolean = np.ones(self.roi_locations.shape[0], dtype=bool)
         
@@ -364,50 +118,23 @@ class roi_finder():
             
             my_roi = frame[y-self.roi_size_1d:y+self.roi_size_1d+1, 
                            x-self.roi_size_1d:x+self.roi_size_1d+1]
-            my_roi_bg = self.determine_background(my_roi)
-            my_roi = my_roi - my_roi_bg
         
             result, its, success = fitter.fitgaussian(my_roi, roi_index)
             
             if return_sigmas:
-                if result[4] < 0 or result[3] < 0:
-                    result[3] = result[3]
                 self.sigma_list.append(result[4])
                 self.sigma_list.append(result[3])
+            if return_int:
+                self.int_list.append(result[0])
             
             if result[4] < self.sigma_min or result[3] < self.sigma_min:
                 keep_boolean[roi_index] = False
             if result[4] > self.sigma_max or result[3] > self.sigma_max:
                 keep_boolean[roi_index] = False
+            if result[0] < self.int_min or result[0] > self.int_max:
+                keep_boolean[roi_index] = False
                 
         self.roi_locations = self.roi_locations[keep_boolean, :] 
-    
-    def main(self, frame, fitter, return_sigmas = False):
-        
-        ROI_finder(frame, 9)
-        
-        roi_boolean = self.find_within_intensity_range(frame)
-        
-        local_maxima = self.find_local_maximum(frame)
-        
-        roi_boolean = roi_boolean & local_maxima
-        
-        self.roi_locations = np.transpose(np.where(roi_boolean == True))
-        
-        self.adjacent_or_boundary_rois(frame) # check if any rois too close
-        
-        self.remove_boundary_rois(frame) # remove rois too close to edge
-        
-       # self.roi_symmetry(frame) # check symmetry of roi
-        
-       # self.roi_shape(frame) # check shape of roi
-        
-        self.sigma_limit(frame, fitter, return_sigmas)        
-        
-        if return_sigmas:
-            return self.sigma_list
-        else:
-            return self.roi_locations
         
     def make_gaussian(self, size, fwhm = 3, center=None):
         """ Make a square gaussian kernel.
@@ -430,9 +157,6 @@ class roi_finder():
         
     def find_particles(self, frame):
         
-        threshold_low = 0.05
-        threshold_high = 0.75
-                
         background = medfilt(frame, kernel_size = self.roi_size)
         background[background ==  0] = np.min(background[background > 0])
         
@@ -443,18 +167,31 @@ class roi_finder():
         frame_convolution = convolve2d(frame, compare, mode='same')
         
         fp = np.ones((3,3), dtype=bool)
-        local_peaks = filters.maximum_filter(frame_convolution, footprint=fp)
+        local_peaks = maximum_filter(frame_convolution, footprint=fp)
         local_peaks_bool = (frame_convolution == local_peaks)
         
         max_convolution = np.max(frame_convolution)
         
-        beads = (frame_convolution * local_peaks_bool) > threshold_low*max_convolution
-        
-        
+        beads = (frame_convolution * local_peaks_bool) > self.corr_min*max_convolution
                 
         return frame, beads
     
-    def main_v2(self, frame, fitter, return_sigmas = False):
+    def peak_int_min(self, frame):
+        
+        keep_boolean = np.ones(self.roi_locations.shape[0], dtype=bool)
+        
+        for roi_index, roi in enumerate(self.roi_locations):
+            y = int(roi[0])
+            x = int(roi[1]) 
+            
+            peak_int = frame[y, x]
+            
+            if peak_int < self.pixel_min:
+                keep_boolean[roi_index] = False
+                
+        self.roi_locations = self.roi_locations[keep_boolean, :] 
+    
+    def main(self, frame, fitter, return_int = False, return_sigmas = False):
         
         frame, roi_boolean = self.find_particles(frame)
         
@@ -462,10 +199,14 @@ class roi_finder():
         
         self.adjacent_or_boundary_rois_base(roi_boolean)
         
-        self.remove_boundary_rois(frame)
+        self.peak_int_min(frame)
+                       
+        self.int_sigma_limit(frame, fitter, return_int, return_sigmas)
         
         if return_sigmas:
             return self.sigma_list
+        elif return_int:
+            return self.int_list
         else:
             return self.roi_locations 
         
