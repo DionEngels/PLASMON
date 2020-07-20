@@ -46,6 +46,7 @@ import _code.fitters as fitting
 import _code.tools as tools
 #%% Inputs
 ROI_SIZE = 7 # 7 or 9
+FILTER_SIZE = 9
 #%% Initializations
 
 FILETYPES = [("ND2", ".nd2")]
@@ -95,11 +96,12 @@ for name in filenames:
         #%% Find ROIs (for standard NP2 file)
         print('Starting to find ROIs')
 
-        roi_finder = roi_finding.roi_finder(ROI_SIZE, frames[0])#, intensity_min = 800)
-        fitter = fitting.scipy_last_fit_guess(metadata, ROI_SIZE,
-                                              roi_finder.int_min, 
-                                              "ScipyLastFitGuess", 5)
-        ROI_locations = roi_finder.main(frames[0], fitter)
+        fitter = fitting.scipy_last_fit_guess(metadata, 9,
+                                              0, "ScipyLastFitGuess", 5)
+        
+        roi_finder = roi_finding.roi_finder(FILTER_SIZE, frames[0], fitter)
+        
+        ROI_locations = roi_finder.main(fitter)
 
         tools.plot_rois(frames[0], ROI_locations, ROI_SIZE)
 

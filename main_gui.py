@@ -18,7 +18,8 @@ v1.9: tweaked max sigma and max intensity
 v1.10: histograms
 v1.11: interactive histograms
 v1.12: Status for MP
-v.13: removed wavelength
+v1.13: removed wavelength
+v2.0: new ROI finding method: 20/07/2020
 
 """
 
@@ -54,10 +55,6 @@ import _code.tools as tools
 import multiprocessing as mp
 
 mpl.use("TkAgg")  # set back end to TK
-
-# %% Inputs
-ROI_SIZE = 9
-THRESHOLD = 5  # X*sigma
 
 # %% Initializations
 
@@ -330,19 +327,17 @@ class FittingPage(tk.Frame):
 
     def fit_rois(self):
 
-        min_int = self.min_int_slider.get()
-        max_int = self.max_int_slider.get()
-        min_sigma = self.min_sigma_slider.get()
-        max_sigma = self.max_sigma_slider.get()
+        int_min = self.min_int_slider.get()
+        int_max = self.max_int_slider.get()
+        sigma_min = self.min_sigma_slider.get()
+        sigma_max = self.max_sigma_slider.get()
+        corr_min = self.min_corr_slider.get()
+        pixel_min = self.min_pixel_slider.get()
 
-        self.roi_finder.change_settings(intensity_min=min_int,
-                                        intensity_max=max_int,
-                                        sigma_min=min_sigma, sigma_max=max_sigma)
+        self.roi_finder.change_settings(int_min, int_max, corr_min, pixel_min,
+                        sigma_min, sigma_max)
 
-        fitter = fitting.scipy_last_fit_guess(self.metadata, ROI_SIZE,
-                                              THRESHOLD, "ScipyLastFitGuess", 5)
-
-        self.temp_roi_locations = self.roi_finder.main(self.frames[0], fitter)
+        self.temp_roi_locations = self.roi_finder.main(self.roi_fitter)
 
         self.fig.clear()
         fig_sub = self.fig.add_subplot(111)
@@ -370,13 +365,16 @@ class FittingPage(tk.Frame):
 
         self.roi_locations[self.dataset_index] = self.temp_roi_locations
 
-        min_int = self.min_int_slider.get()
-        max_int = self.max_int_slider.get()
-        min_sigma = self.min_sigma_slider.get()
-        max_sigma = self.max_sigma_slider.get()
+        int_min = self.min_int_slider.get()
+        int_max = self.max_int_slider.get()
+        sigma_min = self.min_sigma_slider.get()
+        sigma_max = self.max_sigma_slider.get()
+        corr_min = self.min_corr_slider.get()
+        pixel_min = self.min_pixel_slider.get()
 
-        settings = {'max_int': max_int, 'min_int': min_int,
-                    'min_sigma': min_sigma, 'max_sigma': max_sigma}
+        settings = {'int_max': int_max, 'int_min': int_min,
+                    'sigma_min': sigma_min, 'sigma_max': sigma_max,
+                    'corr_min': corr_min, 'pixel_min': pixel_min}
 
         self.saved_settings[self.dataset_index] = settings
 
@@ -395,17 +393,26 @@ class FittingPage(tk.Frame):
     # %% Fitting page, restore default settings
 
     def restore_default(self):
+        
+        self.roi_fitter = fitting.scipy_last_fit_guess(self.metadata, 9,
+                                              0, "ScipyLastFitGuess", 5)
 
-        self.roi_finder = roi_finding.roi_finder(9, self.frames[0])
+        self.roi_finder = roi_finding.roi_finder(9, self.frames[0], 
+                                                 self.roi_fitter)
 
-        self.min_int_slider.updater(from_=0, to=self.roi_finder.intensity_max / 2,
-                                    start=self.roi_finder.intensity_min)
-        self.max_int_slider.updater(from_=0, to=self.roi_finder.intensity_max,
-                                    start=self.roi_finder.intensity_max)
+        self.min_int_slider.updater(from_=0, to=self.roi_finder.int_max / 4,
+                                    start=self.roi_finder.int_min)
+        self.max_int_slider.updater(from_=0, to=self.roi_finder.int_max,
+                                    start=self.roi_finder.int_max)
         self.min_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
                                       start=self.roi_finder.sigma_min)
         self.max_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
                                       start=self.roi_finder.sigma_max)
+        self.min_corr_slider.updater(from_=0, to=1, start=self.roi_finder.corr_min)
+        self.min_pixel_slider.updater(from_=0, to=np.max(self.frames[0]), 
+                                      start=self.roi_finder.pixel_min)
+        
+        
 
     # %% Fitting page, switch between datasets
 
@@ -524,7 +531,7 @@ class FittingPage(tk.Frame):
 
             roi_locations = self.roi_locations[dataset_index]
 
-            min_intensity = self.saved_settings[dataset_index]['min_int']
+            min_intensity = self.saved_settings[dataset_index]['int_min']
 
             if method == "Phasor with intensity":
                 fitter = fitting.phasor_only_ROI_loop(self.metadata, roi_size, min_intensity, method)
@@ -674,52 +681,84 @@ class FittingPage(tk.Frame):
 
         settings = self.saved_settings[self.dataset_index]
 
-        self.min_int_slider.updater(from_=0, to=self.roi_finder.intensity_max / 4,
-                                    start=settings['min_int'])
-        self.max_int_slider.updater(from_=0, to=self.roi_finder.intensity_max,
-                                    start=settings['max_int'])
+        self.min_int_slider.updater(from_=0, to=self.roi_finder.int_max / 4,
+                                    start=settings['int_min'])
+        self.max_int_slider.updater(from_=0, to=self.roi_finder.int_max,
+                                    start=settings['int_max'])
         self.min_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
-                                      start=settings['min_sigma'])
+                                      start=settings['sigma_min'])
         self.max_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
-                                      start=settings['max_sigma'])
+                                      start=settings['sigma_max'])
+        self.min_corr_slider.updater(from_=0, to=1, start=settings['corr_min'])
+        self.min_pixel_slider.updater(from_=0, to=np.max(self.frames[0]), 
+                                      start=settings['pixel_min'])
 
     # %% Histogram of sliders
 
-    def fun_histogram(self, variable):
-
-        if variable == "min_int" or variable == "max_int":
-            self.to_hist = np.ravel(self.frames[0])
-        else:
-            roi_finder = roi_finding.roi_finder(9, self.frames[0])
-            fitter = fitting.scipy_last_fit_guess(self.metadata, ROI_SIZE,
-                                                  THRESHOLD, "ScipyLastFitGuess", 5)
-            self.to_hist = roi_finder.main(self.frames[0], fitter, return_sigmas=True)
-
-        self.histogram = plt.figure(figsize=(6.4 * 1.2, 4.8 * 1.2))
+    def make_histogram(self, variable):
+        
         fig_sub = self.histogram.add_subplot(111)
-        fig_sub.hist(self.to_hist, bins='auto')
+        hist, bins, _ = fig_sub.hist(self.to_hist, bins='auto')
 
         min_int = self.min_int_slider.get()
         max_int = self.max_int_slider.get()
         min_sigma = self.min_sigma_slider.get()
         max_sigma = self.max_sigma_slider.get()
+        min_peak = self.min_pixel_slider.get()
+        min_corr = self.min_corr_slider.get()
 
         if variable == "min_int":
+            self.histogram.clear()
+            logbins = np.logspace(np.log10(bins[0]),np.log10(bins[-1]),len(bins))
+            plt.hist(self.to_hist, bins=logbins)
             plt.title("Minimum intensity. Use graph select to change threshold")
             plt.axvline(x=min_int, color='red', linestyle='--')
             plt.xscale('log')
         elif variable == 'max_int':
+            self.histogram.clear()
+            logbins = np.logspace(np.log10(bins[0]),np.log10(bins[-1]),len(bins))
+            plt.hist(self.to_hist, bins=logbins)
             plt.title("Maximum intensity. Use graph select to change threshold")
             plt.axvline(x=max_int, color='red', linestyle='--')
             plt.xscale('log')
         elif variable == "min_sigma":
             plt.title("Minimum sigma. Use graph select to change threshold")
             plt.axvline(x=min_sigma, color='red', linestyle='--')
-        else:
+        elif variable == "max_sigma":
             plt.title("Maximum sigma. Use graph select to change threshold")
             plt.axvline(x=max_sigma, color='red', linestyle='--')
+        elif variable == "peak_min":
+            self.histogram.clear()
+            logbins = np.logspace(np.log10(bins[0]),np.log10(bins[-1]),len(bins))
+            plt.hist(self.to_hist, bins=logbins)
+            plt.title("Minimum pixel value for peak. Use graph select to change threshold")
+            plt.axvline(x=min_peak, color='red', linestyle='--')
+            plt.xscale('log')
+        else:
+            self.histogram.clear()
+            logbins = np.logspace(np.log10(bins[0]),np.log10(bins[-1]),len(bins))
+            plt.hist(self.to_hist, bins=logbins)
+            plt.title("Correlation values for ROIs. Use graph select to change threshold")
+            plt.axvline(x=min_corr, color='red', linestyle='--')
+            plt.xscale('log')
 
         plt.show()
+
+    def fun_histogram(self, variable):
+
+        if variable == "min_int" or variable == "max_int":
+            self.to_hist = self.roi_finder.main(self.roi_fitter, return_int=True)
+        elif variable == "peak_min":
+            self.to_hist = np.ravel(self.frames[0])
+        elif variable == "corr_min":
+            self.to_hist = self.roi_finder.main(self.roi_fitter, return_corr=True)            
+        else:
+            self.to_hist = self.roi_finder.main(self.roi_fitter, return_sigmas=True)
+
+        self.histogram = plt.figure(figsize=(6.4 * 1.2, 4.8 * 1.2))
+        
+        self.make_histogram(variable)
+        
 
     def histogram_select(self, variable):
         click = self.histogram.ginput(1)
@@ -730,34 +769,15 @@ class FittingPage(tk.Frame):
             self.max_int_slider.updater(start=int(click[0][0]))
         elif variable == "min_sigma":
             self.min_sigma_slider.updater(start=click[0][0])
-        else:
+        elif variable == "max_sigma":
             self.max_sigma_slider.updater(start=click[0][0])
+        elif variable == "peak_min":
+            self.min_pixel_slider.updater(start=click[0][0])
+        else:
+            self.min_corr_slider.updater(start=click[0][0])
 
         self.histogram.clear()
-        fig_sub = self.histogram.add_subplot(111)
-        fig_sub.hist(self.to_hist, bins='auto')
-
-        min_int = self.min_int_slider.get()
-        max_int = self.max_int_slider.get()
-        min_sigma = self.min_sigma_slider.get()
-        max_sigma = self.max_sigma_slider.get()
-
-        if variable == "min_int":
-            plt.title("Minimum intensity. Use graph select to change threshold")
-            plt.axvline(x=min_int, color='red', linestyle='--')
-            plt.xscale('log')
-        elif variable == 'max_int':
-            plt.title("Maximum intensity. Use graph select to change threshold")
-            plt.axvline(x=max_int, color='red', linestyle='--')
-            plt.xscale('log')
-        elif variable == "min_sigma":
-            plt.title("Minimum sigma. Use graph select to change threshold")
-            plt.axvline(x=min_sigma, color='red', linestyle='--')
-        else:
-            plt.title("Maximum sigma. Use graph select to change threshold")
-            plt.axvline(x=max_sigma, color='red', linestyle='--')
-
-        plt.show()
+        self.make_histogram(variable)
 
     # %% Fitting page, initial declaration
 
@@ -777,61 +797,89 @@ class FittingPage(tk.Frame):
         self.histogram = None
         self.to_hist = None
 
+        min_corr_label = tk.Label(self, text="Minimum Correlation", font=LARGE_FONT)
+        min_corr_label.grid(row=0, column=0, columnspan=3)
+
+        self.min_corr_slider = NormalSlider(self, from_=0, to=1, resolution = 0.005,
+                                            row=1, column=0, columnspan=3)
+        
+        min_corr_histogram = ttk.Button(self, text="Graph",
+                                         command=lambda: self.fun_histogram("corr_min"))
+        min_corr_histogram.grid(row=1, column=3)
+
+        min_corr_histogram_select = ttk.Button(self, text="Graph select",
+                                                command=lambda: self.histogram_select("corr_min"))
+        min_corr_histogram_select.grid(row=2, column=3)
+        
+        min_pixel_label = tk.Label(self, text="Minimum pixel intensity", font=LARGE_FONT)
+        min_pixel_label.grid(row=0, column=5, columnspan=3)
+        
+        self.min_pixel_slider = NormalSlider(self, from_=0, to=5000,
+                                              row=1, column=5, columnspan=3)       
+        
+        min_pixel_histogram = ttk.Button(self, text="Graph",
+                                         command=lambda: self.fun_histogram("peak_min"))
+        min_pixel_histogram.grid(row=1, column=8)
+
+        min_pixel_histogram_select = ttk.Button(self, text="Graph select",
+                                                command=lambda: self.histogram_select("peak_min"))
+        min_pixel_histogram_select.grid(row=2, column=8)
+
         min_int_label = tk.Label(self, text="Minimum Intensity", font=LARGE_FONT)
-        min_int_label.grid(row=0, column=0, columnspan=3)
+        min_int_label.grid(row=3, column=0, columnspan=3)
 
         self.min_int_slider = NormalSlider(self, from_=0, to=1000,
-                                           row=1, column=0, columnspan=3)
+                                           row=4, column=0, columnspan=3)
 
         min_int_histogram = ttk.Button(self, text="Graph",
                                        command=lambda: self.fun_histogram("min_int"))
-        min_int_histogram.grid(row=1, column=3)
+        min_int_histogram.grid(row=4, column=3)
 
         min_int_histogram_select = ttk.Button(self, text="Graph select",
                                               command=lambda: self.histogram_select("min_int"))
-        min_int_histogram_select.grid(row=2, column=3)
+        min_int_histogram_select.grid(row=5, column=3)
 
         max_int_label = tk.Label(self, text="Maximum Intensity", font=LARGE_FONT)
-        max_int_label.grid(row=4, column=0, columnspan=3)
+        max_int_label.grid(row=6, column=0, columnspan=3)
 
         self.max_int_slider = NormalSlider(self, from_=0, to=5000,
-                                           row=5, column=0, columnspan=3)
+                                           row=7, column=0, columnspan=3)
 
         max_int_histogram = ttk.Button(self, text="Graph",
                                        command=lambda: self.fun_histogram("max_int"))
-        max_int_histogram.grid(row=5, column=3)
+        max_int_histogram.grid(row=7, column=3)
 
         max_int_histogram_select = ttk.Button(self, text="Graph select",
                                               command=lambda: self.histogram_select("max_int"))
-        max_int_histogram_select.grid(row=6, column=3)
+        max_int_histogram_select.grid(row=8, column=3)
 
         min_sigma_label = tk.Label(self, text="Minimum Sigma", font=LARGE_FONT)
-        min_sigma_label.grid(row=0, column=5, columnspan=3)
+        min_sigma_label.grid(row=3, column=5, columnspan=3)
 
         self.min_sigma_slider = NormalSlider(self, from_=0, to=5, resolution=0.01,
-                                             row=1, column=5, columnspan=3)
+                                             row=4, column=5, columnspan=3)
 
         min_sigma_histogram = ttk.Button(self, text="Graph",
                                          command=lambda: self.fun_histogram("min_sigma"))
-        min_sigma_histogram.grid(row=1, column=8)
+        min_sigma_histogram.grid(row=4, column=8)
 
         min_sigma_histogram_select = ttk.Button(self, text="Graph select",
                                                 command=lambda: self.histogram_select("min_sigma"))
-        min_sigma_histogram_select.grid(row=2, column=8)
+        min_sigma_histogram_select.grid(row=5, column=8)
 
         max_sigma_label = tk.Label(self, text="Maximum Sigma", font=LARGE_FONT)
-        max_sigma_label.grid(row=4, column=5, columnspan=3)
+        max_sigma_label.grid(row=6, column=5, columnspan=3)
 
         self.max_sigma_slider = NormalSlider(self, from_=0, to=10, resolution=0.01,
-                                             row=5, column=5, columnspan=3)
+                                             row=7, column=5, columnspan=3)
 
         max_sigma_histogram = ttk.Button(self, text="Graph",
                                          command=lambda: self.fun_histogram("max_sigma"))
-        max_sigma_histogram.grid(row=5, column=8)
+        max_sigma_histogram.grid(row=7, column=8)
 
         max_sigma_histogram_select = ttk.Button(self, text="Graph select",
                                                 command=lambda: self.histogram_select("max_sigma"))
-        max_sigma_histogram_select.grid(row=6, column=8)
+        max_sigma_histogram_select.grid(row=8, column=8)
 
         self.button_left = NormalButton(self, text="<<", row=9, column=0)
         self.dataset_roi_status = NormalLabel(self, text="TBD",
@@ -843,17 +891,17 @@ class FittingPage(tk.Frame):
 
         button_restore = ttk.Button(self, text="Restore default",
                                     command=lambda: self.restore_default())
-        button_restore.grid(row=12, column=1, columnspan=2)
+        button_restore.grid(row=12, column=1, columnspan=3)
 
         self.button_restore_saved = NormalButton(self, text="Restore saved",
                                                  state='disabled',
                                                  command=lambda: self.restore_saved(),
-                                                 row=12, column=3,
-                                                 columnspan=2)
+                                                 row=12, column=5,
+                                                 columnspan=3)
 
         button_save = ttk.Button(self, text="Save",
                                  command=lambda: self.save_roi_settings())
-        button_save.grid(row=12, column=5, columnspan=1)
+        button_save.grid(row=12, column=8)
 
         self.fig = Figure(figsize=(GUI_HEIGHT / DPI * 0.7, GUI_HEIGHT / DPI * 0.7), dpi=DPI)
 

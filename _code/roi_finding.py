@@ -18,6 +18,7 @@ v2.3: return sigmas option for histograms
 v2.4: tweaking removing ROIs with nearby ROIs: 18/07/2020
 v2.5: worked on main_v2, which uses correlation of 2D gaussian
 v3.0: clean up and based on SPectrA; correlation, pixel_int, sigma and int
+v3.1: adaptations to GUI
 
 """
 import numpy as np # for linear algebra
@@ -29,15 +30,9 @@ from scipy.ndimage.filters import maximum_filter
 
 class roi_finder():
     
-    def determine_threshold_min(self, frame):
+    def determine_threshold_min(self):
         
-        background = medfilt(frame, kernel_size = self.roi_size)
-        background[background ==  0] = np.min(background[background > 0])       
-        frame_filter = frame.astype('float') - background
-        
-        frame_ravel = np.ravel(frame)
-        frame_filter_ravel = np.ravel(frame_filter)
-        mean, std = norm.fit(frame_filter_ravel)
+        frame_ravel = np.ravel(self.frame)
         
         for _ in range(10):
             mean, std = norm.fit(frame_ravel)
@@ -45,43 +40,61 @@ class roi_finder():
         
         return mean+self.threshold_sigma*std
     
-    def __init__(self, roi_size, frame, pixel_min = None, corr_min = 0.05, 
-                 sigma_min = 0, sigma_max = 5, int_min = 0, int_max = np.inf):
+    def __init__(self, filter_size, frame, fitter, pixel_min = None, corr_min = 0.05, 
+                 sigma_min = 0, sigma_max = None, int_min = 1, int_max = None):
         
-        self.roi_size = int(roi_size)
-        self.roi_size_1d = int((roi_size-1)/2)
-        self.side_distance = self.roi_size + 2
-        self.roi_distance = self.roi_size_1d + 2
+        self.filter_size = int(filter_size)
+        self.roi_size = 9
+        self.roi_size_1d = int((self.roi_size-1)/2)
+        self.side_distance = 11
+        self.roi_distance = 6
         
+        background = medfilt(frame, kernel_size = self.filter_size)
+        background[background ==  0] = np.min(background[background > 0])       
+        self.frame = frame.astype('float') - background
         
-        self.threshold_sigma = 3
+        self.threshold_sigma = 5
         if pixel_min == None:
-            self.pixel_min = self.determine_threshold_min(frame)
+            self.pixel_min = self.determine_threshold_min()
         else:
             self.pixel_min = pixel_min
             
-        self.int_min = int_min
-        self.int_max = int_max
-            
-        self.sigma_min = sigma_min
-        self.sigma_max = sigma_max
+        self.sigma_list = []
+        self.int_list = []
+        self.corr_list = []
         
         self.corr_min = corr_min
             
         self.roi_locations = []
-        self.sigma_list = []
-        self.int_list = []
-             
-    def change_settings(self, intensity_min = None, 
-                        intensity_max = None,
-                        sigma_min = 0, sigma_max = 10):
-        if intensity_min != None:
-            self.intensity_min = intensity_min
-        if intensity_max != None:
-            self.intensity_max = intensity_max
+    
+        self.int_min = int_min
+        self.sigma_min = sigma_min
         
+        if sigma_max == None or int_max == None:
+            self.sigma_max = 5
+            self.int_max = np.inf
+            self.roi_locations = self.main(fitter)
+            if int_max == None:
+                self.int_sigma_limit(fitter, True, False)
+                self.int_max = np.max(self.int_list)*1.05 # 5% margin
+            if sigma_max == None:
+                self.int_sigma_limit(fitter, False, True)
+                self.sigma_max = np.max(self.sigma_list)*1.05 # 5% margin
+        else:
+            self.sigma_max = sigma_max
+            self.int_max = int_max
+        
+    def change_settings(self, int_min, int_max, corr_min, pixel_min,
+                        sigma_min, sigma_max):
+
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
+        
+        self.corr_min = corr_min
+        self.pixel_min = pixel_min
+        
+        self.int_max = int_max
+        self.int_min = int_min
         
     def adjacent_or_boundary_rois_base(self, roi_boolean):
         
@@ -108,7 +121,7 @@ class roi_finder():
                 
         self.roi_locations = self.roi_locations[keep_boolean, :]
         
-    def int_sigma_limit(self, frame, fitter, return_int, return_sigmas):
+    def int_sigma_limit(self, fitter, return_int, return_sigmas):
         
         keep_boolean = np.ones(self.roi_locations.shape[0], dtype=bool)
         
@@ -116,7 +129,7 @@ class roi_finder():
             y = int(roi[0])
             x = int(roi[1]) 
             
-            my_roi = frame[y-self.roi_size_1d:y+self.roi_size_1d+1, 
+            my_roi = self.frame[y-self.roi_size_1d:y+self.roi_size_1d+1, 
                            x-self.roi_size_1d:x+self.roi_size_1d+1]
         
             result, its, success = fitter.fitgaussian(my_roi, roi_index)
@@ -155,16 +168,14 @@ class roi_finder():
     
         return np.exp(-4*np.log(2) * ((x-x0)**2 + (y-y0)**2) / fwhm**2)
         
-    def find_particles(self, frame):
+    def find_particles(self, return_corr):
         
-        background = medfilt(frame, kernel_size = self.roi_size)
-        background[background ==  0] = np.min(background[background > 0])
-        
-        frame = frame.astype('float') - background
+        if return_corr:
+            self.corr_min = self.corr_min/2
         
         compare = self.make_gaussian(self.roi_size)
         
-        frame_convolution = convolve2d(frame, compare, mode='same')
+        frame_convolution = convolve2d(self.frame, compare, mode='same')
         
         fp = np.ones((3,3), dtype=bool)
         local_peaks = maximum_filter(frame_convolution, footprint=fp)
@@ -173,10 +184,22 @@ class roi_finder():
         max_convolution = np.max(frame_convolution)
         
         beads = (frame_convolution * local_peaks_bool) > self.corr_min*max_convolution
+        
+        locations = np.transpose(np.where(beads == True))
+        
+        if return_corr:
+            corr = frame_convolution * local_peaks_bool / max_convolution
+            
+            for roi in locations:
+                y = int(roi[0])
+                x = int(roi[1]) 
                 
-        return frame, beads
+                value = corr[y, x]
+                self.corr_list.append(value)
+                
+        return beads, locations
     
-    def peak_int_min(self, frame):
+    def peak_int_min(self):
         
         keep_boolean = np.ones(self.roi_locations.shape[0], dtype=bool)
         
@@ -184,24 +207,30 @@ class roi_finder():
             y = int(roi[0])
             x = int(roi[1]) 
             
-            peak_int = frame[y, x]
+            peak_int = self.frame[y, x]
             
             if peak_int < self.pixel_min:
                 keep_boolean[roi_index] = False
                 
         self.roi_locations = self.roi_locations[keep_boolean, :] 
+        
+    def make_corr_list(self):
+        pass
+        
     
-    def main(self, frame, fitter, return_int = False, return_sigmas = False):
+    def main(self, fitter, return_int = False, return_sigmas = False, 
+             return_corr = False):
         
-        frame, roi_boolean = self.find_particles(frame)
+        roi_boolean, self.roi_locations = self.find_particles(return_corr)
         
-        self.roi_locations = np.transpose(np.where(roi_boolean == True))
+        if return_corr:
+            return self.corr_list
         
         self.adjacent_or_boundary_rois_base(roi_boolean)
         
-        self.peak_int_min(frame)
+        self.peak_int_min()
                        
-        self.int_sigma_limit(frame, fitter, return_int, return_sigmas)
+        self.int_sigma_limit(fitter, return_int, return_sigmas)
         
         if return_sigmas:
             return self.sigma_list
