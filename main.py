@@ -19,52 +19,46 @@ v1.3: 7x7 and 9x9 ROIs: 13/07/2020
 v1.4: removed any wavelength dependancy
 v1.5: removed MATLAB ROI finding
 v1.6: MATLAB v3 loading
+v1.7: cleanup
 
  """
 
-## GENERAL IMPORTS
-import os # to get standard usage
-#import math # for generic math
-import time # for timekeeping
+# GENERAL IMPORTS
+import os  # to get standard usage
+# import math # for generic math
+import time  # for timekeeping
 
-## Numpy and matplotlib, for linear algebra and plotting respectively
+# Numpy and matplotlib, for linear algebra and plotting respectively
 import numpy as np
 import matplotlib.pyplot as plt
 
-## GUI
-from tkinter.filedialog import askopenfilenames # for popup that asks to select .nd2's
-
-## ND2 related
+# ND2 related
 from pims import ND2_Reader # reader of ND2 files
-#from pims import Frame # for converting ND2 generator to one numpy array
 
-## comparison to other fitters
+# comparison to other fitters
 import scipy.io
 
-## Own code
+# Own code
 import _code.roi_finding as roi_finding
 import _code.fitters as fitting
 import _code.tools as tools
-#%% Inputs
-ROI_SIZE = 9 # 7 or 9
+
+# %% Inputs
+ROI_SIZE = 9  # 7 or 9
 FILTER_SIZE = 9
-#%% Initializations
 
-FILETYPES = [("ND2", ".nd2")]
-
-# Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
-# filenames = askopenfilenames(filetypes = FILETYPES,title = "Select file", initialdir =os.getcwd()) # show an "Open" dialog of only .nd2's starting at code location
+# %% Initializations
 
 filenames = ("C:/Users/s150127/Downloads/_MBx dataset/1nMimager_newGNRs_100mW.nd2",)
 
 METHOD = "PhasorOnlyROI"
-DATASET = "MATLAB_v3" # "MATLAB_v2, "MATLAB_v3" OR "YUYANG"
-ROI_FINDER = "SELF" # "SELF" OR "PRE"
-#%% Main loop cell
+DATASET = "MATLAB_v3"  # "MATLAB_v2, "MATLAB_v3" OR "YUYANG"
+ROI_FINDER = "SELF"  # "SELF" OR "PRE"
+# %% Main loop cell
 
 for name in filenames:
     with ND2_Reader(name) as ND2:
-        ## create folder for output
+        # create folder for output
         basedir = os.getcwd()
         directory = name.split(".")[0].split("/")[-1]
         path = os.path.join(basedir, directory)
@@ -74,31 +68,30 @@ for name in filenames:
             pass
         
         if DATASET == "MATLAB_v2" or "MATLAB_v3":
-            ## Load in MATLAB data
+            # Load in MATLAB data
             
             if DATASET == "MATLAB_v2":
                 frames = scipy.io.loadmat('Data_1000f_06_30_pure_matlab_bg_600_v2')['frame']
             elif DATASET == "MATLAB_v3":
                 frames = scipy.io.loadmat('Data_1000f_06_30_pure_matlab_bg_600_v3')['frame']
                 
-            frames = np.swapaxes(frames,1,2)
-            frames = np.swapaxes(frames,0,1)
-            metadata = {'NA' : 1, 'calibration_um' : 0.120, 'sequence_count' : frames.shape[0], 'time_start' : 3, 'time_start_utc': 3}
-            #frames = frames[0:10,:,:]
+            frames = np.swapaxes(frames, 1, 2)
+            frames = np.swapaxes(frames, 0, 1)
+            metadata = {'NA': 1, 'calibration_um': 0.120, 'sequence_count': frames.shape[0], 'time_start': 3,
+                        'time_start_utc': 3}
+            # frames = frames[0:10, :, :]
         elif DATASET == "YUYANG":
-            ## parse ND2 info
+            # parse ND2 info
             frames = ND2
             metadata = ND2.metadata
-            #frames = frames[0:200]
+            # frames = frames[0:200]
            
-        #%% Find ROIs (for standard NP2 file)
+        # %% Find ROIs (for standard NP2 file)
         print('Starting to find ROIs')
 
-        fitter = fitting.scipy_last_fit_guess(metadata, ROI_SIZE,
-                                              0, "ScipyLastFitGuess", 5)
+        fitter = fitting.Gaussian(ROI_SIZE, 0, "Gaussian", 5)
         
-        roi_finder = roi_finding.roi_finder(FILTER_SIZE, frames[0], fitter, 
-                                            roi_size = ROI_SIZE)
+        roi_finder = roi_finding.roi_finder(FILTER_SIZE, frames[0], fitter, roi_size=ROI_SIZE)
         
         if DATASET == "MATLAB_v3":
             roi_finder.int_min = 100
@@ -109,27 +102,27 @@ for name in filenames:
 
         tools.plot_rois(frames[0], ROI_locations, ROI_SIZE)
 
-        #%% Fit Gaussians
+        # %% Fit Gaussians
         print('Starting to prepare fitting')
         start = time.time()
         
-        if METHOD == "PhasorOnlyROI":
-            fitter = fitting.phasor_only_ROI_loop(metadata, ROI_SIZE, roi_finder.int_min, METHOD)
-        elif METHOD == "PhasorOnlyROIDumb":
-            fitter = fitting.phasor_only_ROI_loop_dumb(metadata, ROI_SIZE, roi_finder.int_min, METHOD)
-        elif METHOD == "ScipyLastFitGuess":
-            fitter = fitting.scipy_last_fit_guess(metadata, ROI_SIZE, roi_finder.int_min, METHOD, 5)
-        elif METHOD == "ScipyLastFitGuessBackground":
-            fitter = fitting.scipy_last_fit_guess_background(metadata, ROI_SIZE, roi_finder.int_min, METHOD, 6)
-        elif METHOD == "ScipyPhasorFitGuess":
-            fitter = fitting.scipy_phasor_fit_guess(metadata, ROI_SIZE, roi_finder.int_min, METHOD, 5)
+        if METHOD == "Phasor":
+            fitter = fitting.Phasor(ROI_SIZE, roi_finder.int_min, METHOD)
+        elif METHOD == "PhasorDumb":
+            fitter = fitting.PhasorDumb(ROI_SIZE, roi_finder.int_min, METHOD)
+        elif METHOD == "PhasorSum":
+            fitter = fitting.PhasorSum(ROI_SIZE, roi_finder.int_min, METHOD)
+        elif METHOD == "Gaussian":
+            fitter = fitting.Gaussian(ROI_SIZE, roi_finder.int_min, METHOD, 5)
+        elif METHOD == "GaussianBackground":
+            fitter = fitting.GaussianBackground(ROI_SIZE, roi_finder.int_min, METHOD, 5)
 
         results = fitter.main(frames, metadata, ROI_locations) 
         
         print('Time taken: ' + str(round(time.time() - start, 3)) + ' s. Fits done: ' + str(results.shape[0]))
 
         print('Starting saving')
-        #%% Plot frames
+        # %% Plot frames
         # for index, frame in enumerate(frames):
         #     toPlot = results[results[:, 0] == index]
         #     plt.imshow(frames[0], extent=[0,frame.shape[1],frame.shape[0],0], aspect='auto')
@@ -137,18 +130,18 @@ for name in filenames:
         #     plt.scatter(toPlot[:,3], toPlot[:,2], s=2, c='red', marker='x', alpha=0.5)
         #     plt.title("Frame number: " + str(index))
         #     plt.show()
-        #%% filter metadata
+        # %% filter metadata
         metadata_filtered = {k:v for k, v in metadata.items() if v is not None}
         del metadata_filtered['time_start']
         del metadata_filtered['time_start_utc']
 
-        ## ROI_locations dict
+        # ROI_locations dict
         ROI_locations_dict = dict(zip(['x', 'y'], ROI_locations.T))
 
-        ## Localization dict
+        # Localization dict
         results_dict = {'Localizations': results}
 
-#%% save everything
+# %% save everything
         tools.save_to_csv_mat('metadata', metadata_filtered, directory)
         tools.save_to_csv_mat('ROI_locations', ROI_locations_dict, directory)
         tools.save_to_csv_mat('Localizations', results_dict, directory)

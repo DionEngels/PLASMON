@@ -71,58 +71,62 @@ v7.6: add FORTRAN fft and min
 v7.7: variance as fit test
 v7.8: back to sigma as fit
 v7.9: max its of 100, working with new ROI finder
+v8.0: PhasorSum, remove LastFit, rename, and clean up
 """
-#%% Generic imports
+# %% Generic imports
 from __future__ import division, print_function, absolute_import
-import math
 import numpy as np
-import _code.MBx_FORTRAN_v4 as fortran_linalg
+from scipy.optimize import _minpack, OptimizeResult
+from scipy.optimize._lsq.common import EPS
+import _code.MBx_FORTRAN_v5 as fortran_linalg
 import _code.MBx_FORTRAN_TOOLS_v2 as fortran_tools
+from pyfftw import empty_aligned, FFTW  # for FFT
+from pims import Frame  # for converting ND2 generator to one numpy array
+from math import pi, atan2
+from cmath import phase
 
-#%% Base Phasor
 
-from math import pi
-import cmath
+# %% Base Phasor
 
-class base_phasor():
-    
+
+class BasePhasor:
+
     def phasor_fit(self, data):
         """
         Parameters
         ----------
         data : input ROI
-        
+
         return: pos x, pos y
         """
-        if self.ROI_size == 9:
+        if self.roi_size == 9:
             x_re, x_im, y_re, y_im = fortran_tools.fft9(data)
         else:
             x_re, x_im, y_re, y_im = fortran_tools.fft7(data)
-            
-        roi_size = self.ROI_size
-        ang_x = math.atan2(x_im,x_re)
-        if ang_x>0:
-            ang_x=ang_x-2*pi
 
-        pos_x = abs(ang_x)/(2*pi/roi_size) - 1
+        roi_size = self.roi_size
+        ang_x = atan2(x_im, x_re)
+        if ang_x > 0:
+            ang_x = ang_x - 2 * pi
 
-        ang_y = math.atan2(y_im,y_re)
+        pos_x = abs(ang_x) / (2 * pi / roi_size) - 1
 
-        if ang_y >0:
-            ang_y = ang_y - 2*pi
+        ang_y = atan2(y_im, y_re)
 
-        pos_y = abs(ang_y)/(2*pi/roi_size) - 1
+        if ang_y > 0:
+            ang_y = ang_y - 2 * pi
+
+        pos_y = abs(ang_y) / (2 * pi / roi_size) - 1
 
         if pos_x > roi_size:
             pos_x -= roi_size
         if pos_y > roi_size:
             pos_y -= roi_size
-            
+
         return pos_x, pos_y
-                   
-#%% Scipy last fit guess exlcuding background 
-from scipy.optimize import _minpack, OptimizeResult
-from scipy.optimize._lsq.common import EPS
+
+
+# %% Scipy last fit guess exlcuding background
 
 TERMINATION_MESSAGES = {
     -1: "Improper input parameters status returned from `leastsq`",
@@ -144,20 +148,19 @@ FROM_MINPACK_TO_COMMON = {
     # but we guard against it by checking ftol, xtol, gtol beforehand.
 }
 
-class scipy_last_fit_guess(base_phasor):
+
+class Gaussian(BasePhasor):
     """
-    Build-in scipy least squares fitting, with last fit as initial guess
+    Gaussian fitter with estimated background, build upon Scipy Optimize Least Squares
     """
-    
-    def __init__(self, metadata, ROI_size, threshold, METHOD, num_fit_params):
+
+    def __init__(self, roi_size, threshold, method, num_fit_params):
         """
 
         Parameters
         ----------
-        metadata : metadata of ND2
-        ROI_size : ROI size
+        roi_size : ROI size
         threshold : minimum intensity to be fitted
-        ROI_locations : found ROIs
 
         Returns
         -------
@@ -165,165 +168,166 @@ class scipy_last_fit_guess(base_phasor):
 
         """
         self.result = []
-        self.ROI_size = ROI_size
-        self.ROI_size_1D = int((self.ROI_size-1)/2)
-        self.init_sig = 1.3 # Slightly on the high side probably
+        self.roi_locations = []
+        self.roi_size = roi_size
+        self.roi_size_1D = int((self.roi_size - 1) / 2)
+        self.init_sig = 1.3  # Slightly on the high side probably
         self.threshold = threshold
-        self.__name__ = METHOD
-        
-        
+        self.__name__ = method
+
         self.num_fit_params = num_fit_params
-        self.params = np.zeros((1000,num_fit_params))
-        
+        self.params = np.zeros((1000, num_fit_params))
+
         self.x_scale = np.ones(num_fit_params)
         self.active_mask = np.zeros_like(self.x_scale, dtype=int)
-        
+
         self.lb = np.resize(-np.inf, self.x_scale.shape)
         self.ub = np.resize(np.inf, self.x_scale.shape)
         self.use_one_sided = np.resize(False, self.x_scale.shape)
-        self.empty_background = np.zeros(self.ROI_size*2+(self.ROI_size-2)*2, dtype=np.uint16)
-                
-        self.rel_step = EPS**(1/3)
+        self.empty_background = np.zeros(self.roi_size * 2 + (self.roi_size - 2) * 2, dtype=np.uint16)
+
+        self.rel_step = EPS ** (1 / 3)
         self.comp = np.ones(num_fit_params)
-            
+
     def fun_find_max(self, roi):
-        
-        if self.ROI_size == 9:
+
+        if self.roi_size == 9:
             return fortran_tools.max9(roi)
-        elif self.ROI_size == 7:
+        elif self.roi_size == 7:
             return fortran_tools.max7(roi)
-        
+
     def fun_find_min(self, roi):
-        
-        if self.ROI_size == 9:
+
+        if self.roi_size == 9:
             return fortran_tools.min9(roi)
-        elif self.ROI_size == 7:
+        elif self.roi_size == 7:
             return fortran_tools.min7(roi)
-        
+
     def fun_calc_bg(self, roi):
-        
-        if self.ROI_size == 9:
+
+        if self.roi_size == 9:
             return fortran_tools.calc_bg9(roi)
-        elif self.ROI_size == 7:
-            return fortran_tools.calc_bg7(roi)        
-        
+        elif self.roi_size == 7:
+            return fortran_tools.calc_bg7(roi)
+
     def fun_norm(self, g):
-        
+
         if self.num_fit_params == 5:
             return fortran_tools.norm5(g)
         elif self.num_fit_params == 6:
             return fortran_tools.norm6(g)
-        
+
     def fun_gaussian(self, x, data):
-        
-        if self.num_fit_params == 5 and self.ROI_size == 9:
-            return fortran_linalg.gaussian(*x, self.ROI_size, data)
-        elif self.num_fit_params == 5 and self.ROI_size == 7:
-            return fortran_linalg.gaussian7(*x, self.ROI_size, data)
-        elif self.num_fit_params == 6 and self.ROI_size == 9:
-            return fortran_linalg.gs_bg(*x, self.ROI_size, data)
-        elif self.num_fit_params == 6 and self.ROI_size == 7:
-            return fortran_linalg.gs_bg7(*x, self.ROI_size, data)
-        
+
+        if self.num_fit_params == 5 and self.roi_size == 9:
+            return fortran_linalg.gaussian(*x, self.roi_size, data)
+        elif self.num_fit_params == 5 and self.roi_size == 7:
+            return fortran_linalg.gaussian7(*x, self.roi_size, data)
+        elif self.num_fit_params == 6 and self.roi_size == 9:
+            return fortran_linalg.gs_bg(*x, self.roi_size, data)
+        elif self.num_fit_params == 6 and self.roi_size == 7:
+            return fortran_linalg.gs_bg7(*x, self.roi_size, data)
+
     def fun_jacobian(self, x0, data):
-        
-        if self.num_fit_params == 5 and self.ROI_size == 9:
+
+        if self.num_fit_params == 5 and self.roi_size == 9:
             return fortran_linalg.dense_dif(x0, self.rel_step, self.comp,
-                                       self.num_fit_params, self.ROI_size, data)
-        elif self.num_fit_params == 5 and self.ROI_size == 7:
+                                            self.num_fit_params, self.roi_size, data)
+        elif self.num_fit_params == 5 and self.roi_size == 7:
             return fortran_linalg.dense_dif7(x0, self.rel_step, self.comp,
-                                       self.num_fit_params, self.ROI_size, data)
-        elif self.num_fit_params == 6 and self.ROI_size == 9:
+                                             self.num_fit_params, self.roi_size, data)
+        elif self.num_fit_params == 6 and self.roi_size == 9:
             return fortran_linalg.dense_dif_bg(x0, self.rel_step, self.comp,
-                                       self.num_fit_params, self.ROI_size, data)
-        elif self.num_fit_params == 6 and self.ROI_size == 7:
+                                               self.num_fit_params, self.roi_size, data)
+        elif self.num_fit_params == 6 and self.roi_size == 7:
             return fortran_linalg.dense_dif_bg7(x0, self.rel_step, self.comp,
-                                       self.num_fit_params, self.ROI_size, data)
-    
-    def call_minpack(self, fun, x0, f0, data, jac, ftol, xtol, gtol, max_nfev, diag):
+                                                self.num_fit_params, self.roi_size, data)
+
+    def call_minpack(self, fun, x0, data, ftol, xtol, gtol, max_nfev, diag):
 
         n = x0.size
         epsfcn = EPS
-        
+
         full_output = True
         factor = 100.0
-    
+
         if max_nfev is None:
             # n squared to account for Jacobian evaluations.
             max_nfev = 100 * n * (n + 1)
         x, info, status = _minpack._lmdif(
             fun, x0, (), full_output, ftol, xtol, gtol,
             max_nfev, epsfcn, factor, diag)
-    
+
         f = info['fvec']
-        
+
         j = self.fun_jacobian(x0, data)
-        
+
         cost = 0.5 * np.dot(f, f)
         g = j.T.dot(f)
         g_norm = self.fun_norm(g)
-    
+
         nfev = info['nfev']
         njev = info.get('njev', None)
-    
+
         status = FROM_MINPACK_TO_COMMON[status]
         active_mask = self.active_mask
-    
+
         return OptimizeResult(
             x=x, cost=cost, fun=f, jac=j, grad=g, optimality=g_norm,
-            active_mask=active_mask, nfev=nfev, njev=njev, status=status)     
-    
-    def least_squares(self, x0, data, ftol=1e-8, xtol=1e-8, gtol=1e-8, 
-        max_nfev=None):
-        
+            active_mask=active_mask, nfev=nfev, njev=njev, status=status)
+
+    def least_squares(self, x0, data, ftol=1e-8, xtol=1e-8, gtol=1e-8,
+                      max_nfev=None):
+
         def fun_wrapped(x):
-            
+
             return self.fun_gaussian(x, data)
-        
+
         if max_nfev is not None and max_nfev <= 0:
             raise ValueError("`max_nfev` must be None or positive integer.")
-    
+
         if np.iscomplexobj(x0):
             raise ValueError("`x0` must be real.")
-        
+
         if x0.ndim > 1:
             raise ValueError("`x0` must have at most 1 dimension.")
-         
+
         f0 = fun_wrapped(x0)
-    
+
         if f0.ndim != 1:
             raise ValueError("`fun` must return at most 1-d array_like.")
-    
+
         # if not np.all(np.isfinite(f0)):
         #     raise ValueError("Residuals are not finite in the initial point.")
-    
-        result = self.call_minpack(fun_wrapped, x0, f0, data, None, ftol, xtol, gtol,
-                              max_nfev, self.x_scale)
-    
+
+        result = self.call_minpack(fun_wrapped, x0, data, ftol, xtol, gtol,
+                                   max_nfev, self.x_scale)
+
         result.message = TERMINATION_MESSAGES[result.status]
         result.success = result.status > 0
-    
+
         return result
-    
+
     def phasor_guess(self, data):
         """ Returns an initial guess based on phasor fitting"""
         pos_x, pos_y = self.phasor_fit(data)
-        height = data[int(pos_y), int(pos_x)]-self.fun_find_min(data)
-        
+        height = data[int(pos_y), int(pos_x)] - self.fun_find_min(data)
+
         return np.array([height, pos_y, pos_x, self.init_sig, self.init_sig])
-            
+
     def fitgaussian(self, data, peak_index):
         """Returns (height, x, y, width_x, width_y)
         the gaussian parameters of a 2D distribution found by a fit"""
-    
+
         if self.params[peak_index, 0] == 0:
             params = self.phasor_guess(data)
         else:
-            params = self.params[peak_index, :]
-        p = self.least_squares(params, data, max_nfev=100)#, gtol=1e-4, ftol=1e-4)
-                
+            params = self.phasor_guess(data)
+            params[3:] = self.params[peak_index, 3:]
+        p = self.least_squares(params, data, max_nfev=100)  # , gtol=1e-4, ftol=1e-4)
+
         return [p.x, p.nfev, p.success]
-           
+
     def fitter(self, frame_index, frame, start_frame):
         """
         Fits all peaks by scipy least squares fitting
@@ -332,7 +336,7 @@ class scipy_last_fit_guess(base_phasor):
         ----------
         frame_index : Index of frame
         frame : frame
-        peaks : all peaks
+        start_frame:
 
         Returns
         -------
@@ -340,33 +344,33 @@ class scipy_last_fit_guess(base_phasor):
 
         """
 
-        frame_result = np.zeros([self.ROI_locations.shape[0], 9])
-                
-        for peak_index, peak in enumerate(self.ROI_locations):
+        frame_result = np.zeros([self.roi_locations.shape[0], 9])
+
+        for peak_index, peak in enumerate(self.roi_locations):
 
             y = int(peak[0])
             x = int(peak[1])
 
-            my_roi = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
+            my_roi = frame[y - self.roi_size_1D:y + self.roi_size_1D + 1, x - self.roi_size_1D:x + self.roi_size_1D + 1]
             my_roi_bg = self.fun_calc_bg(my_roi)
             my_roi = my_roi - my_roi_bg
-            
-            if self.fun_find_max(my_roi)+my_roi_bg < self.threshold:
+
+            if self.fun_find_max(my_roi) + my_roi_bg < self.threshold:
                 continue
 
             result, its, success = self.fitgaussian(my_roi, peak_index)
 
-            if success == 0 or result[0] < 0 or result[2]< 0 or result[2] \
-                > self.ROI_size or result[1] < 0 or result[1] > self.ROI_size:
+            if success == 0 or result[0] < 0 or result[2] < 0 or result[2] \
+                    > self.roi_size or result[1] < 0 or result[1] > self.roi_size:
                 continue
 
-            self.params[peak_index, :] = result            
+            self.params[peak_index, :] = result
 
             frame_result[peak_index, 0] = frame_index + start_frame
             frame_result[peak_index, 1] = peak_index
-            #start position plus from center in ROI + half for indexing of pixels
-            frame_result[peak_index, 2] = result[1]+y-self.ROI_size_1D+0.5
-            frame_result[peak_index, 3] = result[2]+x-self.ROI_size_1D+0.5
+            # start position plus from center in ROI + half for indexing of pixels
+            frame_result[peak_index, 2] = result[1] + y - self.roi_size_1D + 0.5
+            frame_result[peak_index, 3] = result[2] + x - self.roi_size_1D + 0.5
             frame_result[peak_index, 4] = result[0]
             frame_result[peak_index, 5] = result[3]
             frame_result[peak_index, 6] = result[4]
@@ -376,10 +380,9 @@ class scipy_last_fit_guess(base_phasor):
         frame_result = frame_result[frame_result[:, 4] > 0]
 
         return frame_result
-    
-    
-    def main(self, frames, metadata, roi_locations, gui = None, q = None, 
-             start_frame = 0, n_frames = None):
+
+    def main(self, frames, metadata, roi_locations, gui=None, q=None,
+             start_frame=0, n_frames=None):
         """
         Main for every fitter method, calls fitter function and returns fits
 
@@ -387,64 +390,71 @@ class scipy_last_fit_guess(base_phasor):
         ----------
         frames : All frames of .nd2 video
         metadata : Metadata of .nd2 video
+        start_frame:
+        n_frames:
+        gui:
+        q:
+        roi_locations:
 
         Returns
         -------
         All localizations
 
         """
-        if n_frames == None:
+        if n_frames is None:
             n_frames = metadata['sequence_count']
-            
-        self.ROI_locations = roi_locations
-        self.params = np.zeros((self.ROI_locations.shape[0],self.num_fit_params))
-        
+
+        self.roi_locations = roi_locations
+        self.params = np.zeros((self.roi_locations.shape[0], self.num_fit_params))
+
         tot_fits = 0
-        
+
         for frame_index, frame in enumerate(frames):
             if frame_index == 0:
                 frame_result = self.fitter(frame_index, frame, start_frame)
                 n_fits = frame_result.shape[0]
                 width = frame_result.shape[1]
-                height = len(frames)*self.ROI_locations.shape[0]
+                height = len(frames) * self.roi_locations.shape[0]
                 self.result = np.zeros((height, width))
-                self.result[tot_fits:tot_fits+n_fits,:] = frame_result
+                self.result[tot_fits:tot_fits + n_fits, :] = frame_result
                 tot_fits += n_fits
             else:
                 frame_result = self.fitter(frame_index, frame, start_frame)
                 n_fits = frame_result.shape[0]
-                self.result[tot_fits:tot_fits+n_fits,:] = frame_result
+                self.result[tot_fits:tot_fits + n_fits, :] = frame_result
                 tot_fits += n_fits
-            
-            if frame_index % (round(n_frames/10,0)) == 0:    
-                if gui != None:
-                    gui.update_status(frame_index+1, n_frames+1)
-                elif q != None:
-                    q.put([start_frame, frame_index+1])
-                else:            
-                    print('Done fitting frame '+str(frame_index)+' of ' + str(n_frames))
-        
-        self.result = np.delete(self.result, range(tot_fits,len(frames)*self.ROI_locations.shape[0]), axis=0)
-        
-        if gui != None:
+
+            if frame_index % (round(n_frames / 10, 0)) == 0:
+                if gui is not None:
+                    gui.update_status(frame_index + 1, n_frames + 1)
+                elif q is not None:
+                    q.put([start_frame, frame_index + 1])
+                else:
+                    print('Done fitting frame ' + str(frame_index) + ' of ' + str(n_frames))
+
+        self.result = np.delete(self.result, range(tot_fits, len(frames) * self.roi_locations.shape[0]), axis=0)
+
+        if gui is not None:
             gui.update_status(n_frames, n_frames)
-        if q != None:
-            q.put([start_frame, frame_index+1])
+        if q is not None:
+            q.put([start_frame, len(frames) + 1])
 
         return self.result
-    
-#%% Scipy last fit guess including background
 
-class scipy_last_fit_guess_background(scipy_last_fit_guess):
-    
+
+# %% Gaussian fitter including background
+
+
+class GaussianBackground(Gaussian):
+
     def phasor_guess(self, data):
         """ Returns an initial guess based on phasor fitting"""
         pos_x, pos_y = self.phasor_fit(data)
         background = self.fun_calc_bg(data)
-        height = data[int(pos_y), int(pos_x)]-background
-        
+        height = data[int(pos_y), int(pos_x)] - background
+
         return np.array([height, pos_y, pos_x, self.init_sig, self.init_sig, background])
-    
+
     def fitter(self, frame_index, frame, start_frame):
         """
         Fits all peaks by scipy least squares fitting
@@ -453,7 +463,7 @@ class scipy_last_fit_guess_background(scipy_last_fit_guess):
         ----------
         frame_index : Index of frame
         frame : frame
-        peaks : all peaks
+        start_frame :
 
         Returns
         -------
@@ -461,30 +471,31 @@ class scipy_last_fit_guess_background(scipy_last_fit_guess):
 
         """
 
-        frame_result = np.zeros([self.ROI_locations.shape[0], 9])
-        
-        for peak_index, peak in enumerate(self.ROI_locations):
+        frame_result = np.zeros([self.roi_locations.shape[0], 9])
+
+        for peak_index, peak in enumerate(self.roi_locations):
 
             y = int(peak[0])
             x = int(peak[1])
 
-            my_roi = frame[y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
+            my_roi = frame[y - self.roi_size_1D:y + self.roi_size_1D + 1, x - self.roi_size_1D:x + self.roi_size_1D + 1]
 
             if self.fun_find_max(my_roi) < self.threshold:
                 continue
 
             result, its, success = self.fitgaussian(my_roi, peak_index)
 
-            if success == 0 or result[1]< -2 or result[2] > self.ROI_size+2 or result[1] < -2 or result[1] > self.ROI_size+2:
+            if success == 0 or result[1] < -2 or result[2] > self.roi_size + 2 or result[1] < -2 \
+                    or result[1] > self.roi_size + 2:
                 continue
-            
+
             self.params[peak_index, :] = result
 
             frame_result[peak_index, 0] = frame_index + start_frame
             frame_result[peak_index, 1] = peak_index
-            #start position plus from center in ROI + half for indexing of pixels
-            frame_result[peak_index, 2] = result[1]+y-self.ROI_size_1D+0.5 #y
-            frame_result[peak_index, 3] = result[2]+x-self.ROI_size_1D+0.5 #x
+            # start position plus from center in ROI + half for indexing of pixels
+            frame_result[peak_index, 2] = result[1] + y - self.roi_size_1D + 0.5  # y
+            frame_result[peak_index, 3] = result[2] + x - self.roi_size_1D + 0.5  # x
             frame_result[peak_index, 4] = result[0]
             frame_result[peak_index, 5] = result[3]
             frame_result[peak_index, 6] = result[4]
@@ -493,42 +504,24 @@ class scipy_last_fit_guess_background(scipy_last_fit_guess):
 
         frame_result = frame_result[frame_result[:, 4] > 0]
 
-        return frame_result 
+        return frame_result
 
-#%% Scipy phasor guess
 
-class scipy_phasor_fit_guess(scipy_last_fit_guess):
-       
-    def fitgaussian(self, data, peak_index):
-        """Returns (height, x, y, width_x, width_y)
-        the gaussian parameters of a 2D distribution found by a fit"""
-    
-        if self.params[peak_index, 0] == 0:
-            params = self.phasor_guess(data)
-        else:
-            params = self.phasor_guess(data)
-            params[3:] = self.params[peak_index, 3:]
-        p = self.least_squares(params, data, max_nfev=100)#, gtol=1e-4, ftol=1e-4)
-                
-        return [p.x, p.nfev, p.success]
+# %% Phasor for ROI loops
 
-#%% Phasor for ROI loops
 
-import pyfftw 
-from pims import Frame # for converting ND2 generator to one numpy array
-
-class phasor_only_ROI_loop():
+class Phasor:
     """
     Phasor localizer over ROIs
     """
-    def __init__(self, metadata, ROI_size, threshold, METHOD):
+
+    def __init__(self, roi_size, threshold, method):
         """
         Parameters
         ----------
-        metadata : metadata of ND2
-        ROI_size : ROI size
+        roi_size : ROI size
         threshold : minimum intensity for fitting
-        ROI_locations : found ROIs
+        method : Name of method
 
         Returns
         -------
@@ -537,81 +530,81 @@ class phasor_only_ROI_loop():
         """
 
         self.result = []
-        self.ROI_size = ROI_size
-        self.ROI_size_1D = int((self.ROI_size-1)/2)
+        self.roi_locations = []
+        self.roi_size = roi_size
+        self.roi_size_1D = int((self.roi_size - 1) / 2)
         self.threshold = threshold
-        self.__name__ = METHOD
-        
-        #self.declare_functions()
-        
+        self.__name__ = method
+
+        # self.declare_functions()
+
     def fun_find_max(self, roi):
-        
-        if self.ROI_size == 9:
+
+        if self.roi_size == 9:
             return fortran_tools.max9(roi)
-        elif self.ROI_size == 7:
+        elif self.roi_size == 7:
             return fortran_tools.max7(roi)
-        
+
     def fun_calc_bg(self, roi):
-        
-        if self.ROI_size == 9:
+
+        if self.roi_size == 9:
             return fortran_tools.calc_bg9(roi)
-        elif self.ROI_size == 7:
+        elif self.roi_size == 7:
             return fortran_tools.calc_bg7(roi)
 
     def phasor_fit_stack(self, frame_stack, roi, roi_index, y, x):
-        
+
         roi_result = np.zeros([frame_stack.shape[0], 6])
-        
-        roi_bb = pyfftw.empty_aligned(frame_stack.shape, dtype='float64')
-        roi_bf = pyfftw.empty_aligned((frame_stack.shape[0], self.ROI_size, self.ROI_size_1D+1), dtype='complex128')
-        fft_values_list = pyfftw.FFTW(roi_bb, roi_bf, axes=(1,2), 
-                                      flags=('FFTW_MEASURE',), 
-                                      direction='FFTW_FORWARD')
+
+        roi_bb = empty_aligned(frame_stack.shape, dtype='float64')
+        roi_bf = empty_aligned((frame_stack.shape[0], self.roi_size, self.roi_size_1D + 1), dtype='complex128')
+        fft_values_list = FFTW(roi_bb, roi_bf, axes=(1, 2),
+                               flags=('FFTW_MEASURE',),
+                               direction='FFTW_FORWARD')
         roi_bb = frame_stack
         fft_values_list = fft_values_list(roi_bb)
-        
+
         roi_size = frame_stack.shape[1]
-        
+
         for frame_index, (fft_values, frame) in enumerate(zip(fft_values_list, frame_stack)):
-            
+
             my_frame_bg = self.fun_calc_bg(frame)
             frame_max = self.fun_find_max(frame)
-            
+
             if frame_max < self.threshold:
                 continue
-            
-            ang_x = cmath.phase(fft_values[0, 1])
-            if ang_x>0:
-                ang_x=ang_x-2*pi
-        
-            pos_x = abs(ang_x)/(2*pi/roi_size)
-        
-            ang_y = cmath.phase(fft_values[1,0])
-        
-            if ang_y >0:
-                ang_y = ang_y - 2*pi
-        
-            pos_y = abs(ang_y)/(2*pi/roi_size)
-        
+
+            ang_x = phase(fft_values[0, 1])
+            if ang_x > 0:
+                ang_x = ang_x - 2 * pi
+
+            pos_x = abs(ang_x) / (2 * pi / roi_size)
+
+            ang_y = phase(fft_values[1, 0])
+
+            if ang_y > 0:
+                ang_y = ang_y - 2 * pi
+
+            pos_y = abs(ang_y) / (2 * pi / roi_size)
+
             if pos_x > 8.5:
                 pos_x -= roi_size
             if pos_y > 8.5:
                 pos_y -= roi_size
-                
+
             roi_result[frame_index, 0] = frame_index
             roi_result[frame_index, 1] = roi_index
-            #start position plus from center in ROI + half for indexing of pixels
-            roi_result[frame_index, 2] = y+pos_y-self.ROI_size_1D+0.5
-            roi_result[frame_index, 3] = x+pos_x-self.ROI_size_1D+0.5
-            roi_result[frame_index, 4] = frame_max - my_frame_bg # returns max peak
-            roi_result[frame_index, 5] = my_frame_bg # background
-    
-        roi_result = roi_result[roi_result[:, 2] > 0]    
-    
+            # start position plus from center in ROI + half for indexing of pixels
+            roi_result[frame_index, 2] = y + pos_y - self.roi_size_1D + 0.5
+            roi_result[frame_index, 3] = x + pos_x - self.roi_size_1D + 0.5
+            roi_result[frame_index, 4] = frame_max - my_frame_bg  # returns max peak
+            roi_result[frame_index, 5] = my_frame_bg  # background
+
+        roi_result = roi_result[roi_result[:, 2] > 0]
+
         return roi_result
-                
-            
-    def main(self, frames, metadata, roi_locations, gui = None, n_frames = None):
+
+    def main(self, frames, metadata, roi_locations, gui=None, n_frames=None):
         """
         Main for phasor over ROI loop, calls fitter function and returns fits.
 
@@ -619,96 +612,153 @@ class phasor_only_ROI_loop():
         ----------
         frames : All frames of .nd2 video
         metadata : Metadata of .nd2 video
+        roi_locations:
+        gui:
+        n_frames:
 
         Returns
         -------
         All localizations
 
         """
-        self.ROI_locations = roi_locations
-        
+        self.roi_locations = roi_locations
+
         frame_stack_total = Frame(frames)
-        
+
         tot_fits = 0
         created = 0
 
-        for roi_index, roi in enumerate(self.ROI_locations):
+        for roi_index, roi in enumerate(self.roi_locations):
             y = int(roi[0])
             x = int(roi[1])
-            frame_stack = frame_stack_total[:,y-self.ROI_size_1D:y+self.ROI_size_1D+1, x-self.ROI_size_1D:x+self.ROI_size_1D+1]
+            frame_stack = frame_stack_total[:, y - self.roi_size_1D:y + self.roi_size_1D + 1,
+                                            x - self.roi_size_1D:x + self.roi_size_1D + 1]
 
             roi_result = self.phasor_fit_stack(frame_stack, roi, roi_index, y, x)
-            
+
             if created == 0:
                 n_fits = roi_result.shape[0]
                 width = roi_result.shape[1]
-                height = len(frames)*self.ROI_locations.shape[0]
+                height = len(frames) * self.roi_locations.shape[0]
                 self.result = np.zeros((height, width))
-                created  = 1
-                self.result[tot_fits:tot_fits+n_fits,:] = roi_result
+                created = 1
+                self.result[tot_fits:tot_fits + n_fits, :] = roi_result
                 tot_fits += n_fits
             else:
                 n_fits = roi_result.shape[0]
-                self.result[tot_fits:tot_fits+n_fits,:] = roi_result
+                self.result[tot_fits:tot_fits + n_fits, :] = roi_result
                 tot_fits += n_fits
-                
-            if self.ROI_locations.shape[0] > 10:
-                if roi_index % (round(self.ROI_locations.shape[0]/10,0)) == 0:    
-                    if gui == None:
-                        print('Done fitting ROI '+str(roi_index)+' of ' + str(self.ROI_locations.shape[0]))
-                    else:
-                        gui.update_status(roi_index+1, len(self.ROI_locations)+1)
-                    
-        self.result = np.delete(self.result, range(tot_fits,len(frames)*self.ROI_locations.shape[0]), axis=0)
-        
-        if gui != None:
-            gui.update_status(len(self.ROI_locations), len(self.ROI_locations))
-                                
-        return self.result
-    
-#%% Dumb phasor ROI loop
 
-class phasor_only_ROI_loop_dumb(phasor_only_ROI_loop):
-    
+            if self.roi_locations.shape[0] > 10:
+                if roi_index % (round(self.roi_locations.shape[0] / 10, 0)) == 0:
+                    if gui is None:
+                        print('Done fitting ROI ' + str(roi_index) + ' of ' + str(self.roi_locations.shape[0]))
+                    else:
+                        gui.update_status(roi_index + 1, len(self.roi_locations) + 1)
+
+        self.result = np.delete(self.result, range(tot_fits, len(frames) * self.roi_locations.shape[0]), axis=0)
+
+        if gui is not None:
+            gui.update_status(len(self.roi_locations), len(self.roi_locations))
+
+        return self.result
+
+
+# %% Dumb phasor ROI loop
+
+class PhasorDumb(Phasor):
+
     def phasor_fit_stack(self, frame_stack, roi, roi_index, y, x):
-        
+
         roi_result = np.zeros([frame_stack.shape[0], 4])
-        
-        roi_bb = pyfftw.empty_aligned(frame_stack.shape, dtype='float64')
-        roi_bf = pyfftw.empty_aligned((frame_stack.shape[0], self.ROI_size, self.ROI_size_1D+1), dtype='complex128')
-        fft_values_list = pyfftw.FFTW(roi_bb, roi_bf, axes=(1,2), 
-                                      flags=('FFTW_MEASURE',), 
-                                      direction='FFTW_FORWARD')
+
+        roi_bb = empty_aligned(frame_stack.shape, dtype='float64')
+        roi_bf = empty_aligned((frame_stack.shape[0], self.roi_size, self.roi_size_1D + 1), dtype='complex128')
+        fft_values_list = FFTW(roi_bb, roi_bf, axes=(1, 2),
+                               flags=('FFTW_MEASURE',),
+                               direction='FFTW_FORWARD')
         roi_bb = frame_stack
         fft_values_list = fft_values_list(roi_bb)
-        
+
         roi_size = frame_stack.shape[1]
-        
+
         for frame_index, (fft_values, frame) in enumerate(zip(fft_values_list, frame_stack)):
-                        
-            ang_x = cmath.phase(fft_values[0, 1])
-            if ang_x>0:
-                ang_x=ang_x-2*pi
-        
-            pos_x = abs(ang_x)/(2*pi/roi_size)
-        
-            ang_y = cmath.phase(fft_values[1,0])
-        
-            if ang_y >0:
-                ang_y = ang_y - 2*pi
-        
-            pos_y = abs(ang_y)/(2*pi/roi_size)
-        
+
+            ang_x = phase(fft_values[0, 1])
+            if ang_x > 0:
+                ang_x = ang_x - 2 * pi
+
+            pos_x = abs(ang_x) / (2 * pi / roi_size)
+
+            ang_y = phase(fft_values[1, 0])
+
+            if ang_y > 0:
+                ang_y = ang_y - 2 * pi
+
+            pos_y = abs(ang_y) / (2 * pi / roi_size)
+
             if pos_x > 8.5:
                 pos_x -= roi_size
             if pos_y > 8.5:
                 pos_y -= roi_size
-                
+
             roi_result[frame_index, 0] = frame_index
             roi_result[frame_index, 1] = roi_index
-            #start position plus from center in ROI + half for indexing of pixels
-            roi_result[frame_index, 2] = y+pos_y-self.ROI_size_1D+0.5
-            roi_result[frame_index, 3] = x+pos_x-self.ROI_size_1D+0.5
-    
-        return roi_result  
-    
+            # start position plus from center in ROI + half for indexing of pixels
+            roi_result[frame_index, 2] = y + pos_y - self.roi_size_1D + 0.5
+            roi_result[frame_index, 3] = x + pos_x - self.roi_size_1D + 0.5
+
+        return roi_result
+
+
+# %% Phasor with sum
+
+
+class PhasorSum(Phasor):
+
+    def phasor_fit_stack(self, frame_stack, roi, roi_index, y, x):
+
+        roi_result = np.zeros([frame_stack.shape[0], 5])
+
+        roi_bb = empty_aligned(frame_stack.shape, dtype='float64')
+        roi_bf = empty_aligned((frame_stack.shape[0], self.roi_size, self.roi_size_1D + 1), dtype='complex128')
+        fft_values_list = FFTW(roi_bb, roi_bf, axes=(1, 2),
+                               flags=('FFTW_MEASURE',),
+                               direction='FFTW_FORWARD')
+        roi_bb = frame_stack
+        fft_values_list = fft_values_list(roi_bb)
+
+        roi_size = frame_stack.shape[1]
+
+        for frame_index, (fft_values, frame) in enumerate(zip(fft_values_list, frame_stack)):
+
+            frame_sum = np.sum(frame)
+
+            ang_x = phase(fft_values[0, 1])
+            if ang_x > 0:
+                ang_x = ang_x - 2 * pi
+
+            pos_x = abs(ang_x) / (2 * pi / roi_size)
+
+            ang_y = phase(fft_values[1, 0])
+
+            if ang_y > 0:
+                ang_y = ang_y - 2 * pi
+
+            pos_y = abs(ang_y) / (2 * pi / roi_size)
+
+            if pos_x > 8.5:
+                pos_x -= roi_size
+            if pos_y > 8.5:
+                pos_y -= roi_size
+
+            roi_result[frame_index, 0] = frame_index
+            roi_result[frame_index, 1] = roi_index
+            # start position plus from center in ROI + half for indexing of pixels
+            roi_result[frame_index, 2] = y + pos_y - self.roi_size_1D + 0.5
+            roi_result[frame_index, 3] = x + pos_x - self.roi_size_1D + 0.5
+            roi_result[frame_index, 4] = frame_sum  # returns summation
+
+        roi_result = roi_result[roi_result[:, 2] > 0]
+
+        return roi_result
