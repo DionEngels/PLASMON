@@ -42,10 +42,11 @@ class roi_finder():
         return mean+self.threshold_sigma*std
     
     def __init__(self, filter_size, frame, fitter, pixel_min = None, corr_min = 0.05, 
-                 sigma_min = 0, sigma_max = None, int_min = None, int_max = None):
+                 sigma_min = 0, sigma_max = None, int_min = None, int_max = None,
+                 roi_size = 7):
         
         self.filter_size = int(filter_size)
-        self.roi_size = 7
+        self.roi_size = roi_size
         self.roi_size_1d = int((self.roi_size-1)/2)
         self.side_distance = 11
         self.roi_distance = 6

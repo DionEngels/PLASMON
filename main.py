@@ -18,6 +18,7 @@ v1.2: own ROI finder: 11/07/2020
 v1.3: 7x7 and 9x9 ROIs: 13/07/2020
 v1.4: removed any wavelength dependancy
 v1.5: removed MATLAB ROI finding
+v1.6: MATLAB v3 loading
 
  """
 
@@ -45,7 +46,7 @@ import _code.roi_finding as roi_finding
 import _code.fitters as fitting
 import _code.tools as tools
 #%% Inputs
-ROI_SIZE = 7 # 7 or 9
+ROI_SIZE = 9 # 7 or 9
 FILTER_SIZE = 9
 #%% Initializations
 
@@ -56,8 +57,8 @@ FILETYPES = [("ND2", ".nd2")]
 
 filenames = ("C:/Users/s150127/Downloads/_MBx dataset/1nMimager_newGNRs_100mW.nd2",)
 
-METHOD = "ScipyPhasorFitGuess"
-DATASET = "YUYANG" # "MATLAB, "MATLAB_v2" OR "YUYANG"
+METHOD = "PhasorOnlyROI"
+DATASET = "MATLAB_v3" # "MATLAB_v2, "MATLAB_v3" OR "YUYANG"
 ROI_FINDER = "SELF" # "SELF" OR "PRE"
 #%% Main loop cell
 
@@ -72,20 +73,17 @@ for name in filenames:
         except:
             pass
         
-        if DATASET == "MATLAB" or DATASET == "MATLAB_v2":
+        if DATASET == "MATLAB_v2" or "MATLAB_v3":
             ## Load in MATLAB data
             
-            if DATASET == "MATLAB":
-                frames = scipy.io.loadmat('Data_1000f_14_06_pure_matlab_bg_600')['frame']
-                frames = np.swapaxes(frames,1,2)
-                frames = np.swapaxes(frames,0,1)
-                metadata = {'NA' : 1, 'calibration_um' : 0.200, 'sequence_count' : frames.shape[0], 'time_start' : 3, 'time_start_utc': 3}
-            elif DATASET == "MATLAB_v2":
+            if DATASET == "MATLAB_v2":
                 frames = scipy.io.loadmat('Data_1000f_06_30_pure_matlab_bg_600_v2')['frame']
-                frames = np.swapaxes(frames,1,2)
-                frames = np.swapaxes(frames,0,1)
-                metadata = {'NA' : 1, 'calibration_um' : 0.120, 'sequence_count' : frames.shape[0], 'time_start' : 3, 'time_start_utc': 3}
-        
+            elif DATASET == "MATLAB_v3":
+                frames = scipy.io.loadmat('Data_1000f_06_30_pure_matlab_bg_600_v3')['frame']
+                
+            frames = np.swapaxes(frames,1,2)
+            frames = np.swapaxes(frames,0,1)
+            metadata = {'NA' : 1, 'calibration_um' : 0.120, 'sequence_count' : frames.shape[0], 'time_start' : 3, 'time_start_utc': 3}
             #frames = frames[0:10,:,:]
         elif DATASET == "YUYANG":
             ## parse ND2 info
@@ -96,10 +94,16 @@ for name in filenames:
         #%% Find ROIs (for standard NP2 file)
         print('Starting to find ROIs')
 
-        fitter = fitting.scipy_last_fit_guess(metadata, 9,
+        fitter = fitting.scipy_last_fit_guess(metadata, ROI_SIZE,
                                               0, "ScipyLastFitGuess", 5)
         
-        roi_finder = roi_finding.roi_finder(FILTER_SIZE, frames[0], fitter)
+        roi_finder = roi_finding.roi_finder(FILTER_SIZE, frames[0], fitter, 
+                                            roi_size = ROI_SIZE)
+        
+        if DATASET == "MATLAB_v3":
+            roi_finder.int_min = 100
+            roi_finder.pixel_min = 100
+            roi_finder.corr_min = 0.001
         
         ROI_locations = roi_finder.main(fitter)
 

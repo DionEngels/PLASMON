@@ -1,7 +1,7 @@
 clear all
 %% setup
 
-load data_generation_info_v4
+load data_generation_info_generation_v3_offset_corrected
 
 positions = saved.positions;
 
@@ -10,13 +10,13 @@ number_y = 10;
 
 n_frames = 1000;
 %% load in data
-load v7/Last_Fit_7x7
+load v7_z_dataset_v3/Phasor_9x9
 
 %% fit checker setup
 x_column = 4; %what column has x-pos in the return data
 y_column = 3; %what column has y-pos in the return data
 
-sigma_check = 1;
+sigma_check = 0;
 if sigma_check == 1
     sigma_x_column = 6;
     sigma_y_column = 7;
@@ -90,8 +90,8 @@ end
 
 res_mean_precision = nanmean(res_precision,2);
 res_mean_accuracy = nanmean(res_accuracy,2);
-res_mean_crlb = nanmean(res_crlb,2);
 if sigma_check == 1
+    res_mean_crlb = nanmean(res_crlb,2);
     res_mean_sigma_precision = nanmean(res_sigma_precision,2);
     res_mean_sigma_accuracy = nanmean(res_sigma_accuracy,2);
 end
