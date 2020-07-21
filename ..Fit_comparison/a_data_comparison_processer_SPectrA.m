@@ -4,9 +4,6 @@ load data_generation_info_generation_v3_offset_corrected
 
 positions = saved.positions;
 
-%positions(:,1) = positions(:,1) + 60;
-%positions(:,2) = positions(:,2) + 60;
-
 pos_x = positions(:,1);
 pos_y = positions(:,2);
 
