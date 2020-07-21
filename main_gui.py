@@ -21,6 +21,7 @@ v1.12: Status for MP
 v1.13: removed wavelength
 v2.0: new ROI finding method: 20/07/2020
 v2.1: adding additional options for new ROI method
+v2.2: new ROI method finished, new options finished, and new Fitter options
 
 """
 
@@ -45,7 +46,6 @@ from tkinter.filedialog import askopenfilenames  # for popup that asks to select
 
 # ND2 related
 from pims import ND2_Reader  # reader of ND2 files
-# from pims import Frame # for converting ND2 generator to one numpy array
 
 # Own code
 import _code.roi_finding as roi_finding
@@ -62,10 +62,9 @@ mpl.use("TkAgg")  # set back end to TK
 FILETYPES = [("ND2", ".nd2")]
 
 LARGE_FONT = ("Verdana", 11)
-# style.use("ggplot")
 
-fit_options = ["Phasor with intensity", "Phasor without intensity",
-               "Gaussian with background", "Gaussian without background"]
+fit_options = ["Gaussian - Fitted background", "Gaussian - Estimated background",
+               "Phasor + Intensity", "Phasor + Sum", "Phasor"]
 
 roi_size_options = ["7x7", "9x9"]
 
@@ -77,7 +76,7 @@ GUI_WIDTH_START = int(width / 4)
 GUI_HEIGHT_START = int(height * 0.2)
 DPI = 100
 
-    
+
 # %% Multiprocessing main
 
 
@@ -128,8 +127,8 @@ class EntryPlaceholder(ttk.Entry):
 
     def updater(self, text=None):
         self.delete("0", "end")
-        
-        if text == None:
+
+        if text is None:
             self.insert("0", self.placeholder)
             self["style"] = "Placeholder.TEntry"
         else:
@@ -147,16 +146,14 @@ class NormalButton(ttk.Button):
         self.column = column
         self.rowspan = rowspan
         self.columnspan = columnspan
-        super().grid(row=row, column=column,
-                     rowspan=rowspan, columnspan=columnspan)
+        super().grid(row=row, column=column, rowspan=rowspan, columnspan=columnspan)
 
     def updater(self, command=None, state='enabled', text=None):
-        if text == None:
+        if text is None:
             text = self.text
         super().grid_forget()
         super().__init__(self.parent, text=text, command=command, state=state)
-        super().grid(row=self.row, column=self.column, rowspan=self.rowspan,
-                     columnspan=self.columnspan)
+        super().grid(row=self.row, column=self.column, rowspan=self.rowspan, columnspan=self.columnspan)
 
 
 class NormalSlider(tk.Scale):
@@ -174,22 +171,19 @@ class NormalSlider(tk.Scale):
         self.column = column
         self.rowspan = rowspan
         self.columnspan = columnspan
-        super().grid(row=self.row, column=self.column, rowspan=self.rowspan,
-                     columnspan=self.columnspan)
+        super().grid(row=self.row, column=self.column, rowspan=self.rowspan, columnspan=self.columnspan)
 
     def updater(self, from_=None, to=None, start=None):
-        if from_ == None:
+        if from_ is None:
             from_ = self.from_
-        if to == None:
+        if to is None:
             to = self.to
-        if start == None:
+        if start is None:
             start = self.start
         super().grid_forget()
-        super().__init__(self.parent, from_=from_, to=to, orient='horizontal',
-                         resolution=self.resolution)
+        super().__init__(self.parent, from_=from_, to=to, orient='horizontal', resolution=self.resolution)
         super().set(start)
-        super().grid(row=self.row, column=self.column, rowspan=self.rowspan,
-                     columnspan=self.columnspan)
+        super().grid(row=self.row, column=self.column, rowspan=self.rowspan, columnspan=self.columnspan)
         self.from_ = from_
         self.to = to
         self.start = start
@@ -197,10 +191,9 @@ class NormalSlider(tk.Scale):
 
 class NormalLabel(tk.Label):
     def __init__(self, parent, text=None, font=None, bd=None, relief=None,
-                 row=None, column=None, rowspan=1, columnspan=1):
+                 row=None, column=None, rowspan=1, columnspan=1, sticky=None):
         super().__init__(parent, text=text, font=font, bd=bd, relief=relief)
-        super().grid(row=row, column=column, rowspan=rowspan,
-                     columnspan=columnspan)
+        super().grid(row=row, column=column, rowspan=rowspan, columnspan=columnspan, sticky=sticky)
         self.parent = parent
         self.text = text
         self.font = font
@@ -210,13 +203,13 @@ class NormalLabel(tk.Label):
         self.column = column
         self.rowspan = rowspan
         self.columnspan = columnspan
+        self.sticky = sticky
 
     def updater(self, text=None):
         super().grid_forget()
-        super().__init__(self.parent, text=text, font=self.font,
-                         bd=self.bd, relief=self.relief)
-        super().grid(row=self.row, column=self.column, rowspan=self.rowspan,
-                     columnspan=self.columnspan)
+        super().__init__(self.parent, text=text, font=self.font, bd=self.bd, relief=self.relief)
+        super().grid(row=self.row, column=self.column, rowspan=self.rowspan, columnspan=self.columnspan,
+                     sticky=self.sticky)
 
 
 # %% Container
@@ -293,11 +286,12 @@ class LoadPage(tk.Frame):
 
 # %% Fitting page, initial update (after loading)
 
+# noinspection PyBroadException
 class FittingPage(tk.Frame):
 
-    def update_init(self, controller, parent, filenames):
-        
-        self.layout(parent, controller, filenames)
+    def update_init(self, parent, controller, filenames):
+
+        self.__init__(parent, controller, reset=True)
 
         self.filenames = filenames
         self.dataset_index = 0
@@ -340,25 +334,24 @@ class FittingPage(tk.Frame):
         sigma_max = self.max_sigma_slider.get()
         corr_min = self.min_corr_slider.get()
         pixel_min = self.min_pixel_slider.get()
-        roi_size  = int(self.roi_var.get()[0])
-        
+        roi_size = int(self.roi_var.get()[0])
+
         filter_size = int(self.filter_input.get())
         roi_side = int(self.roi_side_input.get())
         inter_roi = int(self.inter_roi_input.get())
-        
-        if roi_side < int((roi_size-1)/2):
+
+        if roi_side < int((roi_size - 1) / 2):
             tk.messagebox.showerror("ERROR", "Distance to size cannot be smaller than 1D ROI size")
             return False
         if filter_size % 2 != 1:
             tk.messagebox.showerror("ERROR", "Filter size should be odd")
             return False
-        
-        self.roi_fitter = fitting.scipy_last_fit_guess(self.metadata, roi_size,
-                                              0, "ScipyLastFitGuess", 5)
+
+        self.roi_fitter = fitting.Gaussian(roi_size, 0, "Gaussian", 5)
 
         self.roi_finder.change_settings(int_min, int_max, corr_min, pixel_min,
-                        sigma_min, sigma_max, roi_size,
-                        filter_size, roi_side, inter_roi)
+                                        sigma_min, sigma_max, roi_size,
+                                        filter_size, roi_side, inter_roi)
 
         self.temp_roi_locations = self.roi_finder.main(self.roi_fitter)
 
@@ -378,15 +371,15 @@ class FittingPage(tk.Frame):
         self.canvas = FigureCanvasTkAgg(self.fig, self)
         self.canvas.draw()
         self.canvas.get_tk_widget().grid(row=0, column=10, columnspan=3, rowspan=14, sticky='E')
-        
+
         return True
 
-    # %% Fitting page, save ROI setings
+    # %% Fitting page, save ROI settings
 
     def save_roi_settings(self):
 
         success = self.fit_rois()
-        
+
         if not success:
             return
 
@@ -398,8 +391,8 @@ class FittingPage(tk.Frame):
         sigma_max = self.max_sigma_slider.get()
         corr_min = self.min_corr_slider.get()
         pixel_min = self.min_pixel_slider.get()
-        roi_size  = int(self.roi_var.get()[0])
-        
+        roi_size = int(self.roi_var.get()[0])
+
         filter_size = int(self.filter_input.get())
         roi_side = int(self.roi_side_input.get())
         inter_roi = int(self.inter_roi_input.get())
@@ -412,9 +405,8 @@ class FittingPage(tk.Frame):
 
         self.saved_settings[self.dataset_index] = settings
 
-        self.roi_status.updater(text=str(len(self.roi_locations)) +
-                                     " of " + str(len(self.filenames)) +
-                                     " have settings")
+        self.roi_status.updater(text=str(len(self.roi_locations)) + " of "
+                                     + str(len(self.filenames)) + " have settings")
         self.button_restore_saved.updater(command=lambda: self.restore_saved())
 
         if len(self.roi_locations) == len(self.filenames):
@@ -422,16 +414,15 @@ class FittingPage(tk.Frame):
             self.button_fit = BigButton(self, text="FIT", height=int(GUI_HEIGHT / 8),
                                         width=int(GUI_WIDTH / 8),
                                         command=lambda: self.start_fitting())
-            self.button_fit.grid(row=24, column=10, columnspan=2, rowspan=5)
+            self.button_fit.grid(row=23, column=10, columnspan=2, rowspan=5)
 
     # %% Fitting page, restore default settings
 
     def restore_default(self):
-        
-        self.roi_fitter = fitting.scipy_last_fit_guess(self.metadata, 7,
-                                              0, "ScipyLastFitGuess", 5)
 
-        self.roi_finder = roi_finding.roi_finder(9, self.frames[0], 
+        self.roi_fitter = fitting.Gaussian(7, 0, "Gaussian", 5)
+
+        self.roi_finder = roi_finding.roi_finder(9, self.frames[0],
                                                  self.roi_fitter)
 
         self.min_int_slider.updater(from_=0, to=self.roi_finder.int_max / 4,
@@ -443,10 +434,10 @@ class FittingPage(tk.Frame):
         self.max_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
                                       start=self.roi_finder.sigma_max)
         self.min_corr_slider.updater(from_=0, to=1, start=self.roi_finder.corr_min)
-        self.min_pixel_slider.updater(from_=0, to=np.max(self.frames[0]), 
+        self.min_pixel_slider.updater(from_=0, to=np.max(self.frames[0]),
                                       start=self.roi_finder.pixel_min)
         self.roi_var.set(roi_size_options[0])
-        
+
         self.filter_input.updater()
         self.roi_side_input.updater()
         self.inter_roi_input.updater()
@@ -454,14 +445,13 @@ class FittingPage(tk.Frame):
     # %% Fitting page, switch between datasets
 
     def next_dataset(self):
-        
+
         self.temp_roi_locations = None
         self.histogram = None
         self.to_hist = None
 
         self.dataset_index += 1
-        self.dataset_roi_status.updater(text="Dataset " +
-                                             str(self.dataset_index + 1) + " of "
+        self.dataset_roi_status.updater(text="Dataset " + str(self.dataset_index + 1) + " of "
                                              + str(len(self.filenames)))
 
         self.nd2.close()
@@ -496,7 +486,7 @@ class FittingPage(tk.Frame):
             self.button_restore_saved.updater(state='disabled')
 
     def previous_dataset(self):
-        
+
         self.temp_roi_locations = None
         self.histogram = None
         self.to_hist = None
@@ -555,17 +545,21 @@ class FittingPage(tk.Frame):
         start_frame = self.frame_begin_input.get()
         end_frame = self.frame_end_input.get()
         method = self.method_var.get()
-        roi_size = int(self.roi_var.get()[0])
 
-        if n_processes > 1 and (method == "Phasor with intensity" or method == "Phasor without intensity"):
+        if n_processes > 1 and (method == "Phasor + Intensity" or method == "Phasor + Sum" or method == "Phasor"):
             cores_check = tk.messagebox.askokcancel("Just a heads up",
-                                                    """Phasor will be used with one core since the 
-                                                    overhead only slowes it down""")
+                                                    """Phasor will be used with one core since the
+                                                    overhead only slows it down""")
             if not cores_check:
                 return
             n_processes = 1
 
+        directory = ""
+        metadata_filtered = {}
+        roi_locations_dict = {}
+        results_dict = {}
         self.start_time = time.time()
+        results_counter = 0
 
         for dataset_index, filename in enumerate(self.filenames):
             self.nd2.close()
@@ -573,22 +567,23 @@ class FittingPage(tk.Frame):
             self.frames = self.nd2
             self.metadata = self.nd2.metadata
             self.dataset_index = dataset_index
-            
+
             roi_size = self.saved_settings[dataset_index]['roi_size']
 
             roi_locations = self.roi_locations[dataset_index]
 
             min_intensity = self.saved_settings[dataset_index]['int_min']
 
-            if method == "Phasor with intensity":
-                fitter = fitting.phasor_only_ROI_loop(self.metadata, roi_size, min_intensity, method)
-            elif method == "Phasor without intensity":
-                fitter = fitting.phasor_only_ROI_loop_dumb(self.metadata, roi_size, min_intensity, method)
-            elif method == "Gaussian without background":
-                fitter = fitting.scipy_last_fit_guess(self.metadata, roi_size, min_intensity, method, 5)
-            elif method == "Gaussian with background":
-                fitter = fitting.scipy_last_fit_guess_background(self.metadata, roi_size, min_intensity,
-                                                                 method, 6)
+            if method == "Phasor + Intensity":
+                fitter = fitting.Phasor(roi_size, min_intensity, method)
+            elif method == "Phasor":
+                fitter = fitting.PhasorDumb(roi_size, min_intensity, method)
+            elif method == "Gaussian - Fitted background":
+                fitter = fitting.GaussianBackground(roi_size, min_intensity, method, 6)
+            elif method == "Gaussian - Estimated background":
+                fitter = fitting.Gaussian(roi_size, min_intensity, method, 5)
+            else:
+                fitter = fitting.PhasorSum(roi_size, min_intensity, method)
 
             if start_frame == "Leave empty for start" and end_frame == "Leave empty for end":
                 end_frame = self.metadata['sequence_count']
@@ -652,6 +647,7 @@ class FittingPage(tk.Frame):
 
                 results = results[results[:, 3] != 0]
             else:
+                self.update_status(0, num_frames)
                 results = fitter.main(to_fit, self.metadata, roi_locations,
                                       gui=self, n_frames=num_frames)
 
@@ -681,8 +677,12 @@ class FittingPage(tk.Frame):
 
             # Localization dict
             results_dict = {'Localizations': results}
+            results_counter += results.shape[0]
 
-        tk.messagebox.showinfo("Done!", "Done!")
+        end_message = 'Time taken: ' + str(round(time.time() - self.start_time, 3)) \
+                      + ' s. Fits done: ' + str(results_counter)
+
+        tk.messagebox.showinfo("Done!", end_message)
 
         tools.save_to_csv_mat('metadata', metadata_filtered, directory)
         tools.save_to_csv_mat('ROI_locations', roi_locations_dict, directory)
@@ -737,22 +737,21 @@ class FittingPage(tk.Frame):
         self.max_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
                                       start=settings['sigma_max'])
         self.min_corr_slider.updater(from_=0, to=1, start=settings['corr_min'])
-        self.min_pixel_slider.updater(from_=0, to=np.max(self.frames[0]), 
+        self.min_pixel_slider.updater(from_=0, to=np.max(self.frames[0]),
                                       start=settings['pixel_min'])
         if settings['roi_size'] == 7:
             self.roi_var.set(roi_size_options[0])
         else:
             self.roi_var.set(roi_size_options[1])
-            
+
         self.filter_input.updater(settings['filter_size'])
         self.roi_side_input.updater(settings['roi_side'])
         self.inter_roi_input.updater(settings['inter_roi'])
 
-
     # %% Histogram of sliders
 
     def make_histogram(self, variable):
-        
+
         fig_sub = self.histogram.add_subplot(111)
         hist, bins, _ = fig_sub.hist(self.to_hist, bins='auto')
 
@@ -765,7 +764,7 @@ class FittingPage(tk.Frame):
 
         if variable == "min_int" or variable == "max_int":
             self.histogram.clear()
-            logbins = np.logspace(np.log10(bins[0]),np.log10(bins[-1]),len(bins))
+            logbins = np.logspace(np.log10(bins[0]), np.log10(bins[-1]), len(bins))
             plt.hist(self.to_hist, bins=logbins)
             plt.title("Intensity. Use graph select to change threshold")
             plt.axvline(x=min_int, color='red', linestyle='--')
@@ -777,14 +776,14 @@ class FittingPage(tk.Frame):
             plt.axvline(x=max_sigma, color='red', linestyle='--')
         elif variable == "peak_min":
             self.histogram.clear()
-            logbins = np.logspace(np.log10(bins[0]),np.log10(bins[-1]),len(bins))
+            logbins = np.logspace(np.log10(bins[0]), np.log10(bins[-1]), len(bins))
             plt.hist(self.to_hist, bins=logbins)
             plt.title("Minimum pixel value for peak. Use graph select to change threshold")
             plt.axvline(x=min_peak, color='red', linestyle='--')
             plt.xscale('log')
         else:
             self.histogram.clear()
-            logbins = np.logspace(np.log10(bins[0]),np.log10(bins[-1]),len(bins))
+            logbins = np.logspace(np.log10(bins[0]), np.log10(bins[-1]), len(bins))
             plt.hist(self.to_hist, bins=logbins)
             plt.title("Correlation values for ROIs. Use graph select to change threshold")
             plt.axvline(x=min_corr, color='red', linestyle='--')
@@ -799,14 +798,13 @@ class FittingPage(tk.Frame):
         elif variable == "peak_min":
             self.to_hist = np.ravel(self.frames[0])
         elif variable == "corr_min":
-            self.to_hist = self.roi_finder.main(self.roi_fitter, return_corr=True)            
+            self.to_hist = self.roi_finder.main(self.roi_fitter, return_corr=True)
         else:
             self.to_hist = self.roi_finder.main(self.roi_fitter, return_sigmas=True)
 
         self.histogram = plt.figure(figsize=(6.4 * 1.2, 4.8 * 1.2))
-        
+
         self.make_histogram(variable)
-        
 
     def histogram_select(self, variable):
         click = self.histogram.ginput(1)
@@ -826,33 +824,34 @@ class FittingPage(tk.Frame):
 
         self.histogram.clear()
         self.make_histogram(variable)
-        
+
     # %% Figure popout
-    
+
     def figure_popout(self):
-        
-        popout = plt.figure(figsize=(GUI_WIDTH/100, GUI_HEIGHT/100), dpi=100)
+
+        popout = plt.figure(figsize=(GUI_WIDTH / 100, GUI_HEIGHT / 100), dpi=100)
         fig_sub = popout.add_subplot(111)
-        
+
         fig_sub.imshow(self.frames[0], extent=[0, self.frames[0].shape[1], self.frames[0].shape[0], 0],
                        aspect='auto')
-        
+
         try:
             roi_locations_temp = self.temp_roi_locations - self.roi_finder.roi_size_1d
             roi_size = self.roi_finder.roi_size
-    
+
             for roi in roi_locations_temp:
                 rect = patches.Rectangle((roi[1], roi[0]), roi_size, roi_size,
                                          linewidth=0.5, edgecolor='r', facecolor='none')
                 fig_sub.add_patch(rect)
         except:
-            pass # only when temp_roi_locations not yet defined, before first fit
+            pass  # only when temp_roi_locations not yet defined, before first fit
 
     # %% Fitting page, initial declaration
 
-    def __init__(self, parent, controller):
+    def __init__(self, parent, controller, reset=False):
 
-        tk.Frame.__init__(self, parent)
+        if not reset:
+            tk.Frame.__init__(self, parent)
         self.nd2 = None
         self.frames = None
         self.roi_finder = None
@@ -865,29 +864,28 @@ class FittingPage(tk.Frame):
         self.saved_settings = {}
         self.histogram = None
         self.to_hist = None
-        
-    def layout(self, parent, controller, filenames):
-        
+        self.roi_fitter = None
+
         min_corr_label = tk.Label(self, text="Minimum Correlation", font=LARGE_FONT)
         min_corr_label.grid(row=0, column=0, columnspan=2)
 
-        self.min_corr_slider = NormalSlider(self, from_=0, to=1, resolution = 0.005,
+        self.min_corr_slider = NormalSlider(self, from_=0, to=1, resolution=0.005,
                                             row=1, column=0, columnspan=2)
-        
+
         min_corr_histogram = ttk.Button(self, text="Graph",
-                                         command=lambda: self.fun_histogram("corr_min"))
+                                        command=lambda: self.fun_histogram("corr_min"))
         min_corr_histogram.grid(row=1, column=2, columnspan=2)
 
         min_corr_histogram_select = ttk.Button(self, text="Graph select",
-                                                command=lambda: self.histogram_select("corr_min"))
+                                               command=lambda: self.histogram_select("corr_min"))
         min_corr_histogram_select.grid(row=2, column=2, columnspan=2)
-        
+
         min_pixel_label = tk.Label(self, text="Minimum pixel intensity", font=LARGE_FONT)
         min_pixel_label.grid(row=0, column=7, columnspan=2)
-        
+
         self.min_pixel_slider = NormalSlider(self, from_=0, to=5000,
-                                              row=1, column=7, columnspan=2)       
-        
+                                             row=1, column=7, columnspan=2)
+
         min_pixel_histogram = ttk.Button(self, text="Graph",
                                          command=lambda: self.fun_histogram("peak_min"))
         min_pixel_histogram.grid(row=1, column=5, columnspan=2)
@@ -943,7 +941,7 @@ class FittingPage(tk.Frame):
         max_sigma_histogram_select = ttk.Button(self, text="Select max",
                                                 command=lambda: self.histogram_select("max_sigma"))
         max_sigma_histogram_select.grid(row=6, column=5, columnspan=2)
-        
+
         roi_size_label = tk.Label(self, text="ROI size")
         roi_size_label.grid(row=8, column=0, columnspan=1)
 
@@ -952,19 +950,19 @@ class FittingPage(tk.Frame):
 
         roi_drop = tk.OptionMenu(self, self.roi_var, *roi_size_options)
         roi_drop.grid(row=8, column=1, columnspan=1)
-        
+
         filter_label = tk.Label(self, text="Filter size")
         filter_label.grid(row=8, column=2)
 
         self.filter_input = EntryPlaceholder(self, "9", width=5)
         self.filter_input.grid(row=8, column=3)
-        
+
         roi_side_label = tk.Label(self, text="Spacing side")
         roi_side_label.grid(row=8, column=5)
 
         self.roi_side_input = EntryPlaceholder(self, "11", width=5)
         self.roi_side_input.grid(row=8, column=6)
-        
+
         inter_roi_label = tk.Label(self, text="Inter-ROI spacing")
         inter_roi_label.grid(row=8, column=7)
 
@@ -998,9 +996,9 @@ class FittingPage(tk.Frame):
         self.canvas = FigureCanvasTkAgg(self.fig, self)
         self.canvas.draw()
         self.canvas.get_tk_widget().grid(row=0, column=10, columnspan=3, rowspan=12, sticky='E')
-        
+
         button_popout = ttk.Button(self, text="Pop-out to zoom",
-                                 command=lambda: self.figure_popout())
+                                   command=lambda: self.figure_popout())
         button_popout.grid(row=12, column=10, columnspan=3)
 
         line = ttk.Separator(self, orient='horizontal')
@@ -1013,10 +1011,10 @@ class FittingPage(tk.Frame):
         method_label.grid(column=0, row=23, columnspan=4)
 
         self.method_var = tk.StringVar(self)
-        self.method_var.set(fit_options[2])
+        self.method_var.set(fit_options[1])
 
         method_drop = tk.OptionMenu(self, self.method_var, *fit_options)
-        method_drop.grid(column=0, row=24, columnspan=4)
+        method_drop.grid(column=0, row=24, columnspan=4, sticky="ew")
 
         frame_begin_label = tk.Label(self, text="Begin frame", font=LARGE_FONT)
         frame_begin_label.grid(row=27, column=0, columnspan=4)
@@ -1057,17 +1055,15 @@ class FittingPage(tk.Frame):
         progress_label = tk.Label(self, text="Progress", font=LARGE_FONT)
         progress_label.grid(row=23, column=12)
 
-        self.progress_status_label = NormalLabel(self, text="Not yet started",
-                                                 bd=1, relief='sunken',
-                                                 row=24, column=12)
+        self.progress_status_label = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
+                                                 row=24, column=12, sticky="ew")
 
         time_label = tk.Label(self, text="Estimated time done", font=LARGE_FONT)
         time_label.grid(row=26, column=12)
 
-        self.time_status_label = NormalLabel(self, text="Not yet started",
-                                             bd=1, relief='sunken',
-                                             row=27, column=12)
-        
+        self.time_status_label = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
+                                             row=27, column=12, sticky="ew")
+
         button_load_new = ttk.Button(self, text="Load new", command=lambda: self.load_new(controller))
         button_load_new.grid(row=50, column=11)
 

@@ -15,7 +15,7 @@ v1.0: rainSTORM slow, but working: 04/06/2020
 v1.1: first set of solvers: 15/06/2020
 v2.0: optimilzations after initial speed check: 17/06/2020
 v2.1: ran second set of solver performance: 21/06/2020
-v2.2: phasor fitter over ROI, dumb phasor fitter, 
+v2.2: phasor fitter over ROI, dumb phasor fitter,
       ROI mover, log gauss fitter, background fitting variable: 22/06/2020
 v3.0: optimization after second speed check. New fitters:
       SettingsScipy, ScipyROIupdater, ScipyLog, ScipyFrameLastFit
@@ -85,47 +85,6 @@ from pims import Frame  # for converting ND2 generator to one numpy array
 from math import pi, atan2
 from cmath import phase
 
-
-# %% Base Phasor
-
-
-class BasePhasor:
-
-    def phasor_fit(self, data):
-        """
-        Parameters
-        ----------
-        data : input ROI
-
-        return: pos x, pos y
-        """
-        if self.roi_size == 9:
-            x_re, x_im, y_re, y_im = fortran_tools.fft9(data)
-        else:
-            x_re, x_im, y_re, y_im = fortran_tools.fft7(data)
-
-        roi_size = self.roi_size
-        ang_x = atan2(x_im, x_re)
-        if ang_x > 0:
-            ang_x = ang_x - 2 * pi
-
-        pos_x = abs(ang_x) / (2 * pi / roi_size) - 1
-
-        ang_y = atan2(y_im, y_re)
-
-        if ang_y > 0:
-            ang_y = ang_y - 2 * pi
-
-        pos_y = abs(ang_y) / (2 * pi / roi_size) - 1
-
-        if pos_x > roi_size:
-            pos_x -= roi_size
-        if pos_y > roi_size:
-            pos_y -= roi_size
-
-        return pos_x, pos_y
-
-
 # %% Scipy last fit guess exlcuding background
 
 TERMINATION_MESSAGES = {
@@ -149,7 +108,7 @@ FROM_MINPACK_TO_COMMON = {
 }
 
 
-class Gaussian(BasePhasor):
+class Gaussian:
     """
     Gaussian fitter with estimated background, build upon Scipy Optimize Least Squares
     """
@@ -176,7 +135,7 @@ class Gaussian(BasePhasor):
         self.__name__ = method
 
         self.num_fit_params = num_fit_params
-        self.params = np.zeros((1000, num_fit_params))
+        self.params = np.zeros((1000, 2))
 
         self.x_scale = np.ones(num_fit_params)
         self.active_mask = np.zeros_like(self.x_scale, dtype=int)
@@ -242,6 +201,40 @@ class Gaussian(BasePhasor):
         elif self.num_fit_params == 6 and self.roi_size == 7:
             return fortran_linalg.dense_dif_bg7(x0, self.rel_step, self.comp,
                                                 self.num_fit_params, self.roi_size, data)
+
+    def phasor_fit(self, data):
+        """
+        Parameters
+        ----------
+        data : input ROI
+
+        return: pos x, pos y
+        """
+        if self.roi_size == 9:
+            x_re, x_im, y_re, y_im = fortran_tools.fft9(data)
+        else:
+            x_re, x_im, y_re, y_im = fortran_tools.fft7(data)
+
+        roi_size = self.roi_size
+        ang_x = atan2(x_im, x_re)
+        if ang_x > 0:
+            ang_x = ang_x - 2 * pi
+
+        pos_x = abs(ang_x) / (2 * pi / roi_size) - 1
+
+        ang_y = atan2(y_im, y_re)
+
+        if ang_y > 0:
+            ang_y = ang_y - 2 * pi
+
+        pos_y = abs(ang_y) / (2 * pi / roi_size) - 1
+
+        if pos_x > roi_size:
+            pos_x -= roi_size
+        if pos_y > roi_size:
+            pos_y -= roi_size
+
+        return pos_x, pos_y
 
     def call_minpack(self, fun, x0, data, ftol, xtol, gtol, max_nfev, diag):
 
@@ -315,7 +308,7 @@ class Gaussian(BasePhasor):
 
         return np.array([height, pos_y, pos_x, self.init_sig, self.init_sig])
 
-    def fitgaussian(self, data, peak_index):
+    def fit_gaussian(self, data, peak_index):
         """Returns (height, x, y, width_x, width_y)
         the gaussian parameters of a 2D distribution found by a fit"""
 
@@ -323,7 +316,7 @@ class Gaussian(BasePhasor):
             params = self.phasor_guess(data)
         else:
             params = self.phasor_guess(data)
-            params[3:] = self.params[peak_index, 3:]
+            params[3:5] = self.params[peak_index, :]
         p = self.least_squares(params, data, max_nfev=100)  # , gtol=1e-4, ftol=1e-4)
 
         return [p.x, p.nfev, p.success]
@@ -358,13 +351,13 @@ class Gaussian(BasePhasor):
             if self.fun_find_max(my_roi) + my_roi_bg < self.threshold:
                 continue
 
-            result, its, success = self.fitgaussian(my_roi, peak_index)
+            result, its, success = self.fit_gaussian(my_roi, peak_index)
 
             if success == 0 or result[0] < 0 or result[2] < 0 or result[2] \
                     > self.roi_size or result[1] < 0 or result[1] > self.roi_size:
                 continue
 
-            self.params[peak_index, :] = result
+            self.params[peak_index, :] = result[3:5]
 
             frame_result[peak_index, 0] = frame_index + start_frame
             frame_result[peak_index, 1] = peak_index
@@ -405,7 +398,7 @@ class Gaussian(BasePhasor):
             n_frames = metadata['sequence_count']
 
         self.roi_locations = roi_locations
-        self.params = np.zeros((self.roi_locations.shape[0], self.num_fit_params))
+        self.params = np.zeros((self.roi_locations.shape[0], 2))
 
         tot_fits = 0
 
@@ -483,13 +476,13 @@ class GaussianBackground(Gaussian):
             if self.fun_find_max(my_roi) < self.threshold:
                 continue
 
-            result, its, success = self.fitgaussian(my_roi, peak_index)
+            result, its, success = self.fit_gaussian(my_roi, peak_index)
 
             if success == 0 or result[1] < -2 or result[2] > self.roi_size + 2 or result[1] < -2 \
                     or result[1] > self.roi_size + 2:
                 continue
 
-            self.params[peak_index, :] = result
+            self.params[peak_index, :] = result[3:5]
 
             frame_result[peak_index, 0] = frame_index + start_frame
             frame_result[peak_index, 1] = peak_index

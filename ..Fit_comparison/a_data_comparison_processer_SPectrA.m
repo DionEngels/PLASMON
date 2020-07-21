@@ -1,8 +1,11 @@
 clear all
 %% setup
-load data_generation_info_v4
+load data_generation_info_generation_v3_offset_corrected
 
 positions = saved.positions;
+
+%positions(:,1) = positions(:,1) + 60;
+%positions(:,2) = positions(:,2) + 60;
 
 pos_x = positions(:,1);
 pos_y = positions(:,2);
@@ -13,20 +16,20 @@ number_y = 10;
 
 n_frames = 1000;
 %% load in data
-load v4/SPectrA_log
+load v7_z_dataset_v3/SPectrA
 
 %% fit checker setup
 columns_not_fitted = [1];
 n_fits_per_frame = (number_x-size(columns_not_fitted,2))*number_y;
 i_fit = 1; % row index
 %% normal
-% x_column = 3; %what column has x-pos in the return data
-% y_column = 5; %what column has y-pos in the return data
-% sigma_column = 4;
+x_column = 3; %what column has x-pos in the return data
+y_column = 5; %what column has y-pos in the return data
+sigma_column = 4;
 %% log
-x_column = 2; %what column has x-pos in the return data
-y_column = 4; %what column has y-pos in the return data
-sigma_column = 3;
+% x_column = 2; %what column has x-pos in the return data
+% y_column = 4; %what column has y-pos in the return data
+% sigma_column = 3;
 %% fit checker %% clear test
 clear res_precision res_accuracy 
 
