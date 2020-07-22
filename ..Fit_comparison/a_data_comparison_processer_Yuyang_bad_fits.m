@@ -1,8 +1,8 @@
 %% load in data
-load v8_Yuyang/Gaussian
+load v8_Yuyang/8_1_Gaussian_Loose
 
-bad_sigma = Localizations(Localizations(:,6) < 0 | Localizations(:,7) < 0 | Localizations(:,6) > 5 | Localizations(:,7) > 5,:);
+bad_sigma = Localizations(Localizations(:,6) < 0 | Localizations(:,7) < 0 | Localizations(:,6) > 4 | Localizations(:,7) > 4,:);
 
-bad_int = Localizations(Localizations(:,5) < 500 | Localizations(:,5) > 30000, :);
+bad_int = Localizations(Localizations(:,5) < 0 | Localizations(:,5) > 2^16-1, :);
 
 max(Localizations(:,9))

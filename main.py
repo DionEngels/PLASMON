@@ -16,10 +16,11 @@ v1.0, main working for .nd2 loading, no custom ROI fitting: 05/06/2020
 v1.1. MATLAB loading: 15/06/2020
 v1.2: own ROI finder: 11/07/2020
 v1.3: 7x7 and 9x9 ROIs: 13/07/2020
-v1.4: removed any wavelength dependancy
+v1.4: removed any wavelength dependency
 v1.5: removed MATLAB ROI finding
 v1.6: MATLAB v3 loading
 v1.7: cleanup
+v1.8: rejection options
 
  """
 
@@ -51,8 +52,10 @@ FILTER_SIZE = 9
 
 filenames = ("C:/Users/s150127/Downloads/_MBx dataset/1nMimager_newGNRs_100mW.nd2",)
 
-METHOD = "GaussianBackground"
+METHOD = "Gaussian"
 DATASET = "MATLAB_v3"  # "MATLAB_v2, "MATLAB_v3" OR "YUYANG"
+THRESHOLD_METHOD = "Loose"  # "Strict", "Loose", or "None"
+
 # %% Main loop cell
 
 for name in filenames:
@@ -88,9 +91,9 @@ for name in filenames:
         # %% Find ROIs (for standard NP2 file)
         print('Starting to find ROIs')
 
-        fitter = fitting.Gaussian(ROI_SIZE, 0, "Gaussian", 5)
+        fitter = fitting.Gaussian(ROI_SIZE, {}, "None", "Gaussian", 5)
 
-        roi_finder = roi_finding.roi_finder(FILTER_SIZE, frames[0], fitter, roi_size=ROI_SIZE)
+        roi_finder = roi_finding.RoiFinder(FILTER_SIZE, frames[0], fitter, roi_size=ROI_SIZE)
 
         if DATASET == "MATLAB_v3":
             roi_finder.int_min = 100
@@ -105,16 +108,19 @@ for name in filenames:
         print('Starting to prepare fitting')
         start = time.time()
 
+        thresholds = {'pixel_min': roi_finder.pixel_min, 'int_min': roi_finder.int_min, 'int_max': roi_finder.int_max,
+                      'sigma_min': roi_finder.sigma_min, 'sigma_max': roi_finder.sigma_max}
+
         if METHOD == "Phasor":
-            fitter = fitting.Phasor(ROI_SIZE, roi_finder.int_min, METHOD)
+            fitter = fitting.Phasor(ROI_SIZE, thresholds, THRESHOLD_METHOD, METHOD)
         elif METHOD == "PhasorDumb":
-            fitter = fitting.PhasorDumb(ROI_SIZE, roi_finder.int_min, METHOD)
+            fitter = fitting.PhasorDumb(ROI_SIZE, thresholds, THRESHOLD_METHOD, METHOD)
         elif METHOD == "PhasorSum":
-            fitter = fitting.PhasorSum(ROI_SIZE, roi_finder.int_min, METHOD)
+            fitter = fitting.PhasorSum(ROI_SIZE, thresholds, THRESHOLD_METHOD, METHOD)
         elif METHOD == "Gaussian":
-            fitter = fitting.Gaussian(ROI_SIZE, roi_finder.int_min, METHOD, 5)
+            fitter = fitting.Gaussian(ROI_SIZE, thresholds, THRESHOLD_METHOD, METHOD, 5)
         elif METHOD == "GaussianBackground":
-            fitter = fitting.GaussianBackground(ROI_SIZE, roi_finder.int_min, METHOD, 6)
+            fitter = fitting.GaussianBackground(ROI_SIZE, thresholds, THRESHOLD_METHOD, METHOD, 6)
 
         results = fitter.main(frames, metadata, ROI_locations)
 

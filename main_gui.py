@@ -22,6 +22,7 @@ v1.13: removed wavelength
 v2.0: new ROI finding method: 20/07/2020
 v2.1: adding additional options for new ROI method
 v2.2: new ROI method finished, new options finished, and new Fitter options
+v2.3: Rejection options
 
 """
 
@@ -65,6 +66,8 @@ LARGE_FONT = ("Verdana", 11)
 
 fit_options = ["Gaussian - Fitted background", "Gaussian - Estimated background",
                "Phasor + Intensity", "Phasor + Sum", "Phasor"]
+
+rejection_options = ["Strict", "Loose", "None"]
 
 roi_size_options = ["7x7", "9x9"]
 
@@ -347,7 +350,7 @@ class FittingPage(tk.Frame):
             tk.messagebox.showerror("ERROR", "Filter size should be odd")
             return False
 
-        self.roi_fitter = fitting.Gaussian(roi_size, 0, "Gaussian", 5)
+        self.roi_fitter = fitting.Gaussian(roi_size, {}, "None", "Gaussian", 5)
 
         self.roi_finder.change_settings(int_min, int_max, corr_min, pixel_min,
                                         sigma_min, sigma_max, roi_size,
@@ -420,10 +423,9 @@ class FittingPage(tk.Frame):
 
     def restore_default(self):
 
-        self.roi_fitter = fitting.Gaussian(7, 0, "Gaussian", 5)
+        self.roi_fitter = fitting.Gaussian(7, {}, "None", "Gaussian", 5)
 
-        self.roi_finder = roi_finding.roi_finder(9, self.frames[0],
-                                                 self.roi_fitter)
+        self.roi_finder = roi_finding.RoiFinder(9, self.frames[0], self.roi_fitter)
 
         self.min_int_slider.updater(from_=0, to=self.roi_finder.int_max / 4,
                                     start=self.roi_finder.int_min)
@@ -545,6 +547,7 @@ class FittingPage(tk.Frame):
         start_frame = self.frame_begin_input.get()
         end_frame = self.frame_end_input.get()
         method = self.method_var.get()
+        rejection_type = self.rejection_var.get()
 
         if n_processes > 1 and (method == "Phasor + Intensity" or method == "Phasor + Sum" or method == "Phasor"):
             cores_check = tk.messagebox.askokcancel("Just a heads up",
@@ -572,18 +575,17 @@ class FittingPage(tk.Frame):
 
             roi_locations = self.roi_locations[dataset_index]
 
-            min_intensity = self.saved_settings[dataset_index]['int_min']
-
             if method == "Phasor + Intensity":
-                fitter = fitting.Phasor(roi_size, min_intensity, method)
+                fitter = fitting.Phasor(roi_size, self.saved_settings[dataset_index], rejection_type, method)
             elif method == "Phasor":
-                fitter = fitting.PhasorDumb(roi_size, min_intensity, method)
+                fitter = fitting.PhasorDumb(roi_size, self.saved_settings[dataset_index], rejection_type, method)
             elif method == "Gaussian - Fitted background":
-                fitter = fitting.GaussianBackground(roi_size, min_intensity, method, 6)
+                fitter = fitting.GaussianBackground(roi_size, self.saved_settings[dataset_index], rejection_type,
+                                                    method, 6)
             elif method == "Gaussian - Estimated background":
-                fitter = fitting.Gaussian(roi_size, min_intensity, method, 5)
+                fitter = fitting.Gaussian(roi_size, self.saved_settings[dataset_index], rejection_type, method, 5)
             else:
-                fitter = fitting.PhasorSum(roi_size, min_intensity, method)
+                fitter = fitting.PhasorSum(roi_size, self.saved_settings[dataset_index], rejection_type, method)
 
             if start_frame == "Leave empty for start" and end_frame == "Leave empty for end":
                 end_frame = self.metadata['sequence_count']
@@ -866,6 +868,9 @@ class FittingPage(tk.Frame):
         self.to_hist = None
         self.roi_fitter = None
 
+        roi_finding_label = tk.Label(self, text="ROI finding", font=HEADER)
+        roi_finding_label.grid(row=0, column=5)
+
         min_corr_label = tk.Label(self, text="Minimum Correlation", font=LARGE_FONT)
         min_corr_label.grid(row=0, column=0, columnspan=2)
 
@@ -943,13 +948,13 @@ class FittingPage(tk.Frame):
         max_sigma_histogram_select.grid(row=6, column=5, columnspan=2)
 
         roi_size_label = tk.Label(self, text="ROI size")
-        roi_size_label.grid(row=8, column=0, columnspan=1)
+        roi_size_label.grid(row=7, column=0, columnspan=2)
 
         self.roi_var = tk.StringVar(self)
         self.roi_var.set(roi_size_options[0])
 
         roi_drop = tk.OptionMenu(self, self.roi_var, *roi_size_options)
-        roi_drop.grid(row=8, column=1, columnspan=1)
+        roi_drop.grid(row=7, column=2, columnspan=2)
 
         filter_label = tk.Label(self, text="Filter size")
         filter_label.grid(row=8, column=2)
@@ -1015,6 +1020,15 @@ class FittingPage(tk.Frame):
 
         method_drop = tk.OptionMenu(self, self.method_var, *fit_options)
         method_drop.grid(column=0, row=24, columnspan=4, sticky="ew")
+
+        rejection_label = tk.Label(self, text="ROI size")
+        rejection_label.grid(row=7, column=5, columnspan=1)
+
+        self.rejection_var = tk.StringVar(self)
+        self.rejection_var.set(rejection_options[1])
+
+        rejection_drop = tk.OptionMenu(self, self.rejection_var, *rejection_options)
+        rejection_drop.grid(row=7, column=7, columnspan=2)
 
         frame_begin_label = tk.Label(self, text="Begin frame", font=LARGE_FONT)
         frame_begin_label.grid(row=27, column=0, columnspan=4)

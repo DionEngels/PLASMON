@@ -72,6 +72,8 @@ v7.7: variance as fit test
 v7.8: back to sigma as fit
 v7.9: max its of 100, working with new ROI finder
 v8.0: PhasorSum, remove LastFit, rename, and clean up
+v8.1: Rejection options
+
 """
 # %% Generic imports
 from __future__ import division, print_function, absolute_import
@@ -113,13 +115,14 @@ class Gaussian:
     Gaussian fitter with estimated background, build upon Scipy Optimize Least Squares
     """
 
-    def __init__(self, roi_size, threshold, method, num_fit_params):
+    def __init__(self, roi_size, thresholds, threshold_method, method, num_fit_params):
         """
 
         Parameters
         ----------
         roi_size : ROI size
-        threshold : minimum intensity to be fitted
+        thresholds : minimum and maximum of fits
+        threshold_method: way to apply threshold
 
         Returns
         -------
@@ -127,11 +130,12 @@ class Gaussian:
 
         """
         self.result = []
-        self.roi_locations = []
+        self.roi_locations = np.ones((1, 2))
         self.roi_size = roi_size
         self.roi_size_1D = int((self.roi_size - 1) / 2)
         self.init_sig = 1.3  # Slightly on the high side probably
-        self.threshold = threshold
+        self.thresholds = thresholds
+        self.threshold_method = threshold_method
         self.__name__ = method
 
         self.num_fit_params = num_fit_params
@@ -207,8 +211,6 @@ class Gaussian:
         Parameters
         ----------
         data : input ROI
-
-        return: pos x, pos y
         """
         if self.roi_size == 9:
             x_re, x_im, y_re, y_im = fortran_tools.fft9(data)
@@ -321,6 +323,25 @@ class Gaussian:
 
         return [p.x, p.nfev, p.success]
 
+    def define_fitter_bounds(self):
+
+        if self.threshold_method == "Strict":
+            pos_max = self.roi_size
+            pos_min = 0
+            int_min = self.thresholds['int_min']
+            int_max = self.thresholds['int_max']
+            sig_min = self.thresholds['sigma_min']
+            sig_max = self.thresholds['sigma_max']
+        else:
+            pos_max = self.roi_size
+            pos_min = 0
+            int_min = 0
+            int_max = (2 ** 16) - 1
+            sig_min = 0
+            sig_max = self.roi_size_1D + 1
+
+        return pos_max, pos_min, int_max, int_min, sig_max, sig_min
+
     def fitter(self, frame_index, frame, start_frame):
         """
         Fits all peaks by scipy least squares fitting
@@ -337,6 +358,8 @@ class Gaussian:
 
         """
 
+        pos_max, pos_min, int_max, int_min, sig_max, sig_min = self.define_fitter_bounds()
+
         frame_result = np.zeros([self.roi_locations.shape[0], 9])
 
         for peak_index, peak in enumerate(self.roi_locations):
@@ -348,14 +371,20 @@ class Gaussian:
             my_roi_bg = self.fun_calc_bg(my_roi)
             my_roi = my_roi - my_roi_bg
 
-            if self.fun_find_max(my_roi) + my_roi_bg < self.threshold:
+            if self.threshold_method == "Strict" and self.fun_find_max(my_roi) < self.thresholds['pixel_min']:
                 continue
 
             result, its, success = self.fit_gaussian(my_roi, peak_index)
 
-            if success == 0 or result[0] < 0 or result[2] < 0 or result[2] \
-                    > self.roi_size or result[1] < 0 or result[1] > self.roi_size:
-                continue
+            if self.threshold_method == "None":
+                if success == 0:
+                    continue
+            else:
+                if success == 0 or \
+                        result[2] < pos_min or result[2] > pos_max or result[1] < pos_min or result[1] > pos_max or \
+                        result[0] < int_min or result[0] > int_max or \
+                        result[3] < sig_min or result[3] > sig_max or result[4] < sig_min or result[4] > sig_max:
+                    continue
 
             self.params[peak_index, :] = result[3:5]
 
@@ -464,6 +493,8 @@ class GaussianBackground(Gaussian):
 
         """
 
+        pos_max, pos_min, int_max, int_min, sig_max, sig_min = self.define_fitter_bounds()
+
         frame_result = np.zeros([self.roi_locations.shape[0], 9])
 
         for peak_index, peak in enumerate(self.roi_locations):
@@ -473,14 +504,21 @@ class GaussianBackground(Gaussian):
 
             my_roi = frame[y - self.roi_size_1D:y + self.roi_size_1D + 1, x - self.roi_size_1D:x + self.roi_size_1D + 1]
 
-            if self.fun_find_max(my_roi) < self.threshold:
+            if self.threshold_method == "Strict" and \
+                    self.fun_find_max(my_roi) - self.fun_calc_bg(my_roi) < self.thresholds['pixel_min']:
                 continue
 
             result, its, success = self.fit_gaussian(my_roi, peak_index)
 
-            if success == 0 or result[1] < -2 or result[2] > self.roi_size + 2 or result[1] < -2 \
-                    or result[1] > self.roi_size + 2:
-                continue
+            if self.threshold_method == "None":
+                if success == 0:
+                    continue
+            else:
+                if success == 0 or \
+                        result[2] < pos_min or result[2] > pos_max or result[1] < pos_min or result[1] > pos_max or \
+                        result[0] < int_min or result[0] > int_max or \
+                        result[3] < sig_min or result[3] > sig_max or result[4] < sig_min or result[4] > sig_max:
+                    continue
 
             self.params[peak_index, :] = result[3:5]
 
@@ -508,12 +546,13 @@ class Phasor:
     Phasor localizer over ROIs
     """
 
-    def __init__(self, roi_size, threshold, method):
+    def __init__(self, roi_size, thresholds, threshold_method, method):
         """
         Parameters
         ----------
         roi_size : ROI size
-        threshold : minimum intensity for fitting
+        thresholds : minimum and maximum of fits
+        threshold_method: way to apply threshold
         method : Name of method
 
         Returns
@@ -526,10 +565,9 @@ class Phasor:
         self.roi_locations = []
         self.roi_size = roi_size
         self.roi_size_1D = int((self.roi_size - 1) / 2)
-        self.threshold = threshold
+        self.thresholds = thresholds
+        self.threshold_method = threshold_method
         self.__name__ = method
-
-        # self.declare_functions()
 
     def fun_find_max(self, roi):
 
@@ -564,7 +602,7 @@ class Phasor:
             my_frame_bg = self.fun_calc_bg(frame)
             frame_max = self.fun_find_max(frame)
 
-            if frame_max < self.threshold:
+            if self.threshold_method == "Strict" and frame_max < self.thresholds['pixel_min']:
                 continue
 
             ang_x = phase(fft_values[0, 1])
@@ -625,7 +663,7 @@ class Phasor:
             y = int(roi[0])
             x = int(roi[1])
             frame_stack = frame_stack_total[:, y - self.roi_size_1D:y + self.roi_size_1D + 1,
-                                            x - self.roi_size_1D:x + self.roi_size_1D + 1]
+                          x - self.roi_size_1D:x + self.roi_size_1D + 1]
 
             roi_result = self.phasor_fit_stack(frame_stack, roi, roi_index, y, x)
 
