@@ -41,7 +41,7 @@ from win32api import GetSystemMetrics  # Get sys info
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
 import matplotlib.patches as patches
 
@@ -96,7 +96,6 @@ rejection_options = ["Strict", "Loose", "None"]
 
 roi_size_options = ["7x7", "9x9"]
 
-
 # %% Multiprocessing main
 
 
@@ -112,7 +111,6 @@ def mt_main(name, fitter, frames_split, roi_locations, shared, q):
 
     for result_index, result in enumerate(local_result):
         shared[9 * result_index:9 * (result_index + 1)] = result[:]
-
 
 # %% Own buttons / fields
 
@@ -130,16 +128,43 @@ class BigButton(ttk.Frame):
         self._btn['state'] = state
 
 
-class FigureFrame(ttk.Frame):
+class FigureFrame(tk.Frame):
     def __init__(self, parent, height=None, width=None, dpi=DPI):
-        ttk.Frame.__init__(self, parent, height=height, width=width)
+        tk.Frame.__init__(self, parent, height=height+40, width=width,
+                          highlightbackground="black", highlightthickness=2)
 
         self.pack_propagate(0)
         self.fig = Figure(figsize=(height / dpi, width / dpi), dpi=dpi)
 
+        self.parent = parent
         self.dpi = dpi
         self.width = width
         self.height = height
+
+        self.canvas = FigureCanvasTkAgg(self.fig, self)
+        self.canvas.draw()
+        self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=1)
+
+        self.toolbar = NavigationToolbar2Tk(self.canvas, self)
+        self.toolbar.update()
+        self.toolbar.configure(background="White")
+
+    def updater(self, frame, roi_locations=None, roi_size=None):
+        self.fig.clear()
+        fig_sub = self.fig.add_subplot(111)
+        fig_sub.imshow(frame, extent=[0, frame.shape[1], frame.shape[0], 0], aspect='auto')
+
+        if roi_locations is not None and roi_size is not None:
+            roi_locations_temp = roi_locations - roi_size
+
+            for roi in roi_locations_temp:
+                rect = patches.Rectangle((roi[1], roi[0]), roi_size*2+1, roi_size*2+1,
+                                         linewidth=0.5, edgecolor='r', facecolor='none')
+                fig_sub.add_patch(rect)
+
+        self.canvas.draw()
+        self.toolbar.update()
+
 
 class EntryPlaceholder(ttk.Entry):
     def __init__(self, master=None, placeholder="PLACEHOLDER", *args, **kwargs):
@@ -351,14 +376,7 @@ class FittingPage(tk.Frame):
         self.frames = self.nd2
         self.metadata = self.nd2.metadata
 
-        self.fig.clear()
-        fig_sub = self.fig.add_subplot(111)
-        fig_sub.imshow(self.frames[0], extent=[0, self.frames[0].shape[1], self.frames[0].shape[0], 0],
-                       aspect='auto')
-
-        self.canvas = FigureCanvasTkAgg(self.fig, self)
-        self.canvas.draw()
-        self.canvas.get_tk_widget().grid(row=0, column=40, columnspan=10, rowspan=12, sticky='EW')
+        self.fig.updater(self.frames[0])
 
         self.restore_default()
 
@@ -403,22 +421,7 @@ class FittingPage(tk.Frame):
 
         self.temp_roi_locations = self.roi_finder.main(self.roi_fitter)
 
-        self.fig.clear()
-        fig_sub = self.fig.add_subplot(111)
-
-        fig_sub.imshow(self.frames[0], extent=[0, self.frames[0].shape[1], self.frames[0].shape[0], 0],
-                       aspect='auto')
-
-        roi_locations_temp = self.temp_roi_locations - self.roi_finder.roi_size_1d
-
-        for roi in roi_locations_temp:
-            rect = patches.Rectangle((roi[1], roi[0]), roi_size, roi_size,
-                                     linewidth=0.5, edgecolor='r', facecolor='none')
-            fig_sub.add_patch(rect)
-
-        self.canvas = FigureCanvasTkAgg(self.fig, self)
-        self.canvas.draw()
-        self.canvas.get_tk_widget().grid(row=0, column=40, columnspan=10, rowspan=12, sticky='EW')
+        self.fig.updater(self.frames[0], roi_locations=self.temp_roi_locations, roi_size=self.roi_finder.roi_size_1d)
 
         return True
 
@@ -502,14 +505,7 @@ class FittingPage(tk.Frame):
         self.frames = self.nd2
         self.metadata = self.nd2.metadata
 
-        self.fig.clear()
-        fig_sub = self.fig.add_subplot(111)
-        fig_sub.imshow(self.frames[0], extent=[0, self.frames[0].shape[1], self.frames[0].shape[0], 0],
-                       aspect='auto')
-
-        self.canvas = FigureCanvasTkAgg(self.fig, self)
-        self.canvas.draw()
-        self.canvas.get_tk_widget().grid(row=0, column=40, columnspan=10, rowspan=12, sticky='EW')
+        self.fig.updater(self.frames[0])
 
         self.restore_default()
 
@@ -544,14 +540,7 @@ class FittingPage(tk.Frame):
         self.frames = self.nd2
         self.metadata = self.nd2.metadata
 
-        self.fig.clear()
-        fig_sub = self.fig.add_subplot(111)
-        fig_sub.imshow(self.frames[0], extent=[0, self.frames[0].shape[1], self.frames[0].shape[0], 0],
-                       aspect='auto')
-
-        self.canvas = FigureCanvasTkAgg(self.fig, self)
-        self.canvas.draw()
-        self.canvas.get_tk_widget().grid(row=0, column=40, columnspan=10, rowspan=12, sticky='EW')
+        self.fig.updater(self.frames[0])
 
         self.restore_default()
 
@@ -883,29 +872,6 @@ class FittingPage(tk.Frame):
         self.histogram.clear()
         self.make_histogram(variable)
 
-    # %% Figure popout
-
-    def figure_popout(self):
-
-        popout = plt.figure(figsize=(GUI_WIDTH / 100, GUI_HEIGHT / 100), dpi=100)
-        fig_sub = popout.add_subplot(111)
-
-        fig_sub.imshow(self.frames[0], extent=[0, self.frames[0].shape[1], self.frames[0].shape[0], 0],
-                       aspect='auto')
-
-        try:
-            roi_locations_temp = self.temp_roi_locations - self.roi_finder.roi_size_1d
-            roi_size = self.roi_finder.roi_size
-
-            for roi in roi_locations_temp:
-                rect = patches.Rectangle((roi[1], roi[0]), roi_size, roi_size,
-                                         linewidth=0.5, edgecolor='r', facecolor='none')
-                fig_sub.add_patch(rect)
-        except:
-            pass  # only when temp_roi_locations not yet defined, before first fit
-
-        plt.show()
-
     # %% Fitting page, initial declaration
 
     def __init__(self, parent, controller, reset=False):
@@ -1066,17 +1032,8 @@ class FittingPage(tk.Frame):
                                  command=lambda: self.save_roi_settings())
         button_save.grid(row=12, column=30, columnspan=10, sticky='EW', padx=PAD_BIG)
 
-        self.fig = Figure(figsize=(GUI_WIDTH / DPI * 0.4, GUI_WIDTH / DPI * 0.4), dpi=DPI)
-        #  self.fig = FigureFrame(self, height=GUI_WIDTH*0.4, width=GUI_WIDTH*0.4, dpi=DPI)
-
-        self.canvas = FigureCanvasTkAgg(self.fig, self)
-        self.canvas.draw()
-        self.canvas.get_tk_widget().grid(row=0, column=40, columnspan=10, rowspan=12, sticky='EW',
-                                         padx=PAD_SMALL)
-
-        button_popout = ttk.Button(self, text="Pop-out to zoom",
-                                   command=lambda: self.figure_popout())
-        button_popout.grid(row=12, column=40, columnspan=10)  # , sticky='EW', padx=PAD_BIG)
+        self.fig = FigureFrame(self, height=GUI_WIDTH*0.4, width=GUI_WIDTH*0.4, dpi=DPI)
+        self.fig.grid(row=0, column=40, columnspan=10, rowspan=13, sticky='EW', padx=PAD_SMALL)
 
         line = ttk.Separator(self, orient='horizontal')
         line.grid(row=18, column=0, rowspan=2, columnspan=50, sticky='we')
