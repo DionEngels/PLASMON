@@ -26,6 +26,7 @@ v2.3: Rejection options
 v2.4: new grid
 v2.5: styling
 v2.6: styling ttk
+v2.7: styling and warnings
 
 """
 
@@ -94,6 +95,7 @@ rejection_options = ["Strict", "Loose", "None"]
 
 roi_size_options = ["7x7", "9x9"]
 
+
 # %% Multiprocessing main
 
 
@@ -154,10 +156,10 @@ class EntryPlaceholder(ttk.Entry):
             self["style"] = "TEntry"
 
 
-class NormalButton(ttk.Button):
+class NormalButton:
     def __init__(self, parent, text=None, row=None, column=None,
                  rowspan=1, columnspan=1, command=None, state='enabled', sticky=None, padx=0, pady=0):
-        super().__init__(parent, text=text, command=command, state=state)
+        self._btn = ttk.Button(parent, text=text, command=command, state=state)
         self.parent = parent
         self.text = text
         self.row = row
@@ -167,24 +169,24 @@ class NormalButton(ttk.Button):
         self.sticky = sticky
         self.padx = padx
         self.pady = pady
-        super().grid(row=row, column=column, rowspan=rowspan, columnspan=columnspan,
-                     sticky=sticky, padx=padx, pady=pady)
+        self._btn.grid(row=row, column=column, rowspan=rowspan, columnspan=columnspan,
+                       sticky=sticky, padx=padx, pady=pady)
 
     def updater(self, command=None, state='enabled', text=None):
         if text is None:
             text = self.text
-        super().grid_forget()
-        super().__init__(self.parent, text=text, command=command, state=state)
-        super().grid(row=self.row, column=self.column, rowspan=self.rowspan, columnspan=self.columnspan,
-                     sticky=self.sticky, padx=self.padx, pady=self.pady)
+        self._btn.destroy()
+        self._btn = ttk.Button(self.parent, text=text, command=command, state=state)
+        self._btn.grid(row=self.row, column=self.column, rowspan=self.rowspan, columnspan=self.columnspan,
+                       sticky=self.sticky, padx=self.padx, pady=self.pady)
 
 
-class NormalSlider(tk.Scale):
+class NormalSlider:
     def __init__(self, parent, from_=0, to=np.inf, resolution=1, start=0,
                  row=None, column=None, rowspan=1, columnspan=1, sticky=None, padx=0, pady=0):
-        super().__init__(parent, from_=from_, to=to, orient='horizontal',
-                         resolution=resolution, bg='white', borderwidth=0, highlightthickness=0)
-        super().set(start)
+        self._scale = tk.Scale(parent, from_=from_, to=to, orient='horizontal',
+                               resolution=resolution, bg='white', borderwidth=0, highlightthickness=0)
+        self._scale.set(start)
         self.parent = parent
         self.from_ = from_
         self.to = to
@@ -197,8 +199,8 @@ class NormalSlider(tk.Scale):
         self.sticky = sticky
         self.padx = padx
         self.pady = pady
-        super().grid(row=self.row, column=self.column, rowspan=self.rowspan, columnspan=self.columnspan,
-                     sticky=sticky, padx=padx, pady=pady)
+        self._scale.grid(row=self.row, column=self.column, rowspan=self.rowspan, columnspan=self.columnspan,
+                         sticky=sticky, padx=padx, pady=pady)
 
     def updater(self, from_=None, to=None, start=None):
         if from_ is None:
@@ -207,23 +209,26 @@ class NormalSlider(tk.Scale):
             to = self.to
         if start is None:
             start = self.start
-        super().grid_forget()
-        super().__init__(self.parent, from_=from_, to=to, orient='horizontal', resolution=self.resolution, bg='white',
-                         borderwidth=0, highlightthickness=0)
-        super().set(start)
-        super().grid(row=self.row, column=self.column, rowspan=self.rowspan, columnspan=self.columnspan,
-                     sticky=self.sticky, padx=self.padx, pady=self.pady)
+        self._scale.destroy()
+        self._scale = tk.Scale(self.parent, from_=from_, to=to, orient='horizontal', resolution=self.resolution,
+                               bg='white', borderwidth=0, highlightthickness=0)
+        self._scale.set(start)
+        self._scale.grid(row=self.row, column=self.column, rowspan=self.rowspan, columnspan=self.columnspan,
+                         sticky=self.sticky, padx=self.padx, pady=self.pady)
         self.from_ = from_
         self.to = to
         self.start = start
 
+    def get(self):
+        return self._scale.get()
 
-class NormalLabel(tk.Label):
+
+class NormalLabel:
     def __init__(self, parent, text=None, font=None, bd=None, relief=None,
                  row=None, column=None, rowspan=1, columnspan=1, sticky=None, padx=0, pady=0):
-        super().__init__(parent, text=text, font=font, bd=bd, relief=relief, bg='white')
-        super().grid(row=row, column=column, rowspan=rowspan, columnspan=columnspan,
-                     sticky=sticky, padx=padx, pady=pady)
+        self._label = tk.Label(parent, text=text, font=font, bd=bd, relief=relief, bg='white')
+        self._label.grid(row=row, column=column, rowspan=rowspan, columnspan=columnspan,
+                         sticky=sticky, padx=padx, pady=pady)
         self.parent = parent
         self.text = text
         self.font = font
@@ -238,10 +243,10 @@ class NormalLabel(tk.Label):
         self.pady = pady
 
     def updater(self, text=None):
-        super().grid_forget()
-        super().__init__(self.parent, text=text, font=self.font, bd=self.bd, relief=self.relief, bg='white')
-        super().grid(row=self.row, column=self.column, rowspan=self.rowspan, columnspan=self.columnspan,
-                     sticky=self.sticky, padx=self.padx, pady=self.pady)
+        self._label.destroy()
+        self._label = tk.Label(self.parent, text=text, font=self.font, bd=self.bd, relief=self.relief, bg='white')
+        self._label.grid(row=self.row, column=self.column, rowspan=self.rowspan, columnspan=self.columnspan,
+                         sticky=self.sticky, padx=self.padx, pady=self.pady)
 
 
 # %% Container
@@ -438,12 +443,12 @@ class FittingPage(tk.Frame):
 
         self.saved_settings[self.dataset_index] = settings
 
-        self.roi_status.updater(text=str(len(self.roi_locations)) + " of "
-                                     + str(len(self.filenames)) + " have settings")
+        self.roi_status.updater(text=str(len(self.roi_locations)) + " of " + str(len(
+            self.filenames)) + " have settings")
         self.button_restore_saved.updater(command=lambda: self.restore_saved())
 
         if len(self.roi_locations) == len(self.filenames):
-            self.button_fit.grid_forget()
+            self.button_fit.destroy()
             self.button_fit = BigButton(self, text="FIT", height=int(GUI_HEIGHT / 8),
                                         width=int(GUI_WIDTH / 8),
                                         command=lambda: self.start_fitting())
@@ -579,10 +584,25 @@ class FittingPage(tk.Frame):
         method = self.method_var.get()
         rejection_type = self.rejection_var.get()
 
+        if rejection_type != "None" and (method == "Phasor + Sum" or method == "Phasor"):
+            rejection_check = tk.messagebox.askokcancel("Just a heads up",
+                                                        """These Phasor methods have no rejection options,
+            so "None" rejection will be used""")
+            if not rejection_check:
+                return
+
+        if rejection_type == "Loose" and method == "Phasor + Intensity":
+            rejection_check = tk.messagebox.askokcancel("Just a heads up",
+                                                        """This Phasor method can only do "Strict" or
+            "None" rejection. "Loose" will be changed to "None".""")
+            rejection_type = "None"
+            if not rejection_check:
+                return
+
         if n_processes > 1 and (method == "Phasor + Intensity" or method == "Phasor + Sum" or method == "Phasor"):
             cores_check = tk.messagebox.askokcancel("Just a heads up",
                                                     """Phasor will be used with one core since the
-                                                    overhead only slows it down""")
+            overhead only slows it down""")
             if not cores_check:
                 return
             n_processes = 1
@@ -1126,7 +1146,7 @@ class FittingPage(tk.Frame):
         self.time_status_label = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
                                              row=27, column=45, columnspan=5, sticky="ew", font=FONT_LABEL)
 
-        button_load_new = ttk.Button(self, text="Load new", command=lambda: self.load_new(controller))
+        button_load_new = ttk.Button(self, text="Load new", command=lambda: self.load_new(parent))
         button_load_new.grid(row=50, column=45, columnspan=2, sticky='EW', padx=PAD_SMALL)
 
         button_quit = ttk.Button(self, text="Quit", command=quit_program)
@@ -1150,17 +1170,8 @@ if __name__ == '__main__':
     ttk_style.configure("TButton", font=FONT_BUTTON, background="Grey")
     ttk_style.configure("TSeparator", background="black")
     ttk_style.configure("TMenubutton", font=FONT_DROP, background="White")
-    # , highlightthickness='20', relief="sunken", fieldbackground="white")
 
-    print(ttk_style.layout('TSeparator'))
-    print(ttk_style.element_options('Separator.separator'))
-
-    print(ttk_style.layout("TMenubutton"))
-    print(ttk_style.element_options('Menubutton.dropdown'))
-    print(ttk_style.element_options('Menubutton.button'))
-    print(ttk_style.element_options('Menubutton.padding'))
-    print(ttk_style.element_options('Menubutton.label'))
+    #  print(ttk_style.layout("TMenubutton"))
+    #  print(ttk_style.element_options('Menubutton.dropdown'))
 
     gui.mainloop()
-
-
