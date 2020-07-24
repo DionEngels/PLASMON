@@ -27,6 +27,7 @@ v2.4: new grid
 v2.5: styling
 v2.6: styling ttk
 v2.7: styling and warnings
+v2.8: New method of destroy and updating
 
 """
 
@@ -125,6 +126,20 @@ class BigButton(ttk.Frame):
         self._btn.pack(fill=tk.BOTH, expand=1)
         self._btn["style"] = "Big.TButton"
 
+    def updater(self, state='enabled'):
+        self._btn['state'] = state
+
+
+class FigureFrame(ttk.Frame):
+    def __init__(self, parent, height=None, width=None, dpi=DPI):
+        ttk.Frame.__init__(self, parent, height=height, width=width)
+
+        self.pack_propagate(0)
+        self.fig = Figure(figsize=(height / dpi, width / dpi), dpi=dpi)
+
+        self.dpi = dpi
+        self.width = width
+        self.height = height
 
 class EntryPlaceholder(ttk.Entry):
     def __init__(self, master=None, placeholder="PLACEHOLDER", *args, **kwargs):
@@ -175,10 +190,9 @@ class NormalButton:
     def updater(self, command=None, state='enabled', text=None):
         if text is None:
             text = self.text
-        self._btn.destroy()
-        self._btn = ttk.Button(self.parent, text=text, command=command, state=state)
-        self._btn.grid(row=self.row, column=self.column, rowspan=self.rowspan, columnspan=self.columnspan,
-                       sticky=self.sticky, padx=self.padx, pady=self.pady)
+        self._btn['text'] = text
+        self._btn['state'] = state
+        self._btn['command'] = command
 
 
 class NormalSlider:
@@ -209,12 +223,9 @@ class NormalSlider:
             to = self.to
         if start is None:
             start = self.start
-        self._scale.destroy()
-        self._scale = tk.Scale(self.parent, from_=from_, to=to, orient='horizontal', resolution=self.resolution,
-                               bg='white', borderwidth=0, highlightthickness=0)
+        self._scale.configure(from_=from_, to=to)
         self._scale.set(start)
-        self._scale.grid(row=self.row, column=self.column, rowspan=self.rowspan, columnspan=self.columnspan,
-                         sticky=self.sticky, padx=self.padx, pady=self.pady)
+
         self.from_ = from_
         self.to = to
         self.start = start
@@ -243,13 +254,12 @@ class NormalLabel:
         self.pady = pady
 
     def updater(self, text=None):
-        self._label.destroy()
-        self._label = tk.Label(self.parent, text=text, font=self.font, bd=self.bd, relief=self.relief, bg='white')
-        self._label.grid(row=self.row, column=self.column, rowspan=self.rowspan, columnspan=self.columnspan,
-                         sticky=self.sticky, padx=self.padx, pady=self.pady)
-
+        if text is None:
+            text = self.text
+        self._label['text'] = text
 
 # %% Container
+
 
 class MbxPython(tk.Tk):
 
@@ -448,11 +458,7 @@ class FittingPage(tk.Frame):
         self.button_restore_saved.updater(command=lambda: self.restore_saved())
 
         if len(self.roi_locations) == len(self.filenames):
-            self.button_fit.destroy()
-            self.button_fit = BigButton(self, text="FIT", height=int(GUI_HEIGHT / 8),
-                                        width=int(GUI_WIDTH / 8),
-                                        command=lambda: self.start_fitting())
-            self.button_fit.grid(row=23, column=40, columnspan=5, rowspan=5)
+            self.button_fit.updater(state='enabled')
 
     # %% Fitting page, restore default settings
 
@@ -1061,6 +1067,7 @@ class FittingPage(tk.Frame):
         button_save.grid(row=12, column=30, columnspan=10, sticky='EW', padx=PAD_BIG)
 
         self.fig = Figure(figsize=(GUI_WIDTH / DPI * 0.4, GUI_WIDTH / DPI * 0.4), dpi=DPI)
+        #  self.fig = FigureFrame(self, height=GUI_WIDTH*0.4, width=GUI_WIDTH*0.4, dpi=DPI)
 
         self.canvas = FigureCanvasTkAgg(self.fig, self)
         self.canvas.draw()
