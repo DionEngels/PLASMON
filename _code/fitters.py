@@ -5,90 +5,40 @@ Created on Sun May 31 22:58:08 2020
 @author: Dion Engels
 MBx Python Data Analysis
 
-Gaussian fitting
+Fitters
 
 ----------------------------
 
 v0.1: Setup: 31/05/2020
-v0.2: Bugged rainSTORM inspired: 03/06/2020
 v1.0: rainSTORM slow, but working: 04/06/2020
-v1.1: first set of solvers: 15/06/2020
 v2.0: optimilzations after initial speed check: 17/06/2020
-v2.1: ran second set of solver performance: 21/06/2020
-v2.2: phasor fitter over ROI, dumb phasor fitter,
-      ROI mover, log gauss fitter, background fitting variable: 22/06/2020
 v3.0: optimization after second speed check. New fitters:
       SettingsScipy, ScipyROIupdater, ScipyLog, ScipyFrameLastFit
       ScipyROIloopBackground, PhasorROILoop, PhasorROILoopDum: 27/06/2020
 v3.1: Last fit frame loop with new method: 28/06/2020
 v4.0: removed all unneeded fitters
-v4.1: Dions fitter v1
-v4.2: Dions fitter v2
-v4.3: small optimization of Scipy
-v4.4: attempt of stripped least squares function
-v4.5: cached: 06/07/2020
-v4.6: cached class
-v4.7: added approx_derivative to class
-v4.8: passing f0 through the class
-v4.9: new method of background determination
-v4.10: own dense difference
-v4.11: only check intensity = 0 for save params
-v4.12: also cache for derivative
-v4.13: cleanup
-v4.14: intensity invariant cache
-v4.15: intensity back in cache
-v4.16: background in fit
-v4.17: further cleanup
 v5.0: Three versions of cached fitter
-v5.1: limited size of cache
-v5.2: caching bugfix v1
-v5.3: invariant caching test
-v5.4: complete clear test
-v5.5: complete clear FORTRAN
-v5.6: invariant cache FORTRAN
-v5.7: small improvemnet, remove derivate cache
-v5.8: improvement fun_wrapped, deletion old gaussian
-v5.9: without caching
-v5.10: alternative last fits
-v5.11: data to FORTRAN
-v5.12: data to FORTAN v2
-v5.13: dense_differnece in FORTRAN
-v5.14: cleanup of FORTRAN and Python code
 v6.0: FORTRAN enabled without cache, ST
-v6.1: cutoff intensity
-v6.2: stricter rejection and only save params if succesful
-v6.3: threshold from ROI finder
-v6.4: ROI size 7 implementation
-v6.5: own norm
-v6.6: FORTRAN tools: max, norm, and calc bg
 v7.0: cleanup and declare_functions function: 14/07/2020
-v7.1: revert lambda implementation for MT
-v7.2: change in phasor guess
-v7.3: further change in phasor bounds.
-v7.4: changes for MP status updates
-v7.5: removed any wavelength dependancy
-v7.6: add FORTRAN fft and min
-v7.7: variance as fit test
-v7.8: back to sigma as fit
-v7.9: max its of 100, working with new ROI finder
 v8.0: PhasorSum, remove LastFit, rename, and clean up
-v8.1: Rejection options
-v8.2: change rejection options Phasor fits
-
+v9.0: Gaussian fitting (with or without background) and three Phasor fitters: 24/07/2020
 """
-# %% Generic imports
+# %% Imports
 from __future__ import division, print_function, absolute_import
-import numpy as np
-from scipy.optimize import _minpack, OptimizeResult
-from scipy.optimize._lsq.common import EPS
-import _code.MBx_FORTRAN_v5 as fortran_linalg
-import _code.MBx_FORTRAN_TOOLS_v2 as fortran_tools
-from pyfftw import empty_aligned, FFTW  # for FFT
-from pims import Frame  # for converting ND2 generator to one numpy array
-from math import pi, atan2
-from cmath import phase
 
-# %% Scipy last fit guess exlcuding background
+import numpy as np  # general mathematics + arrays
+from pims import Frame  # for converting ND2 generator to one numpy array
+
+from scipy.optimize import _minpack, OptimizeResult  # for Gaussian fitter
+
+import _code.mbx_fortran as fortran_linalg  # for fast self-made operations for Gaussian fitter
+import _code.mbx_fortran_tools as fortran_tools  # for fast self-made general operations
+
+from pyfftw import empty_aligned, FFTW  # for FFT for Phasor
+from math import pi, atan2  # general mathematics
+from cmath import phase  # general mathematics
+
+# %% Gaussian fitter with estimated background
 
 TERMINATION_MESSAGES = {
     -1: "Improper input parameters status returned from `leastsq`",
@@ -110,12 +60,13 @@ FROM_MINPACK_TO_COMMON = {
     # but we guard against it by checking ftol, xtol, gtol beforehand.
 }
 
+EPS = np.finfo(float).eps
+
 
 class Gaussian:
     """
-    Gaussian fitter with estimated background, build upon Scipy Optimize Least Squares
+    Gaussian fitter with estimated background, build upon Scipy Optimize Least-Squares
     """
-
     def __init__(self, roi_size, thresholds, threshold_method, method, num_fit_params):
         """
 
@@ -154,35 +105,91 @@ class Gaussian:
         self.comp = np.ones(num_fit_params)
 
     def fun_find_max(self, roi):
+        """
+        Input ROI, returns max using FORTRAN
 
+        Parameters
+        ----------
+        roi : region of interest
+
+        Returns
+        -------
+        maximum
+
+        """
         if self.roi_size == 9:
             return fortran_tools.max9(roi)
         elif self.roi_size == 7:
             return fortran_tools.max7(roi)
 
     def fun_find_min(self, roi):
+        """
+        Input ROI, returns minimum using FORTRAN
 
+        Parameters
+        ----------
+        roi : region of interest
+
+        Returns
+        -------
+        minimum
+
+        """
         if self.roi_size == 9:
             return fortran_tools.min9(roi)
         elif self.roi_size == 7:
             return fortran_tools.min7(roi)
 
     def fun_calc_bg(self, roi):
+        """
+        Input ROI, returns background using FORTRAN
 
+        Parameters
+        ----------
+        roi : region of interest
+
+        Returns
+        -------
+        background
+
+        """
         if self.roi_size == 9:
             return fortran_tools.calc_bg9(roi)
         elif self.roi_size == 7:
             return fortran_tools.calc_bg7(roi)
 
     def fun_norm(self, g):
+        """
+        Input 5 or 6 long array, returns norm using FORTRAN
 
+        Parameters
+        ----------
+        g : vector of norm is to be found
+
+        Returns
+        -------
+        norm of g
+
+        """
         if self.num_fit_params == 5:
             return fortran_tools.norm5(g)
         elif self.num_fit_params == 6:
             return fortran_tools.norm6(g)
 
     def fun_gaussian(self, x, data):
+        """
+        Creates a gaussian with parameters x, returns difference between that and data using FORTRAN
 
+        Parameters
+        ----------
+        x : Parameters of Gaussian
+        data : ROI pixel values to be subtracted from created Gaussian
+
+        Returns
+        -------
+        Difference between created 2D Gaussian and data
+
+        """
         if self.num_fit_params == 5 and self.roi_size == 9:
             return fortran_linalg.gaussian(*x, self.roi_size, data)
         elif self.num_fit_params == 5 and self.roi_size == 7:
@@ -193,7 +200,19 @@ class Gaussian:
             return fortran_linalg.gs_bg7(*x, self.roi_size, data)
 
     def fun_jacobian(self, x0, data):
+        """
+        Generated jacobian using FORTRAN
 
+        Parameters
+        ----------
+        x0 : Parameters of Gaussian
+        data : ROI pixel values to be subtracted from created Gaussian
+
+        Returns
+        -------
+        Jacobian
+
+        """
         if self.num_fit_params == 5 and self.roi_size == 9:
             return fortran_linalg.dense_dif(x0, self.rel_step, self.comp,
                                             self.num_fit_params, self.roi_size, data)
@@ -207,35 +226,26 @@ class Gaussian:
             return fortran_linalg.dense_dif_bg7(x0, self.rel_step, self.comp,
                                                 self.num_fit_params, self.roi_size, data)
 
-    def phasor_fit(self, data):
+    def call_minpack(self, fun, x0, data, ftol, xtol, gtol, max_nfev, diag):
         """
+        Caller of minpack, which is the iterative method of Python
+
         Parameters
         ----------
-        data : input ROI
+        fun : Function to be fitted
+        x0 : Parameters
+        data : Data to be compared to
+        ftol : function tolerance
+        xtol : parameter tolerance
+        gtol : gradient tolerance
+        max_nfev : max iterations
+        diag : diagonal
+
+        Returns
+        -------
+        Iterated result
+
         """
-        if self.roi_size == 9:
-            x_re, x_im, y_re, y_im = fortran_tools.fft9(data)
-        else:
-            x_re, x_im, y_re, y_im = fortran_tools.fft7(data)
-
-        roi_size = self.roi_size
-        ang_x = atan2(x_im, x_re)
-        if ang_x > 0:
-            ang_x = ang_x - 2 * pi
-
-        pos_x = abs(ang_x) / (2 * pi / roi_size) - 1
-
-        ang_y = atan2(y_im, y_re)
-
-        if ang_y > 0:
-            ang_y = ang_y - 2 * pi
-
-        pos_y = abs(ang_y) / (2 * pi / roi_size) - 1
-
-        return pos_x, pos_y
-
-    def call_minpack(self, fun, x0, data, ftol, xtol, gtol, max_nfev, diag):
-
         n = x0.size
         epsfcn = EPS
 
@@ -269,7 +279,27 @@ class Gaussian:
 
     def least_squares(self, x0, data, ftol=1e-8, xtol=1e-8, gtol=1e-8,
                       max_nfev=None):
+        """
+        The least-squares iterator. Does preperation before minpack iterator is called
 
+        Parameters
+        ----------
+        x0 : parameters to be fitted
+        data : data to be fitter to
+        ftol : optional function tolerance. The default is 1e-8.
+        xtol : optional parameter tolerance. The default is 1e-8.
+        gtol : optional gradient tolerance. The default is 1e-8.
+        max_nfev : optional max iterations. The default is None.
+
+        Raises
+        ------
+        ValueError: in case you did anything wrong, should not happen if you just input a 2D Gaussian
+
+        Returns
+        -------
+        Iterated result
+
+        """
         def fun_wrapped(x):
 
             return self.fun_gaussian(x, data)
@@ -299,17 +329,75 @@ class Gaussian:
 
         return result
 
+    def phasor_fit(self, data):
+        """
+        Does Phasor fit to estimate parameters using FORTRAN
+
+        Parameters
+        ----------
+        data : ROI pixel values
+
+        Returns
+        -------
+        pos_x : position in x-direction in ROI
+        pos_y : position in y-direction in ROI
+
+        """
+        if self.roi_size == 9:
+            x_re, x_im, y_re, y_im = fortran_tools.fft9(data)
+        else:
+            x_re, x_im, y_re, y_im = fortran_tools.fft7(data)
+
+        roi_size = self.roi_size
+        ang_x = atan2(x_im, x_re)
+        if ang_x > 0:
+            ang_x = ang_x - 2 * pi
+
+        pos_x = abs(ang_x) / (2 * pi / roi_size) - 1
+
+        ang_y = atan2(y_im, y_re)
+
+        if ang_y > 0:
+            ang_y = ang_y - 2 * pi
+
+        pos_y = abs(ang_y) / (2 * pi / roi_size) - 1
+
+        return pos_x, pos_y
+
     def phasor_guess(self, data):
-        """ Returns an initial guess based on phasor fitting"""
+        """
+        Returns an initial guess based on phasor fitting
+
+        Parameters
+        ----------
+        data : ROI pixel values
+
+        Returns
+        -------
+        Parameters for Gaussian fitting. In order: height, position y, position x, y-sigma, x-sigma.
+
+        """
         pos_x, pos_y = self.phasor_fit(data)
         height = data[int(pos_y), int(pos_x)] - self.fun_find_min(data)
 
         return np.array([height, pos_y, pos_x, self.init_sig, self.init_sig])
 
     def fit_gaussian(self, data, peak_index):
-        """Returns (height, x, y, width_x, width_y)
-        the gaussian parameters of a 2D distribution found by a fit"""
+        """
+        Gathers parameter estimate and calls fit.
 
+        Parameters
+        ----------
+        data : ROI pixel values
+        peak_index : Number of ROI that is being fitter.
+
+        Returns
+        -------
+        p.x: solution of parameters
+        p.nfev: number of iterations
+        p.success: success or failure
+
+        """
         if self.params[peak_index, 0] == 0:
             params = self.phasor_guess(data)
         else:
@@ -320,7 +408,19 @@ class Gaussian:
         return [p.x, p.nfev, p.success]
 
     def define_fitter_bounds(self):
+        """
+        Defines fitter bounds, based on "Strict" bounds or not
 
+        Returns
+        -------
+        pos_max : Max position of fit
+        pos_min : Min position of fit
+        int_max : Max intensity of fit
+        int_min : Min intensity of fit
+        sig_max : Max sigma of fit
+        sig_min : Min sigma of fit
+
+        """
         if self.threshold_method == "Strict":
             pos_max = self.roi_size
             pos_min = 0
@@ -332,7 +432,7 @@ class Gaussian:
             pos_max = self.roi_size
             pos_min = 0
             int_min = 0
-            int_max = (2 ** 16) - 1
+            int_max = ((2 ** 16) - 1) * 1.5  # 50% margin over maximum pixel value possible
             sig_min = 0
             sig_max = self.roi_size_1D + 1
 
@@ -340,20 +440,19 @@ class Gaussian:
 
     def fitter(self, frame_index, frame, start_frame):
         """
-        Fits all peaks by scipy least squares fitting
+        Fits all peaks by Gaussian least-squares fitting
 
         Parameters
         ----------
         frame_index : Index of frame
-        frame : frame
-        start_frame:
+        frame : frame to be fitted
+        start_frame: in case of multiprocessing, the number of the first frame passed to this thread/process
 
         Returns
         -------
         frame_result : fits of each frame
 
         """
-
         pos_max, pos_min, int_max, int_min, sig_max, sig_min = self.define_fitter_bounds()
 
         frame_result = np.zeros([self.roi_locations.shape[0], 9])
@@ -408,11 +507,11 @@ class Gaussian:
         ----------
         frames : All frames of .nd2 video
         metadata : Metadata of .nd2 video
-        start_frame:
-        n_frames:
-        gui:
-        q:
-        roi_locations:
+        start_frame: in case of multiprocessing, the frame number of the first frame passed to this thread/process
+        n_frames: number of frames passed to this main
+        gui: GUI object in case GUI is used
+        q: queue object in case multiprocessing is used
+        roi_locations: locations of ROI
 
         Returns
         -------
@@ -464,9 +563,22 @@ class Gaussian:
 
 
 class GaussianBackground(Gaussian):
-
+    """
+    Gaussian fitter with fitted background, build upon Scipy Optimize Least-Squares
+    """
     def phasor_guess(self, data):
-        """ Returns an initial guess based on phasor fitting"""
+        """
+        Returns an initial guess based on phasor fitting
+
+        Parameters
+        ----------
+        data : ROI pixel values
+
+        Returns
+        -------
+        Parameters for Gaussian fitting. In order: height, position y, position x, y-sigma, x-sigma, background.
+
+        """
         pos_x, pos_y = self.phasor_fit(data)
         background = self.fun_calc_bg(data)
         height = data[int(pos_y), int(pos_x)] - background
@@ -475,20 +587,19 @@ class GaussianBackground(Gaussian):
 
     def fitter(self, frame_index, frame, start_frame):
         """
-        Fits all peaks by scipy least squares fitting
+        Fits all peaks by Gaussian least-squares fitting
 
         Parameters
         ----------
         frame_index : Index of frame
-        frame : frame
-        start_frame :
+        frame : frame to be fitted
+        start_frame: in case of multiprocessing, the number of the first frame passed to this thread/process
 
         Returns
         -------
         frame_result : fits of each frame
 
         """
-
         pos_max, pos_min, int_max, int_min, sig_max, sig_min = self.define_fitter_bounds()
 
         frame_result = np.zeros([self.roi_locations.shape[0], 9])
@@ -533,15 +644,13 @@ class GaussianBackground(Gaussian):
 
         return frame_result
 
-
 # %% Phasor for ROI loops
 
 
 class Phasor:
     """
-    Phasor localizer over ROIs
+    Phasor fitting using Fourier Transform. Also returns intensity of pixel in which Phasor position is found.
     """
-
     def __init__(self, roi_size, thresholds, threshold_method, method):
         """
         Parameters
@@ -556,7 +665,6 @@ class Phasor:
         None.
 
         """
-
         self.result = []
         self.roi_locations = []
         self.roi_size = roi_size
@@ -566,21 +674,55 @@ class Phasor:
         self.__name__ = method
 
     def fun_find_max(self, roi):
+        """
+        Input ROI, returns max using FORTRAN
 
+        Parameters
+        ----------
+        roi : region of interest
+
+        Returns
+        -------
+        maximum
+
+        """
         if self.roi_size == 9:
             return fortran_tools.max9(roi)
         elif self.roi_size == 7:
             return fortran_tools.max7(roi)
 
     def fun_calc_bg(self, roi):
+        """
+        Input ROI, returns background using FORTRAN
 
+        Parameters
+        ----------
+        roi : region of interest
+
+        Returns
+        -------
+        background
+
+        """
         if self.roi_size == 9:
             return fortran_tools.calc_bg9(roi)
         elif self.roi_size == 7:
             return fortran_tools.calc_bg7(roi)
 
     def fft_to_pos(self, fft_values):
+        """
+        Convert the found Fourier transform to a Phasor position
 
+        Parameters
+        ----------
+        fft_values : Fourier transform of ROI
+
+        Returns
+        -------
+        pos_x : x-position of Phasor
+        pos_y : y-position of Phasor
+
+        """
         ang_x = phase(fft_values[0, 1])
         if ang_x > 0:
             ang_x = ang_x - 2 * pi
@@ -596,8 +738,22 @@ class Phasor:
 
         return pos_x, pos_y
 
-    def phasor_fit_stack(self, frame_stack, roi, roi_index, y, x):
+    def phasor_fit_stack(self, frame_stack, roi_index, y, x):
+        """
+        Applies phasor fitting to an entire stack of frames of one ROI
 
+        Parameters
+        ----------
+        frame_stack : stack of frames of a single ROI
+        roi_index : Index of ROI that is currently being fitted
+        y : y-location with respect to total microscope frame of currently fitted ROI
+        x : x-location with respect to total microscope frame of currently fitted ROI
+
+        Returns
+        -------
+        roi_result : Result of all the frames of the current ROI
+
+        """
         roi_result = np.zeros([frame_stack.shape[0], 6])
 
         roi_bb = empty_aligned(frame_stack.shape, dtype='float64')
@@ -643,9 +799,9 @@ class Phasor:
         ----------
         frames : All frames of .nd2 video
         metadata : Metadata of .nd2 video
-        roi_locations:
-        gui:
-        n_frames:
+        roi_locations: locations of all the ROIs
+        gui: GUI object in case GUI is used
+        n_frames: Total number of frames to be fitted
 
         Returns
         -------
@@ -665,7 +821,7 @@ class Phasor:
             frame_stack = frame_stack_total[:, y - self.roi_size_1D:y + self.roi_size_1D + 1,
                           x - self.roi_size_1D:x + self.roi_size_1D + 1]
 
-            roi_result = self.phasor_fit_stack(frame_stack, roi, roi_index, y, x)
+            roi_result = self.phasor_fit_stack(frame_stack, roi_index, y, x)
 
             if created == 0:
                 n_fits = roi_result.shape[0]
@@ -694,13 +850,29 @@ class Phasor:
 
         return self.result
 
-
 # %% Dumb phasor ROI loop
 
+
 class PhasorDumb(Phasor):
+    """
+    Dumb Phasor. Does not return intensity of found location.
+    """
+    def phasor_fit_stack(self, frame_stack, roi_index, y, x):
+        """
+        Applies phasor fitting to an entire stack of frames of one ROI
 
-    def phasor_fit_stack(self, frame_stack, roi, roi_index, y, x):
+        Parameters
+        ----------
+        frame_stack : stack of frames of a single ROI
+        roi_index : Index of ROI that is currently being fitted
+        y : y-location with respect to total microscope frame of currently fitted ROI
+        x : x-location with respect to total microscope frame of currently fitted ROI
 
+        Returns
+        -------
+        roi_result : Result of all the frames of the current ROI
+
+        """
         roi_result = np.zeros([frame_stack.shape[0], 4])
 
         roi_bb = empty_aligned(frame_stack.shape, dtype='float64')
@@ -730,14 +902,29 @@ class PhasorDumb(Phasor):
 
         return roi_result
 
-
 # %% Phasor with sum
 
 
 class PhasorSum(Phasor):
+    """
+    Phasor Sum. Also returns summation of entire ROI
+    """
+    def phasor_fit_stack(self, frame_stack, roi_index, y, x):
+        """
+        Applies phasor fitting to an entire stack of frames of one ROI
 
-    def phasor_fit_stack(self, frame_stack, roi, roi_index, y, x):
+        Parameters
+        ----------
+        frame_stack : stack of frames of a single ROI
+        roi_index : Index of ROI that is currently being fitted
+        y : y-location with respect to total microscope frame of currently fitted ROI
+        x : x-location with respect to total microscope frame of currently fitted ROI
 
+        Returns
+        -------
+        roi_result : Result of all the frames of the current ROI
+
+        """
         roi_result = np.zeros([frame_stack.shape[0], 5])
 
         roi_bb = empty_aligned(frame_stack.shape, dtype='float64')

@@ -26,12 +26,10 @@ v1.8: rejection options
 
 # GENERAL IMPORTS
 import os  # to get standard usage
-# import math # for generic math
 import time  # for timekeeping
 
 # Numpy and matplotlib, for linear algebra and plotting respectively
 import numpy as np
-# import matplotlib.pyplot as plt
 
 # ND2 related
 from pims import ND2_Reader  # reader of ND2 files

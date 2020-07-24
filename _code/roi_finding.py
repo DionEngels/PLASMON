@@ -5,23 +5,16 @@ Created on Sun May 31 20:20:29 2020
 @author: Dion Engels
 MBx Python Data Analysis
 
-Frame Analysis
+ROI finding
 
 ----------------------------
 
 v1.0, ROI detection:  31/05/2020
 v1.1, conventional naming: 04/06/2020
 v2.0: self-made ROI finding: 10/07/2020
-v2.1: tweaks with standard min intensity: 14/07/2020
-v2.2: tweaked max sigma and max intensity: 17/07/2020
-v2.3: return sigmas option for histograms
-v2.4: tweaking removing ROIs with nearby ROIs: 18/07/2020
-v2.5: worked on main_v2, which uses correlation of 2D gaussian
 v3.0: clean up and based on SPectrA; correlation, pixel_int, sigma and int
-v3.1: adaptations to GUI
-v3.2: further adaptations for GUI
-v3.3: cleanup
 v4.0: bug fix ROI distance, ready for Peter review
+v4.1: clean up
 
 """
 import numpy as np  # for linear algebra
@@ -29,27 +22,35 @@ from scipy.signal import medfilt, convolve2d
 from scipy.stats import norm
 from scipy.ndimage.filters import maximum_filter
 
-
 # %% Python ROI finder
 
 
 class RoiFinder:
-
-    def determine_threshold_min(self):
-
-        frame_ravel = np.ravel(self.frame)
-        mean = 0
-        std = 0
-
-        for _ in range(10):
-            mean, std = norm.fit(frame_ravel)
-            frame_ravel = frame_ravel[frame_ravel < mean + std * 5]
-
-        return mean + self.threshold_sigma * std
-
+    """
+    Class to find ROIs in the first frame of a microscope video
+    """
     def __init__(self, filter_size, frame, fitter, pixel_min=None, corr_min=0.05,
                  sigma_min=0, sigma_max=None, int_min=None, int_max=None,
                  roi_size=7):
+        """
+        Parameters
+        ----------
+        filter_size : Size of filter in pixels
+        frame : Frame in which ROIs will be found
+        fitter : Fitter to fit ROIs with. Is Gaussian fitter.
+        pixel_min : optional, minimum pixel value threshold. The default is None.
+        corr_min : optional, minimum correlation value threshold. The default is 0.05.
+        sigma_min : optional, minimum sigma value threshold. The default is 0.
+        sigma_max : optional, maximum sigma value threshold. The default is None.
+        int_min : optional, minimum intensity value threshold. The default is None.
+        int_max : optional, maximum intensity value threshold. The default is None.
+        roi_size : optional, roi size.  The default is 7.
+
+        Returns
+        -------
+        None.
+
+        """
 
         self.filter_size = int(filter_size)
         self.roi_size = roi_size
@@ -98,10 +99,49 @@ class RoiFinder:
             self.sigma_max = sigma_max
             self.int_max = int_max
 
+    def determine_threshold_min(self):
+        """
+        Automatic threshold determination of pixel values. Only used when threshold is not set by user
+
+        Returns
+        -------
+        Threshold
+
+        """
+        frame_ravel = np.ravel(self.frame)
+        mean = 0
+        std = 0
+
+        for _ in range(10):
+            mean, std = norm.fit(frame_ravel)
+            frame_ravel = frame_ravel[frame_ravel < mean + std * 5]
+
+        return mean + self.threshold_sigma * std
+
     def change_settings(self, int_min, int_max, corr_min, pixel_min,
                         sigma_min, sigma_max, roi_size,
                         filter_size, roi_side, inter_roi):
+        """
+        Changed the settings of the ROI finder. Only called by GUI.
 
+        Parameters
+        ----------
+        int_min : new value of minimum intensity
+        int_max : new value of maximum intensity
+        corr_min : new value of minimum correlation with 2D Gaussian
+        pixel_min : new value of minimum pixel value
+        sigma_min : new value of minimum sigma
+        sigma_max : new value of maximum sigma
+        roi_size : new value of roi size
+        filter_size : new value of filter size
+        roi_side : new value of minimum distance to side for each ROI
+        inter_roi : new value of minimum distance between ROIs.
+
+        Returns
+        -------
+        None.
+
+        """
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
 
@@ -123,67 +163,21 @@ class RoiFinder:
             background[background == 0] = np.min(background[background > 0])
             self.frame = self.base_frame.astype('float') - background
 
-    def adjacent_or_boundary_rois_base(self, roi_boolean):
-
-        keep_boolean = np.ones(self.roi_locations.shape[0], dtype=bool)
-
-        for roi_index, roi in enumerate(self.roi_locations):
-
-            y = int(roi[0])
-            x = int(roi[1])
-
-            my_roi = roi_boolean[y - self.side_distance:y + self.side_distance + 1,
-                     x - self.side_distance:x + self.side_distance + 1]
-            if my_roi.shape != (self.side_distance * 2 + 1, self.side_distance * 2 + 1):
-                keep_boolean[roi_index] = False  # if this fails, the roi is on the boundary
-                continue
-
-            my_roi = roi_boolean[y - self.roi_distance:y + self.roi_distance + 1,
-                     x - self.roi_distance:x + self.roi_distance + 1]
-
-            trues_in_roi = np.transpose(np.where(my_roi == True))
-
-            if trues_in_roi.shape[0] > 1:
-                keep_boolean[roi_index] = False
-
-        self.roi_locations = self.roi_locations[keep_boolean, :]
-
-    def int_sigma_limit(self, fitter, return_int, return_sigmas):
-
-        keep_boolean = np.ones(self.roi_locations.shape[0], dtype=bool)
-
-        for roi_index, roi in enumerate(self.roi_locations):
-            y = int(roi[0])
-            x = int(roi[1])
-
-            my_roi = self.frame[y - self.roi_size_1d:y + self.roi_size_1d + 1,
-                     x - self.roi_size_1d:x + self.roi_size_1d + 1]
-
-            result, its, success = fitter.fit_gaussian(my_roi, roi_index)
-
-            if return_sigmas:
-                self.sigma_list.append(result[4])
-                self.sigma_list.append(result[3])
-            elif return_int:
-                self.int_list.append(result[0])
-
-            if result[4] < self.sigma_min or result[3] < self.sigma_min:
-                keep_boolean[roi_index] = False
-            if result[4] > self.sigma_max or result[3] > self.sigma_max:
-                keep_boolean[roi_index] = False
-            if result[0] < self.int_min or result[0] > self.int_max:
-                keep_boolean[roi_index] = False
-
-        self.roi_locations = self.roi_locations[keep_boolean, :]
-
     def make_gaussian(self, size, fwhm=3, center=None):
-        """ Make a square gaussian kernel.
-
-        size is the length of a side of the square
-        fwhm is full-width-half-maximum, which
-        can be thought of as an effective radius.
         """
+        Makes a 2D Gaussian
 
+        Parameters
+        ----------
+        size : Size of Gaussian
+        fwhm : FWHM. The default is 3.
+        center : Center position of Gaussian. The default is None.
+
+        Returns
+        -------
+        size by size array of 2D Gaussian
+
+        """
         x = np.arange(0, size, 1, float)
         y = x[:, np.newaxis]
 
@@ -196,7 +190,19 @@ class RoiFinder:
         return np.exp(-4 * np.log(2) * ((x - x0) ** 2 + (y - y0) ** 2) / fwhm ** 2)
 
     def find_particles(self, return_corr):
+        """
+        Finds particles using correlation with 2D Gaussian
 
+        Parameters
+        ----------
+        return_corr : If true, returns the values of the correlations for graphing GUI
+
+        Returns
+        -------
+        beads : boolean array. One if ROI position, zero if not
+        locations : List of ROI locations
+
+        """
         if return_corr:
             self.corr_min = self.corr_min / 2
 
@@ -226,8 +232,51 @@ class RoiFinder:
 
         return beads, locations
 
-    def peak_int_min(self):
+    def adjacent_or_boundary_rois(self, roi_boolean):
+        """
+        Takes boolean of correlation with 2D Gaussian and checks if ROIs are too close to each other or side of frame
 
+        Parameters
+        ----------
+        roi_boolean : Boolean value whether or not pixel is defined as ROI after correlation with 2D Gaussian
+
+        Returns
+        -------
+        None offically. Adapts ROI locations
+
+        """
+        keep_boolean = np.ones(self.roi_locations.shape[0], dtype=bool)
+
+        for roi_index, roi in enumerate(self.roi_locations):
+
+            y = int(roi[0])
+            x = int(roi[1])
+
+            my_roi = roi_boolean[y - self.side_distance:y + self.side_distance + 1,
+                     x - self.side_distance:x + self.side_distance + 1]
+            if my_roi.shape != (self.side_distance * 2 + 1, self.side_distance * 2 + 1):
+                keep_boolean[roi_index] = False  # if this fails, the roi is on the boundary
+                continue
+
+            my_roi = roi_boolean[y - self.roi_distance:y + self.roi_distance + 1,
+                     x - self.roi_distance:x + self.roi_distance + 1]
+
+            trues_in_roi = np.transpose(np.where(my_roi == True))
+
+            if trues_in_roi.shape[0] > 1:
+                keep_boolean[roi_index] = False
+
+        self.roi_locations = self.roi_locations[keep_boolean, :]
+
+    def peak_int_min(self):
+        """
+        Rejects ROIs if pixel value is too low
+
+        Returns
+        -------
+        None officially. Changed self.roi_locations
+
+        """
         keep_boolean = np.ones(self.roi_locations.shape[0], dtype=bool)
 
         for roi_index, roi in enumerate(self.roi_locations):
@@ -241,18 +290,72 @@ class RoiFinder:
 
         self.roi_locations = self.roi_locations[keep_boolean, :]
 
-    def make_corr_list(self):
-        pass
+    def int_sigma_limit(self, fitter, return_int, return_sigmas):
+        """
+        Checks intensity and sigma of each defined ROI. Rejects them if outside thresholds
+
+        Parameters
+        ----------
+        fitter : Gaussian fitter object
+        return_int : Boolean whether or not intensity list should be returned
+        return_sigmas : Boolean whether or not sigma list should be returned
+
+        Returns
+        -------
+        None officially. Either adapts ROI_locations, sigma_list or int_list depending on the afforementioned booleans
+
+        """
+        keep_boolean = np.ones(self.roi_locations.shape[0], dtype=bool)
+
+        for roi_index, roi in enumerate(self.roi_locations):
+            y = int(roi[0])
+            x = int(roi[1])
+
+            my_roi = self.frame[y - self.roi_size_1d:y + self.roi_size_1d + 1,
+                     x - self.roi_size_1d:x + self.roi_size_1d + 1]
+
+            result, its, success = fitter.fit_gaussian(my_roi, roi_index)
+
+            if return_sigmas:
+                self.sigma_list.append(result[4])
+                self.sigma_list.append(result[3])
+            elif return_int:
+                self.int_list.append(result[0])
+
+            if result[4] < self.sigma_min or result[3] < self.sigma_min:
+                keep_boolean[roi_index] = False
+            if result[4] > self.sigma_max or result[3] > self.sigma_max:
+                keep_boolean[roi_index] = False
+            if result[0] < self.int_min or result[0] > self.int_max:
+                keep_boolean[roi_index] = False
+
+        self.roi_locations = self.roi_locations[keep_boolean, :]
 
     def main(self, fitter, return_int=False, return_sigmas=False,
              return_corr=False):
+        """
+        Main of ROI finder. Calls all functions above.
+
+        Parameters
+        ----------
+        fitter : Gaussian fitter used to find sigma and intensity.
+        return_int : Boolean whether or not intensity list is to be returned. Used by GUI to plot. The default is False.
+        return_sigmas : Boolean whether or not sigma list is to be returned. Used by GUI to plot. The default is False.
+        return_corr : Boolean whether or not correlation list is to be returned. Used by GUI to plot.
+        The default is False.
+
+        Returns
+        -------
+        Depending on booleans returns either a list or simply the ROI locations
+
+        """
 
         roi_boolean, self.roi_locations = self.find_particles(return_corr)
 
         if return_corr:
             return self.corr_list
 
-        self.adjacent_or_boundary_rois_base(roi_boolean)
+        self.adjacent_or_boundary_rois(roi_boolean)
 
         self.peak_int_min()
 

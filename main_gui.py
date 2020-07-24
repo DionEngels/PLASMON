@@ -28,7 +28,9 @@ v2.5: styling
 v2.6: styling ttk
 v2.7: styling and warnings
 v2.8: New method of destroy and updating
-v3.0: Ready for Peter review
+v3.0: Ready for Peter review on functional level
+v3.1: cleaned up
+v3.2: further cleanup and restructuring
 
 """
 
@@ -64,7 +66,7 @@ import multiprocessing as mp
 
 mpl.use("TkAgg")  # set back end to TK
 
-# %% Initializations
+# %% Initializations. Defining filetypes, fonts, paddings, input sizes, and GUI sizes.
 
 FILETYPES = [("ND2", ".nd2")]
 
@@ -88,7 +90,7 @@ GUI_WIDTH_START = int(width * 0.15)
 GUI_HEIGHT_START = int(height * 0.15)
 DPI = 100
 
-# %% Options
+# %% Options for dropdown menus
 
 fit_options = ["Gaussian - Fit bg", "Gaussian - Estimate bg",
                "Phasor + Intensity", "Phasor + Sum", "Phasor"]
@@ -101,6 +103,24 @@ roi_size_options = ["7x7", "9x9"]
 
 
 def mt_main(name, fitter, frames_split, roi_locations, shared, q):
+    """
+    Main for multiprocessing. Loads .nd2, takes certain frames of this and sends this to fitter.
+    Communicates using shared memory (for results) and queue for status updates
+
+    Parameters
+    ----------
+    name : name of ND2 file
+    fitter : Fitter to be used
+    frames_split : What frames this instance has to fit of the total .nd2
+    roi_locations : ROI locations
+    shared : Shared memroy. The place where the results will be placed
+    q : Queue. Used to send status updates to GUI.
+
+    Returns
+    -------
+    Fills shared memory
+
+    """
     nd2 = ND2_Reader(name)
     frames = nd2
     metadata = nd2.metadata
@@ -113,10 +133,21 @@ def mt_main(name, fitter, frames_split, roi_locations, shared, q):
     for result_index, result in enumerate(local_result):
         shared[9 * result_index:9 * (result_index + 1)] = result[:]
 
+# %% Quit
+
+
+def quit_program():
+    global gui
+    gui.destroy()
+    exit(0)
+
 # %% Own buttons / fields
 
 
 class BigButton(ttk.Frame):
+    """
+    Big button, used for FIT and LOAD
+    """
     def __init__(self, parent, height=None, width=None, text="", command=None, state='enabled'):
         ttk.Frame.__init__(self, parent, height=height, width=width)
 
@@ -130,6 +161,9 @@ class BigButton(ttk.Frame):
 
 
 class FigureFrame(tk.Frame):
+    """
+    Frame in which Figure sits.
+    """
     def __init__(self, parent, height=None, width=None, dpi=DPI):
         tk.Frame.__init__(self, parent, height=height+40, width=width,
                           highlightbackground="black", highlightthickness=2)
@@ -151,6 +185,20 @@ class FigureFrame(tk.Frame):
         self.toolbar.configure(background="White")
 
     def updater(self, frame, roi_locations=None, roi_size=None):
+        """
+        Updater. Takes exsisting frame with figure and places new figure in it
+
+        Parameters
+        ----------
+        frame : New frame to be shown
+        roi_locations : optional, possible ROI locations to be highlighted. The default is None.
+        roi_size : optional, ROI size in case ROIs are highlighted. The default is None.
+
+        Returns
+        -------
+        Updated figure.
+
+        """
         self.fig.clear()
         fig_sub = self.fig.add_subplot(111)
         fig_sub.imshow(frame, extent=[0, frame.shape[1], frame.shape[0], 0], aspect='auto')
@@ -168,6 +216,9 @@ class FigureFrame(tk.Frame):
 
 
 class EntryPlaceholder(ttk.Entry):
+    """
+    Entry with a placeholder text in grey
+    """
     def __init__(self, master=None, placeholder="PLACEHOLDER", *args, **kwargs):
         super().__init__(master, *args, style="Placeholder.TEntry", **kwargs)
         self.placeholder = placeholder
@@ -198,6 +249,10 @@ class EntryPlaceholder(ttk.Entry):
 
 
 class NormalButton:
+    """
+    My normal button, again with an updater function to update the button.
+    Only buttons that need updating use this class
+    """
     def __init__(self, parent, text=None, row=None, column=None,
                  rowspan=1, columnspan=1, command=None, state='enabled', sticky=None, padx=0, pady=0):
         self._btn = ttk.Button(parent, text=text, command=command, state=state)
@@ -222,6 +277,9 @@ class NormalButton:
 
 
 class NormalSlider:
+    """
+    My normal slider, again with an updater function to update the slider.
+    """
     def __init__(self, parent, from_=0, to=np.inf, resolution=1, start=0,
                  row=None, column=None, rowspan=1, columnspan=1, sticky=None, padx=0, pady=0):
         self._scale = tk.Scale(parent, from_=from_, to=to, orient='horizontal',
@@ -261,6 +319,9 @@ class NormalSlider:
 
 
 class NormalLabel:
+    """
+    My normal label, again with an updater function to update the label.
+    """
     def __init__(self, parent, text=None, font=None, bd=None, relief=None,
                  row=None, column=None, rowspan=1, columnspan=1, sticky=None, padx=0, pady=0):
         self._label = tk.Label(parent, text=text, font=font, bd=bd, relief=relief, bg='white')
@@ -284,11 +345,13 @@ class NormalLabel:
             text = self.text
         self._label['text'] = text
 
-# %% Container
+# %% Controller
 
 
 class MbxPython(tk.Tk):
-
+    """
+    Controller of GUI. This container calls the page we need (load page or fitting page)
+    """
     def __init__(self, *args, **kwargs):
         tk.Tk.__init__(self, *args, **kwargs)
 
@@ -316,24 +379,18 @@ class MbxPython(tk.Tk):
         frame = self.frames[cont]
         frame.tkraise()
 
-    def show_frame(self, cont, filenames):
+    def show_fitting_frame(self, cont, filenames):
         frame = self.frames[cont]
         frame.update_init(self, cont, filenames)
         frame.tkraise()
 
-
-# %% Quit
-
-def quit_program():
-    global gui
-    gui.destroy()
-    exit(0)
-
-
 # %% Loading page
 
-class LoadPage(tk.Frame):
 
+class LoadPage(tk.Frame):
+    """
+    Loading page. On this page, there is only a big button to load ND2s
+    """
     def __init__(self, parent, controller):
         tk.Frame.__init__(self, parent)
         self.configure(bg='white')
@@ -355,17 +412,289 @@ class LoadPage(tk.Frame):
         if len(filenames) == 0:
             return
 
-        controller.show_frame(FittingPage, filenames)
-
+        controller.show_fitting_frame(FittingPage, filenames)
 
 # %% Fitting page, initial update (after loading)
 
-# noinspection PyBroadException
+
 class FittingPage(tk.Frame):
+    """
+    Fitting page. This is main page of the program
+    """
+    def __init__(self, parent, container, reset=False):
+        """
+        Initial declaration of fitting page. Buttons/sliders/etc. that are to be updated are linked to self using
+        self-made classes.
 
-    def update_init(self, parent, controller, filenames):
+        Parameters
+        ----------
+        parent : Parent page, the controller. MBxPython.
+        container : The dict containing all the pages
+        reset : optional, if reset it TRUE, this means that update_init is calling this and page will only be reset.
+        The default is False.
 
-        self.__init__(parent, controller, reset=True)
+        Returns
+        -------
+        None. GUI.
+
+        """
+        if not reset:
+            tk.Frame.__init__(self, parent)
+            self.configure(bg='white')
+        self.nd2 = None
+        self.frames = None
+        self.roi_finder = None
+        self.metadata = None
+        self.temp_roi_locations = None
+        self.filenames = None
+        self.start_time = None
+        self.roi_locations = {}
+        self.dataset_index = 0
+        self.saved_settings = {}
+        self.histogram = None
+        self.to_hist = None
+        self.roi_fitter = None
+
+        roi_finding_label = tk.Label(self, text="ROI finding", font=FONT_HEADER, bg='white')
+        roi_finding_label.grid(row=0, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        min_corr_label = tk.Label(self, text="Minimum Correlation", font=FONT_LABEL, bg='white')
+        min_corr_label.grid(row=0, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        self.min_corr_slider = NormalSlider(self, from_=0, to=1, resolution=0.005,
+                                            row=1, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        min_corr_histogram = ttk.Button(self, text="Graph",
+                                        command=lambda: self.fun_histogram("corr_min"))
+        min_corr_histogram.grid(row=1, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        min_corr_histogram_select = ttk.Button(self, text="Graph select",
+                                               command=lambda: self.histogram_select("corr_min"))
+        min_corr_histogram_select.grid(row=2, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        min_pixel_label = tk.Label(self, text="Minimum pixel intensity", font=FONT_LABEL, bg='white')
+        min_pixel_label.grid(row=0, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        self.min_pixel_slider = NormalSlider(self, from_=0, to=5000,
+                                             row=1, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        min_pixel_histogram = ttk.Button(self, text="Graph",
+                                         command=lambda: self.fun_histogram("peak_min"))
+        min_pixel_histogram.grid(row=1, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        min_pixel_histogram_select = ttk.Button(self, text="Graph select",
+                                                command=lambda: self.histogram_select("peak_min"))
+        min_pixel_histogram_select.grid(row=2, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        min_int_label = tk.Label(self, text="Minimum Intensity", font=FONT_LABEL, bg='white')
+        min_int_label.grid(row=3, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        self.min_int_slider = NormalSlider(self, from_=0, to=1000,
+                                           row=4, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        min_int_histogram = ttk.Button(self, text="Graph",
+                                       command=lambda: self.fun_histogram("min_int"))
+        min_int_histogram.grid(row=4, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        min_int_histogram_select = ttk.Button(self, text="Select min",
+                                              command=lambda: self.histogram_select("min_int"))
+        min_int_histogram_select.grid(row=4, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        max_int_label = tk.Label(self, text="Maximum Intensity", font=FONT_LABEL, bg='white')
+        max_int_label.grid(row=3, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        self.max_int_slider = NormalSlider(self, from_=0, to=5000,
+                                           row=4, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        max_int_histogram_select = ttk.Button(self, text="Select max",
+                                              command=lambda: self.histogram_select("max_int"))
+        max_int_histogram_select.grid(row=4, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        min_sigma_label = tk.Label(self, text="Minimum Sigma", font=FONT_LABEL, bg='white')
+        min_sigma_label.grid(row=5, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        self.min_sigma_slider = NormalSlider(self, from_=0, to=5, resolution=0.01,
+                                             row=6, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        min_sigma_histogram = ttk.Button(self, text="Graph",
+                                         command=lambda: self.fun_histogram("min_sigma"))
+        min_sigma_histogram.grid(row=6, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        min_sigma_histogram_select = ttk.Button(self, text="Select min",
+                                                command=lambda: self.histogram_select("min_sigma"))
+        min_sigma_histogram_select.grid(row=6, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        max_sigma_label = tk.Label(self, text="Maximum Sigma", font=FONT_LABEL, bg='white')
+        max_sigma_label.grid(row=5, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        self.max_sigma_slider = NormalSlider(self, from_=0, to=10, resolution=0.01,
+                                             row=6, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        max_sigma_histogram_select = ttk.Button(self, text="Select max",
+                                                command=lambda: self.histogram_select("max_sigma"))
+        max_sigma_histogram_select.grid(row=6, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        line = ttk.Separator(self, orient='horizontal')
+        line.grid(row=7, column=0, rowspan=1, columnspan=40, sticky='we')
+
+        advanced_label = tk.Label(self, text="Advanced settings", font=FONT_SUBHEADER, bg='white')
+        advanced_label.grid(row=8, column=0, columnspan=40, sticky='EW', padx=PAD_SMALL)
+
+        roi_size_label = tk.Label(self, text="ROI size", bg='white', font=FONT_LABEL)
+        roi_size_label.grid(row=9, column=0, columnspan=5, sticky='EW', padx=PAD_SMALL)
+
+        self.roi_var = tk.StringVar(self)
+        roi_drop = ttk.OptionMenu(self, self.roi_var, roi_size_options[0], *roi_size_options)
+        roi_drop.grid(row=9, column=5, columnspan=5, sticky='EW', padx=PAD_SMALL)
+
+        filter_label = tk.Label(self, text="Filter size", bg='white', font=FONT_LABEL)
+        filter_label.grid(row=9, column=10, columnspan=5, sticky='EW', padx=PAD_SMALL)
+
+        self.filter_input = EntryPlaceholder(self, "9", width=INPUT_SMALL)
+        self.filter_input.grid(row=9, column=15, columnspan=5)
+
+        roi_side_label = tk.Label(self, text="Side spacing", bg='white', font=FONT_LABEL)
+        roi_side_label.grid(row=9, column=20, columnspan=5, sticky='EW', padx=PAD_SMALL)
+
+        self.roi_side_input = EntryPlaceholder(self, "11", width=INPUT_SMALL)
+        self.roi_side_input.grid(row=9, column=25, columnspan=5)
+
+        inter_roi_label = tk.Label(self, text="ROI spacing", bg='white', font=FONT_LABEL)
+        inter_roi_label.grid(row=9, column=30, columnspan=5, sticky='EW', padx=PAD_SMALL)
+
+        self.inter_roi_input = EntryPlaceholder(self, "6", width=INPUT_SMALL)
+        self.inter_roi_input.grid(row=9, column=35, columnspan=5)
+
+        line = ttk.Separator(self, orient='horizontal')
+        line.grid(row=10, column=0, rowspan=1, columnspan=40, sticky='we')
+
+        self.button_left = NormalButton(self, text="<<", row=11, column=0, columnspan=5, sticky='EW',
+                                        padx=PAD_SMALL)
+        self.dataset_roi_status = NormalLabel(self, text="TBD",
+                                              row=11, column=5, columnspan=30, font=FONT_STATUS)
+        self.button_right = NormalButton(self, ">>", row=11, column=35, columnspan=5, sticky='EW',
+                                         padx=PAD_SMALL)
+
+        button_fit = ttk.Button(self, text="Fit", command=lambda: self.fit_rois())
+        button_fit.grid(row=12, column=0, columnspan=10, sticky='EW', padx=PAD_BIG)
+
+        button_restore = ttk.Button(self, text="Restore default",
+                                    command=lambda: self.restore_default())
+        button_restore.grid(row=12, column=10, columnspan=10, sticky='EW', padx=PAD_BIG)
+
+        self.button_restore_saved = NormalButton(self, text="Restore saved",
+                                                 state='disabled',
+                                                 command=lambda: self.restore_saved(),
+                                                 row=12, column=20,
+                                                 columnspan=10, sticky='EW', padx=PAD_BIG)
+
+        button_save = ttk.Button(self, text="Save",
+                                 command=lambda: self.save_roi_settings())
+        button_save.grid(row=12, column=30, columnspan=10, sticky='EW', padx=PAD_BIG)
+
+        self.fig = FigureFrame(self, height=GUI_WIDTH*0.4, width=GUI_WIDTH*0.4, dpi=DPI)
+        self.fig.grid(row=0, column=40, columnspan=10, rowspan=13, sticky='EW', padx=PAD_SMALL)
+
+        line = ttk.Separator(self, orient='horizontal')
+        line.grid(row=18, column=0, rowspan=2, columnspan=50, sticky='we')
+
+        fit_area_label = tk.Label(self, text="Fitting", font=FONT_HEADER, bg='white')
+        fit_area_label.grid(row=21, column=0, columnspan=10, sticky='EW', padx=PAD_SMALL)
+
+        self.roi_status = NormalLabel(self, text="TBD",
+                                      row=21, column=10, columnspan=30, font=FONT_STATUS)
+
+        method_label = tk.Label(self, text="Method", font=FONT_LABEL, bg='white')
+        method_label.grid(row=23, column=0, columnspan=10, sticky='EW', padx=PAD_SMALL)
+
+        self.method_var = tk.StringVar(self)
+        method_drop = ttk.OptionMenu(self, self.method_var, fit_options[1], *fit_options)
+        method_drop.grid(row=24, column=0, columnspan=10, sticky="ew")
+
+        rejection_label = tk.Label(self, text="ROI size", bg='white', font=FONT_LABEL)
+        rejection_label.grid(row=23, column=10, columnspan=10, sticky='EW', padx=PAD_SMALL)
+
+        self.rejection_var = tk.StringVar(self)
+        rejection_drop = ttk.OptionMenu(self, self.rejection_var, rejection_options[1], *rejection_options)
+        rejection_drop.grid(row=24, column=10, columnspan=10, sticky='EW', padx=PAD_SMALL)
+
+        cores_label = tk.Label(self, text="#cores", font=FONT_LABEL, bg='white')
+        cores_label.grid(row=23, column=20, columnspan=10, sticky='EW', padx=PAD_BIG)
+
+        self.total_cores = mp.cpu_count()
+        cores_options = [1, int(self.total_cores / 2), int(self.total_cores * 3 / 4), int(self.total_cores)]
+        self.cores_var = tk.IntVar(self)
+        self.cores_drop = ttk.OptionMenu(self, self.cores_var, cores_options[0], *cores_options)
+        self.cores_drop.grid(row=24, column=20, columnspan=10, sticky='EW', padx=PAD_BIG)
+
+        dimensions_label = tk.Label(self, text="pixels or nm", font=FONT_LABEL, bg='white')
+        dimensions_label.grid(row=23, column=30, columnspan=10, sticky='EW', padx=PAD_BIG)
+
+        dimension_options = ["nm", "pixels"]
+        self.dimension = tk.StringVar(self)
+        self.dimension_drop = ttk.OptionMenu(self, self.dimension, dimension_options[0], *dimension_options)
+        self.dimension_drop.grid(row=24, column=30, columnspan=10, sticky='EW', padx=PAD_BIG)
+
+        frame_begin_label = tk.Label(self, text="Begin frame", font=FONT_LABEL, bg='white')
+        frame_begin_label.grid(row=27, column=0, columnspan=20, sticky='EW', padx=PAD_BIG)
+
+        self.frame_begin_input = EntryPlaceholder(self, "Leave empty for start", width=INPUT_BIG)
+        self.frame_begin_input.grid(row=28, column=0, columnspan=20)
+
+        frame_end_label = tk.Label(self, text="End frame", font=FONT_LABEL, bg='white')
+        frame_end_label.grid(row=27, column=20, columnspan=20, sticky='EW', padx=PAD_BIG)
+
+        self.frame_end_input = EntryPlaceholder(self, "Leave empty for end", width=INPUT_BIG)
+        self.frame_end_input.grid(row=28, column=20, columnspan=20)
+
+        self.button_fit = BigButton(self, text="FIT", height=int(GUI_HEIGHT / 8),
+                                    width=int(GUI_WIDTH / 8), state='disabled',
+                                    command=lambda: self.start_fitting())  # , style= 'my.TButton')
+        self.button_fit.grid(row=23, column=40, columnspan=5, rowspan=5)
+
+        progress_label = tk.Label(self, text="Progress", font=FONT_LABEL, bg='white')
+        progress_label.grid(row=23, column=45, columnspan=5, sticky='EW', padx=PAD_SMALL)
+
+        self.progress_status_label = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
+                                                 row=24, column=45, columnspan=5, sticky="ew", font=FONT_LABEL)
+
+        time_label = tk.Label(self, text="Estimated time done", font=FONT_LABEL, bg='white')
+        time_label.grid(row=26, column=45, columnspan=5, sticky='EW', padx=PAD_SMALL)
+
+        self.time_status_label = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
+                                             row=27, column=45, columnspan=5, sticky="ew", font=FONT_LABEL)
+
+        button_load_new = ttk.Button(self, text="Load new", command=lambda: self.load_new(parent))
+        button_load_new.grid(row=50, column=45, columnspan=2, sticky='EW', padx=PAD_SMALL)
+
+        button_quit = ttk.Button(self, text="Quit", command=quit_program)
+        button_quit.grid(row=50, column=48, columnspan=2, sticky='EW', padx=PAD_SMALL)
+
+        for i in range(0, 49):
+            self.columnconfigure(i, weight=1, minsize=18)
+
+        for i in range(0, 51):
+            self.rowconfigure(i, weight=1)
+
+    # %% Update after loading of ND2s
+
+    def update_init(self, parent, container, filenames):
+        """
+        Initial update. The init function is already called by the controller, so this is called after the ND2 are
+        loaded in. Updates all kinds of things such as the sliders.
+
+        Parameters
+        ----------
+        parent : This is controller page. MBxPython
+        container : A dict in which all the pages reside. Only used for __init__
+        filenames : Filenames of the loaded ND2s
+
+        Returns
+        -------
+        Updated page
+
+        """
+        self.__init__(parent, container, reset=True)
 
         self.filenames = filenames
         self.dataset_index = 0
@@ -391,10 +720,67 @@ class FittingPage(tk.Frame):
         else:
             self.button_left.updater(command=lambda: self.previous_dataset())
 
+    # %% Fitting page, return to load page
+
+    def load_new(self, controller):
+        """
+        Return to load page
+
+        Parameters
+        ----------
+        controller : Calls controller to return to load page
+
+        Returns
+        -------
+        None.
+
+        """
+        controller.show_load_frame(LoadPage)
+
+    # %% Fitting page, restore default settings
+
+    def restore_default(self):
+        """
+        Restores defaults. Called when calling the page for the first time, and when switching dataset
+
+        Returns
+        -------
+        None.
+
+        """
+        self.roi_fitter = fitting.Gaussian(7, {}, "None", "Gaussian", 5)
+
+        self.roi_finder = roi_finding.RoiFinder(9, self.frames[0], self.roi_fitter)
+
+        self.min_int_slider.updater(from_=0, to=self.roi_finder.int_max / 4,
+                                    start=self.roi_finder.int_min)
+        self.max_int_slider.updater(from_=0, to=self.roi_finder.int_max,
+                                    start=self.roi_finder.int_max)
+        self.min_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
+                                      start=self.roi_finder.sigma_min)
+        self.max_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
+                                      start=self.roi_finder.sigma_max)
+        self.min_corr_slider.updater(from_=0, to=1, start=self.roi_finder.corr_min)
+        self.min_pixel_slider.updater(from_=0, to=np.max(self.frames[0]),
+                                      start=self.roi_finder.pixel_min)
+        self.roi_var.set(roi_size_options[0])
+
+        self.filter_input.updater()
+        self.roi_side_input.updater()
+        self.inter_roi_input.updater()
+
     # %% Fitting page, fit ROIs
 
     def fit_rois(self):
+        """
+        Fuction that takes all the inputs and uses it to fit ROIs
 
+        Returns
+        -------
+        Updates the figures.
+        Also returns boolean whether or not it was a succes.
+
+        """
         int_min = self.min_int_slider.get()
         int_max = self.max_int_slider.get()
         sigma_min = self.min_sigma_slider.get()
@@ -429,7 +815,14 @@ class FittingPage(tk.Frame):
     # %% Fitting page, save ROI settings
 
     def save_roi_settings(self):
+        """
+        Saves current settings of sliders etc. to dict
 
+        Returns
+        -------
+        None.
+
+        """
         success = self.fit_rois()
 
         if not success:
@@ -464,35 +857,50 @@ class FittingPage(tk.Frame):
         if len(self.roi_locations) == len(self.filenames):
             self.button_fit.updater(state='enabled')
 
-    # %% Fitting page, restore default settings
+    # %% Fitting page, restore saved settings
 
-    def restore_default(self):
+    def restore_saved(self):
+        """
+        Restores saved settings to sliders etc.
 
-        self.roi_fitter = fitting.Gaussian(7, {}, "None", "Gaussian", 5)
+        Returns
+        -------
+        None, updates GUI
 
-        self.roi_finder = roi_finding.RoiFinder(9, self.frames[0], self.roi_fitter)
+        """
+        settings = self.saved_settings[self.dataset_index]
 
         self.min_int_slider.updater(from_=0, to=self.roi_finder.int_max / 4,
-                                    start=self.roi_finder.int_min)
+                                    start=settings['int_min'])
         self.max_int_slider.updater(from_=0, to=self.roi_finder.int_max,
-                                    start=self.roi_finder.int_max)
+                                    start=settings['int_max'])
         self.min_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
-                                      start=self.roi_finder.sigma_min)
+                                      start=settings['sigma_min'])
         self.max_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
-                                      start=self.roi_finder.sigma_max)
-        self.min_corr_slider.updater(from_=0, to=1, start=self.roi_finder.corr_min)
+                                      start=settings['sigma_max'])
+        self.min_corr_slider.updater(from_=0, to=1, start=settings['corr_min'])
         self.min_pixel_slider.updater(from_=0, to=np.max(self.frames[0]),
-                                      start=self.roi_finder.pixel_min)
-        self.roi_var.set(roi_size_options[0])
+                                      start=settings['pixel_min'])
+        if settings['roi_size'] == 7:
+            self.roi_var.set(roi_size_options[0])
+        else:
+            self.roi_var.set(roi_size_options[1])
 
-        self.filter_input.updater()
-        self.roi_side_input.updater()
-        self.inter_roi_input.updater()
+        self.filter_input.updater(settings['filter_size'])
+        self.roi_side_input.updater(settings['roi_side'])
+        self.inter_roi_input.updater(settings['inter_roi'])
 
     # %% Fitting page, switch between datasets
 
     def next_dataset(self):
+        """
+        Select next dataset
 
+        Returns
+        -------
+        None.
+
+        """
         self.temp_roi_locations = None
         self.histogram = None
         self.to_hist = None
@@ -526,7 +934,14 @@ class FittingPage(tk.Frame):
             self.button_restore_saved.updater(state='disabled')
 
     def previous_dataset(self):
+        """
+        Select previous dataset
 
+        Returns
+        -------
+        None.
+
+        """
         self.temp_roi_locations = None
         self.histogram = None
         self.to_hist = None
@@ -563,7 +978,14 @@ class FittingPage(tk.Frame):
     # %% Fitting page, start fitting
 
     def start_fitting(self):
+        """
+        Start fitting. Takes all the inputs and fits.
 
+        Returns
+        -------
+        None officially. Outputs files.
+
+        """
         if len(self.roi_locations) != len(self.filenames):
             tk.messagebox.showerror("ERROR", "Not all datasets have settings yet, cannot start")
             return
@@ -737,7 +1159,19 @@ class FittingPage(tk.Frame):
     # %% Fitting page, update the status
 
     def update_status(self, progress, comparator):
+        """
+        Updates the status visible to the user.
 
+        Parameters
+        ----------
+        progress : How far the fitter has come
+        comparator : How far it has to go
+
+        Returns
+        -------
+        None, updates GUI.
+
+        """
         num_files = len(self.filenames)
         base_progress = self.dataset_index / num_files * 100
 
@@ -760,42 +1194,21 @@ class FittingPage(tk.Frame):
 
         self.update()
 
-    # %% Fitting page, return to load page
-
-    def load_new(self, controller):
-
-        controller.show_load_frame(LoadPage)
-
-    # %% Fitting page, restore saved settings
-
-    def restore_saved(self):
-
-        settings = self.saved_settings[self.dataset_index]
-
-        self.min_int_slider.updater(from_=0, to=self.roi_finder.int_max / 4,
-                                    start=settings['int_min'])
-        self.max_int_slider.updater(from_=0, to=self.roi_finder.int_max,
-                                    start=settings['int_max'])
-        self.min_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
-                                      start=settings['sigma_min'])
-        self.max_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
-                                      start=settings['sigma_max'])
-        self.min_corr_slider.updater(from_=0, to=1, start=settings['corr_min'])
-        self.min_pixel_slider.updater(from_=0, to=np.max(self.frames[0]),
-                                      start=settings['pixel_min'])
-        if settings['roi_size'] == 7:
-            self.roi_var.set(roi_size_options[0])
-        else:
-            self.roi_var.set(roi_size_options[1])
-
-        self.filter_input.updater(settings['filter_size'])
-        self.roi_side_input.updater(settings['roi_side'])
-        self.inter_roi_input.updater(settings['inter_roi'])
-
     # %% Histogram of sliders
 
     def make_histogram(self, variable):
+        """
+        Makes histograms of parameters.
 
+        Parameters
+        ----------
+        variable : The parameter to make a histogram of
+
+        Returns
+        -------
+        None, output figure
+
+        """
         fig_sub = self.histogram.add_subplot(111)
         hist, bins, _ = fig_sub.hist(self.to_hist, bins='auto')
 
@@ -836,7 +1249,18 @@ class FittingPage(tk.Frame):
         plt.show()
 
     def fun_histogram(self, variable):
+        """
+        Actually makes the histogram
 
+        Parameters
+        ----------
+        variable : Variable to make histogram of
+
+        Returns
+        -------
+        None, outputs figure
+
+        """
         if variable == "min_int" or variable == "max_int":
             self.to_hist = self.roi_finder.main(self.roi_fitter, return_int=True)
         elif variable == "peak_min":
@@ -851,6 +1275,18 @@ class FittingPage(tk.Frame):
         self.make_histogram(variable)
 
     def histogram_select(self, variable):
+        """
+        Allows user to select from histogram to change slider
+
+        Parameters
+        ----------
+        variable : variable to change
+
+        Returns
+        -------
+        None.
+
+        """
         click = self.histogram.ginput(1)
 
         if variable == "min_int":
@@ -869,258 +1305,9 @@ class FittingPage(tk.Frame):
         self.histogram.clear()
         self.make_histogram(variable)
 
-    # %% Fitting page, initial declaration
+# %% START GUI and declare styles (how things look)
 
-    def __init__(self, parent, controller, reset=False):
 
-        if not reset:
-            tk.Frame.__init__(self, parent)
-            self.configure(bg='white')
-        self.nd2 = None
-        self.frames = None
-        self.roi_finder = None
-        self.metadata = None
-        self.temp_roi_locations = None
-        self.filenames = None
-        self.start_time = None
-        self.roi_locations = {}
-        self.dataset_index = 0
-        self.saved_settings = {}
-        self.histogram = None
-        self.to_hist = None
-        self.roi_fitter = None
-
-        roi_finding_label = tk.Label(self, text="ROI finding", font=FONT_HEADER, bg='white')
-        roi_finding_label.grid(row=0, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        min_corr_label = tk.Label(self, text="Minimum Correlation", font=FONT_LABEL, bg='white')
-        min_corr_label.grid(row=0, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        self.min_corr_slider = NormalSlider(self, from_=0, to=1, resolution=0.005,
-                                            row=1, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        min_corr_histogram = ttk.Button(self, text="Graph",
-                                        command=lambda: self.fun_histogram("corr_min"))
-        min_corr_histogram.grid(row=1, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        min_corr_histogram_select = ttk.Button(self, text="Graph select",
-                                               command=lambda: self.histogram_select("corr_min"))
-        min_corr_histogram_select.grid(row=2, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        min_pixel_label = tk.Label(self, text="Minimum pixel intensity", font=FONT_LABEL, bg='white')
-        min_pixel_label.grid(row=0, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        self.min_pixel_slider = NormalSlider(self, from_=0, to=5000,
-                                             row=1, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        min_pixel_histogram = ttk.Button(self, text="Graph",
-                                         command=lambda: self.fun_histogram("peak_min"))
-        min_pixel_histogram.grid(row=1, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        min_pixel_histogram_select = ttk.Button(self, text="Graph select",
-                                                command=lambda: self.histogram_select("peak_min"))
-        min_pixel_histogram_select.grid(row=2, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        min_int_label = tk.Label(self, text="Minimum Intensity", font=FONT_LABEL, bg='white')
-        min_int_label.grid(row=3, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        self.min_int_slider = NormalSlider(self, from_=0, to=1000,
-                                           row=4, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        min_int_histogram = ttk.Button(self, text="Graph",
-                                       command=lambda: self.fun_histogram("min_int"))
-        min_int_histogram.grid(row=4, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        min_int_histogram_select = ttk.Button(self, text="Select min",
-                                              command=lambda: self.histogram_select("min_int"))
-        min_int_histogram_select.grid(row=4, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        max_int_label = tk.Label(self, text="Maximum Intensity", font=FONT_LABEL, bg='white')
-        max_int_label.grid(row=3, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        self.max_int_slider = NormalSlider(self, from_=0, to=5000,
-                                           row=4, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        max_int_histogram_select = ttk.Button(self, text="Select max",
-                                              command=lambda: self.histogram_select("max_int"))
-        max_int_histogram_select.grid(row=4, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        min_sigma_label = tk.Label(self, text="Minimum Sigma", font=FONT_LABEL, bg='white')
-        min_sigma_label.grid(row=5, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        self.min_sigma_slider = NormalSlider(self, from_=0, to=5, resolution=0.01,
-                                             row=6, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        min_sigma_histogram = ttk.Button(self, text="Graph",
-                                         command=lambda: self.fun_histogram("min_sigma"))
-        min_sigma_histogram.grid(row=6, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        min_sigma_histogram_select = ttk.Button(self, text="Select min",
-                                                command=lambda: self.histogram_select("min_sigma"))
-        min_sigma_histogram_select.grid(row=6, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        max_sigma_label = tk.Label(self, text="Maximum Sigma", font=FONT_LABEL, bg='white')
-        max_sigma_label.grid(row=5, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        self.max_sigma_slider = NormalSlider(self, from_=0, to=10, resolution=0.01,
-                                             row=6, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        max_sigma_histogram_select = ttk.Button(self, text="Select max",
-                                                command=lambda: self.histogram_select("max_sigma"))
-        max_sigma_histogram_select.grid(row=6, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        line = ttk.Separator(self, orient='horizontal')
-        line.grid(row=7, column=0, rowspan=1, columnspan=40, sticky='we')
-
-        advanced_label = tk.Label(self, text="Advanced settings", font=FONT_SUBHEADER, bg='white')
-        advanced_label.grid(row=8, column=0, columnspan=40, sticky='EW', padx=PAD_SMALL)
-
-        roi_size_label = tk.Label(self, text="ROI size", bg='white', font=FONT_LABEL)
-        roi_size_label.grid(row=9, column=0, columnspan=5, sticky='EW', padx=PAD_SMALL)
-
-        self.roi_var = tk.StringVar(self)
-        # self.roi_var.set(roi_size_options[0])
-
-        roi_drop = ttk.OptionMenu(self, self.roi_var, roi_size_options[0], *roi_size_options)
-        roi_drop.grid(row=9, column=5, columnspan=5, sticky='EW', padx=PAD_SMALL)
-
-        filter_label = tk.Label(self, text="Filter size", bg='white', font=FONT_LABEL)
-        filter_label.grid(row=9, column=10, columnspan=5, sticky='EW', padx=PAD_SMALL)
-
-        self.filter_input = EntryPlaceholder(self, "9", width=INPUT_SMALL)
-        self.filter_input.grid(row=9, column=15, columnspan=5)
-
-        roi_side_label = tk.Label(self, text="Spacing side", bg='white', font=FONT_LABEL)
-        roi_side_label.grid(row=9, column=20, columnspan=5, sticky='EW', padx=PAD_SMALL)
-
-        self.roi_side_input = EntryPlaceholder(self, "11", width=INPUT_SMALL)
-        self.roi_side_input.grid(row=9, column=25, columnspan=5)
-
-        inter_roi_label = tk.Label(self, text="Inter-ROI spacing", bg='white', font=FONT_LABEL)
-        inter_roi_label.grid(row=9, column=30, columnspan=5, sticky='EW', padx=PAD_SMALL)
-
-        self.inter_roi_input = EntryPlaceholder(self, "6", width=INPUT_SMALL)
-        self.inter_roi_input.grid(row=9, column=35, columnspan=5)
-
-        line = ttk.Separator(self, orient='horizontal')
-        line.grid(row=10, column=0, rowspan=1, columnspan=40, sticky='we')
-
-        self.button_left = NormalButton(self, text="<<", row=11, column=0, columnspan=5, sticky='EW',
-                                        padx=PAD_SMALL)
-        self.dataset_roi_status = NormalLabel(self, text="TBD",
-                                              row=11, column=5, columnspan=30, font=FONT_STATUS)
-        self.button_right = NormalButton(self, ">>", row=11, column=35, columnspan=5, sticky='EW',
-                                         padx=PAD_SMALL)
-
-        button_fit = ttk.Button(self, text="Fit", command=lambda: self.fit_rois())
-        button_fit.grid(row=12, column=0, columnspan=10, sticky='EW', padx=PAD_BIG)
-
-        button_restore = ttk.Button(self, text="Restore default",
-                                    command=lambda: self.restore_default())
-        button_restore.grid(row=12, column=10, columnspan=10, sticky='EW', padx=PAD_BIG)
-
-        self.button_restore_saved = NormalButton(self, text="Restore saved",
-                                                 state='disabled',
-                                                 command=lambda: self.restore_saved(),
-                                                 row=12, column=20,
-                                                 columnspan=10, sticky='EW', padx=PAD_BIG)
-
-        button_save = ttk.Button(self, text="Save",
-                                 command=lambda: self.save_roi_settings())
-        button_save.grid(row=12, column=30, columnspan=10, sticky='EW', padx=PAD_BIG)
-
-        self.fig = FigureFrame(self, height=GUI_WIDTH*0.4, width=GUI_WIDTH*0.4, dpi=DPI)
-        self.fig.grid(row=0, column=40, columnspan=10, rowspan=13, sticky='EW', padx=PAD_SMALL)
-
-        line = ttk.Separator(self, orient='horizontal')
-        line.grid(row=18, column=0, rowspan=2, columnspan=50, sticky='we')
-
-        fit_area_label = tk.Label(self, text="Fitting", font=FONT_HEADER, bg='white')
-        fit_area_label.grid(row=21, column=0, columnspan=10, sticky='EW', padx=PAD_SMALL)
-
-        self.roi_status = NormalLabel(self, text="TBD",
-                                      row=21, column=10, columnspan=30, font=FONT_STATUS)
-
-        method_label = tk.Label(self, text="Method", font=FONT_LABEL, bg='white')
-        method_label.grid(row=23, column=0, columnspan=10, sticky='EW', padx=PAD_SMALL)
-
-        self.method_var = tk.StringVar(self)
-        # self.method_var.set(fit_options[1])
-
-        method_drop = ttk.OptionMenu(self, self.method_var, fit_options[1], *fit_options)
-        method_drop.grid(row=24, column=0, columnspan=10, sticky="ew")
-
-        rejection_label = tk.Label(self, text="ROI size", bg='white', font=FONT_LABEL)
-        rejection_label.grid(row=23, column=10, columnspan=10, sticky='EW', padx=PAD_SMALL)
-
-        self.rejection_var = tk.StringVar(self)
-        # self.rejection_var.set(rejection_options[1])
-
-        rejection_drop = ttk.OptionMenu(self, self.rejection_var, rejection_options[1], *rejection_options)
-        rejection_drop.grid(row=24, column=10, columnspan=10, sticky='EW', padx=PAD_SMALL)
-
-        cores_label = tk.Label(self, text="#cores", font=FONT_LABEL, bg='white')
-        cores_label.grid(row=23, column=20, columnspan=10, sticky='EW', padx=PAD_BIG)
-
-        self.total_cores = mp.cpu_count()
-        cores_options = [1, int(self.total_cores / 2), int(self.total_cores * 3 / 4), int(self.total_cores)]
-        self.cores_var = tk.IntVar(self)
-        # self.cores_var.set(cores_options[0])
-        self.cores_drop = ttk.OptionMenu(self, self.cores_var, cores_options[0], *cores_options)
-        self.cores_drop.grid(row=24, column=20, columnspan=10, sticky='EW', padx=PAD_BIG)
-
-        dimensions_label = tk.Label(self, text="pixels or nm", font=FONT_LABEL, bg='white')
-        dimensions_label.grid(row=23, column=30, columnspan=10, sticky='EW', padx=PAD_BIG)
-
-        dimension_options = ["nm", "pixels"]
-        self.dimension = tk.StringVar(self)
-        # self.dimension.set(dimension_options[0])
-        self.dimension_drop = ttk.OptionMenu(self, self.dimension, dimension_options[0], *dimension_options)
-        self.dimension_drop.grid(row=24, column=30, columnspan=10, sticky='EW', padx=PAD_BIG)
-
-        frame_begin_label = tk.Label(self, text="Begin frame", font=FONT_LABEL, bg='white')
-        frame_begin_label.grid(row=27, column=0, columnspan=20, sticky='EW', padx=PAD_BIG)
-
-        self.frame_begin_input = EntryPlaceholder(self, "Leave empty for start", width=INPUT_BIG)
-        self.frame_begin_input.grid(row=28, column=0, columnspan=20)
-
-        frame_end_label = tk.Label(self, text="End frame", font=FONT_LABEL, bg='white')
-        frame_end_label.grid(row=27, column=20, columnspan=20, sticky='EW', padx=PAD_BIG)
-
-        self.frame_end_input = EntryPlaceholder(self, "Leave empty for end", width=INPUT_BIG)
-        self.frame_end_input.grid(row=28, column=20, columnspan=20)
-
-        self.button_fit = BigButton(self, text="FIT", height=int(GUI_HEIGHT / 8),
-                                    width=int(GUI_WIDTH / 8), state='disabled',
-                                    command=lambda: self.start_fitting())  # , style= 'my.TButton')
-        self.button_fit.grid(row=23, column=40, columnspan=5, rowspan=5)
-
-        progress_label = tk.Label(self, text="Progress", font=FONT_LABEL, bg='white')
-        progress_label.grid(row=23, column=45, columnspan=5, sticky='EW', padx=PAD_SMALL)
-
-        self.progress_status_label = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
-                                                 row=24, column=45, columnspan=5, sticky="ew", font=FONT_LABEL)
-
-        time_label = tk.Label(self, text="Estimated time done", font=FONT_LABEL, bg='white')
-        time_label.grid(row=26, column=45, columnspan=5, sticky='EW', padx=PAD_SMALL)
-
-        self.time_status_label = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
-                                             row=27, column=45, columnspan=5, sticky="ew", font=FONT_LABEL)
-
-        button_load_new = ttk.Button(self, text="Load new", command=lambda: self.load_new(parent))
-        button_load_new.grid(row=50, column=45, columnspan=2, sticky='EW', padx=PAD_SMALL)
-
-        button_quit = ttk.Button(self, text="Quit", command=quit_program)
-        button_quit.grid(row=50, column=48, columnspan=2, sticky='EW', padx=PAD_SMALL)
-
-        for i in range(0, 49):
-            self.columnconfigure(i, weight=1, minsize=15)
-
-        for i in range(0, 51):
-            self.rowconfigure(i, weight=1)
-
-
-# %% START GUI
 if __name__ == '__main__':
     gui = MbxPython()
     gui.geometry(str(GUI_WIDTH) + "x" + str(GUI_HEIGHT) + "+" + str(GUI_WIDTH_START) + "+" + str(GUI_HEIGHT_START))
@@ -1131,8 +1318,5 @@ if __name__ == '__main__':
     ttk_style.configure("TButton", font=FONT_BUTTON, background="Grey")
     ttk_style.configure("TSeparator", background="black")
     ttk_style.configure("TMenubutton", font=FONT_DROP, background="White")
-
-    #  print(ttk_style.layout("TMenubutton"))
-    #  print(ttk_style.element_options('Menubutton.dropdown'))
 
     gui.mainloop()
