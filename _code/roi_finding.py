@@ -21,6 +21,7 @@ v3.0: clean up and based on SPectrA; correlation, pixel_int, sigma and int
 v3.1: adaptations to GUI
 v3.2: further adaptations for GUI
 v3.3: cleanup
+v4.0: bug fix ROI distance, ready for Peter review
 
 """
 import numpy as np  # for linear algebra
@@ -140,7 +141,7 @@ class RoiFinder:
             my_roi = roi_boolean[y - self.roi_distance:y + self.roi_distance + 1,
                      x - self.roi_distance:x + self.roi_distance + 1]
 
-            trues_in_roi = np.transpose(np.where(my_roi is True))
+            trues_in_roi = np.transpose(np.where(my_roi == True))
 
             if trues_in_roi.shape[0] > 1:
                 keep_boolean[roi_index] = False

@@ -73,6 +73,7 @@ v7.8: back to sigma as fit
 v7.9: max its of 100, working with new ROI finder
 v8.0: PhasorSum, remove LastFit, rename, and clean up
 v8.1: Rejection options
+v8.2: change rejection options Phasor fits
 
 """
 # %% Generic imports
@@ -230,11 +231,6 @@ class Gaussian:
             ang_y = ang_y - 2 * pi
 
         pos_y = abs(ang_y) / (2 * pi / roi_size) - 1
-
-        if pos_x > roi_size:
-            pos_x -= roi_size
-        if pos_y > roi_size:
-            pos_y -= roi_size
 
         return pos_x, pos_y
 
@@ -583,6 +579,23 @@ class Phasor:
         elif self.roi_size == 7:
             return fortran_tools.calc_bg7(roi)
 
+    def fft_to_pos(self, fft_values):
+
+        ang_x = phase(fft_values[0, 1])
+        if ang_x > 0:
+            ang_x = ang_x - 2 * pi
+
+        pos_x = abs(ang_x) / (2 * pi / self.roi_size) + 0.5
+
+        ang_y = phase(fft_values[1, 0])
+
+        if ang_y > 0:
+            ang_y = ang_y - 2 * pi
+
+        pos_y = abs(ang_y) / (2 * pi / self.roi_size) + 0.5
+
+        return pos_x, pos_y
+
     def phasor_fit_stack(self, frame_stack, roi, roi_index, y, x):
 
         roi_result = np.zeros([frame_stack.shape[0], 6])
@@ -595,8 +608,6 @@ class Phasor:
         roi_bb = frame_stack
         fft_values_list = fft_values_list(roi_bb)
 
-        roi_size = frame_stack.shape[1]
-
         for frame_index, (fft_values, frame) in enumerate(zip(fft_values_list, frame_stack)):
 
             my_frame_bg = self.fun_calc_bg(frame)
@@ -605,29 +616,18 @@ class Phasor:
             if self.threshold_method == "Strict" and frame_max < self.thresholds['pixel_min']:
                 continue
 
-            ang_x = phase(fft_values[0, 1])
-            if ang_x > 0:
-                ang_x = ang_x - 2 * pi
+            pos_x, pos_y = self.fft_to_pos(fft_values)
 
-            pos_x = abs(ang_x) / (2 * pi / roi_size)
-
-            ang_y = phase(fft_values[1, 0])
-
-            if ang_y > 0:
-                ang_y = ang_y - 2 * pi
-
-            pos_y = abs(ang_y) / (2 * pi / roi_size)
-
-            if pos_x > 8.5:
-                pos_x -= roi_size
-            if pos_y > 8.5:
-                pos_y -= roi_size
+            if self.threshold_method != "None" and (pos_x > self.roi_size or pos_x < 0):
+                continue
+            if self.threshold_method != "None" and (pos_y > self.roi_size or pos_y < 0):
+                continue
 
             roi_result[frame_index, 0] = frame_index
             roi_result[frame_index, 1] = roi_index
             # start position plus from center in ROI + half for indexing of pixels
-            roi_result[frame_index, 2] = y + pos_y - self.roi_size_1D + 0.5
-            roi_result[frame_index, 3] = x + pos_x - self.roi_size_1D + 0.5
+            roi_result[frame_index, 2] = y + pos_y - self.roi_size_1D
+            roi_result[frame_index, 3] = x + pos_x - self.roi_size_1D
             roi_result[frame_index, 4] = frame_max - my_frame_bg  # returns max peak
             roi_result[frame_index, 5] = my_frame_bg  # background
 
@@ -711,33 +711,22 @@ class PhasorDumb(Phasor):
         roi_bb = frame_stack
         fft_values_list = fft_values_list(roi_bb)
 
-        roi_size = frame_stack.shape[1]
-
         for frame_index, (fft_values, frame) in enumerate(zip(fft_values_list, frame_stack)):
 
-            ang_x = phase(fft_values[0, 1])
-            if ang_x > 0:
-                ang_x = ang_x - 2 * pi
+            pos_x, pos_y = self.fft_to_pos(fft_values)
 
-            pos_x = abs(ang_x) / (2 * pi / roi_size)
-
-            ang_y = phase(fft_values[1, 0])
-
-            if ang_y > 0:
-                ang_y = ang_y - 2 * pi
-
-            pos_y = abs(ang_y) / (2 * pi / roi_size)
-
-            if pos_x > 8.5:
-                pos_x -= roi_size
-            if pos_y > 8.5:
-                pos_y -= roi_size
+            if self.threshold_method != "None" and (pos_x > self.roi_size or pos_x < 0):
+                continue
+            if self.threshold_method != "None" and (pos_y > self.roi_size or pos_y < 0):
+                continue
 
             roi_result[frame_index, 0] = frame_index
             roi_result[frame_index, 1] = roi_index
             # start position plus from center in ROI + half for indexing of pixels
-            roi_result[frame_index, 2] = y + pos_y - self.roi_size_1D + 0.5
-            roi_result[frame_index, 3] = x + pos_x - self.roi_size_1D + 0.5
+            roi_result[frame_index, 2] = y + pos_y - self.roi_size_1D
+            roi_result[frame_index, 3] = x + pos_x - self.roi_size_1D
+
+        roi_result = roi_result[roi_result[:, 2] > 0]
 
         return roi_result
 
@@ -759,35 +748,22 @@ class PhasorSum(Phasor):
         roi_bb = frame_stack
         fft_values_list = fft_values_list(roi_bb)
 
-        roi_size = frame_stack.shape[1]
-
         for frame_index, (fft_values, frame) in enumerate(zip(fft_values_list, frame_stack)):
 
             frame_sum = np.sum(frame)
 
-            ang_x = phase(fft_values[0, 1])
-            if ang_x > 0:
-                ang_x = ang_x - 2 * pi
+            pos_x, pos_y = self.fft_to_pos(fft_values)
 
-            pos_x = abs(ang_x) / (2 * pi / roi_size)
-
-            ang_y = phase(fft_values[1, 0])
-
-            if ang_y > 0:
-                ang_y = ang_y - 2 * pi
-
-            pos_y = abs(ang_y) / (2 * pi / roi_size)
-
-            if pos_x > 8.5:
-                pos_x -= roi_size
-            if pos_y > 8.5:
-                pos_y -= roi_size
+            if self.threshold_method != "None" and (pos_x > self.roi_size or pos_x < 0):
+                continue
+            if self.threshold_method != "None" and (pos_y > self.roi_size or pos_y < 0):
+                continue
 
             roi_result[frame_index, 0] = frame_index
             roi_result[frame_index, 1] = roi_index
             # start position plus from center in ROI + half for indexing of pixels
-            roi_result[frame_index, 2] = y + pos_y - self.roi_size_1D + 0.5
-            roi_result[frame_index, 3] = x + pos_x - self.roi_size_1D + 0.5
+            roi_result[frame_index, 2] = y + pos_y - self.roi_size_1D
+            roi_result[frame_index, 3] = x + pos_x - self.roi_size_1D
             roi_result[frame_index, 4] = frame_sum  # returns summation
 
         roi_result = roi_result[roi_result[:, 2] > 0]

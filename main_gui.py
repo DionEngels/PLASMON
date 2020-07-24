@@ -28,6 +28,7 @@ v2.5: styling
 v2.6: styling ttk
 v2.7: styling and warnings
 v2.8: New method of destroy and updating
+v3.0: Ready for Peter review
 
 """
 
@@ -176,8 +177,8 @@ class EntryPlaceholder(ttk.Entry):
         self.bind("<FocusOut>", self._add_placeholder)
 
     def _clear_placeholder(self, e):
+        self.delete("0", "end")
         if self["style"] == "Placeholder.TEntry":
-            self.delete("0", "end")
             self["style"] = "TEntry"
 
     def _add_placeholder(self, e):
@@ -579,18 +580,10 @@ class FittingPage(tk.Frame):
         method = self.method_var.get()
         rejection_type = self.rejection_var.get()
 
-        if rejection_type != "None" and (method == "Phasor + Sum" or method == "Phasor"):
+        if rejection_type == "Strict" and (method == "Phasor + Sum" or method == "Phasor"):
             rejection_check = tk.messagebox.askokcancel("Just a heads up",
-                                                        """These Phasor methods have no rejection options,
-            so "None" rejection will be used""")
-            if not rejection_check:
-                return
-
-        if rejection_type == "Loose" and method == "Phasor + Intensity":
-            rejection_check = tk.messagebox.askokcancel("Just a heads up",
-                                                        """This Phasor method can only do "Strict" or
-            "None" rejection. "Loose" will be changed to "None".""")
-            rejection_type = "None"
+                                                        """These Phasor methods have no strict rejection option,
+            so "Loose" rejection will be used""")
             if not rejection_check:
                 return
 
@@ -736,6 +729,10 @@ class FittingPage(tk.Frame):
         tools.save_to_csv_mat('Localizations', results_dict, directory)
 
         self.nd2.close()
+
+        self.nd2 = ND2_Reader(self.filenames[self.dataset_index])
+        self.frames = self.nd2
+        self.metadata = self.nd2.metadata
 
     # %% Fitting page, update the status
 
