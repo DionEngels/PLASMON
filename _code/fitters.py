@@ -22,6 +22,7 @@ v6.0: FORTRAN enabled without cache, ST
 v7.0: cleanup and declare_functions function: 14/07/2020
 v8.0: PhasorSum, remove LastFit, rename, and clean up
 v9.0: Gaussian fitting (with or without background) and three Phasor fitters: 24/07/2020
+v9.1: NaN output instead of leaving out, MATLAB ready output
 """
 # %% Imports
 from __future__ import division, print_function, absolute_import
@@ -85,7 +86,7 @@ class Gaussian:
         self.roi_locations = np.ones((1, 2))
         self.roi_size = roi_size
         self.roi_size_1D = int((self.roi_size - 1) / 2)
-        self.init_sig = 1.3  # Slightly on the high side probably
+        self.init_sig = 1.2  # Slightly on the high side probably
         self.thresholds = thresholds
         self.threshold_method = threshold_method
         self.__name__ = method
@@ -467,34 +468,40 @@ class Gaussian:
             my_roi = my_roi - my_roi_bg
 
             if self.threshold_method == "Strict" and self.fun_find_max(my_roi) < self.thresholds['pixel_min']:
-                continue
-
-            result, its, success = self.fit_gaussian(my_roi, peak_index)
-
-            if self.threshold_method == "None":
-                if success == 0:
-                    continue
+                frame_result[peak_index, :] = np.nan
+                frame_result[peak_index, 0] = frame_index + start_frame + 1  # plus 1 to convert to MATLAB indexing
+                frame_result[peak_index, 1] = peak_index + 1  # plus one to convert to MATLAB indexing
             else:
-                if success == 0 or \
-                        result[2] < pos_min or result[2] > pos_max or result[1] < pos_min or result[1] > pos_max or \
-                        result[0] < int_min or result[0] > int_max or \
-                        result[3] < sig_min or result[3] > sig_max or result[4] < sig_min or result[4] > sig_max:
-                    continue
+                result, its, success = self.fit_gaussian(my_roi, peak_index)
 
-            self.params[peak_index, :] = result[3:5]
+                if self.threshold_method == "None":
+                    if success == 0:
+                        self.params[peak_index, :] = [self.init_sig, self.init_sig]
+                else:
+                    if success == 0 or \
+                            result[2] < pos_min or result[2] > pos_max or result[1] < pos_min or result[1] > pos_max or \
+                            result[0] < int_min or result[0] > int_max or \
+                            result[3] < sig_min or result[3] > sig_max or result[4] < sig_min or result[4] > sig_max:
+                        self.params[peak_index, :] = [self.init_sig, self.init_sig]
+                        success = 0
 
-            frame_result[peak_index, 0] = frame_index + start_frame
-            frame_result[peak_index, 1] = peak_index
-            # start position plus from center in ROI + half for indexing of pixels
-            frame_result[peak_index, 2] = result[1] + y - self.roi_size_1D + 0.5
-            frame_result[peak_index, 3] = result[2] + x - self.roi_size_1D + 0.5
-            frame_result[peak_index, 4] = result[0]
-            frame_result[peak_index, 5] = result[3]
-            frame_result[peak_index, 6] = result[4]
-            frame_result[peak_index, 7] = my_roi_bg
-            frame_result[peak_index, 8] = its
+                if success == 1:
+                    self.params[peak_index, :] = result[3:5]
 
-        frame_result = frame_result[frame_result[:, 4] > 0]
+                    frame_result[peak_index, 0] = frame_index + start_frame + 1  # plus 1 to convert to MATLAB indexing
+                    frame_result[peak_index, 1] = peak_index + 1  # plus one to convert to MATLAB indexing
+                    # start position plus from center in ROI + half for indexing of pixels
+                    frame_result[peak_index, 2] = result[2] + x - self.roi_size_1D + 0.5  # x
+                    frame_result[peak_index, 3] = result[1] + y - self.roi_size_1D + 0.5  # y
+                    frame_result[peak_index, 4] = result[0]  # intensity
+                    frame_result[peak_index, 5] = result[4]  # sigma x
+                    frame_result[peak_index, 6] = result[3]  # sigma y
+                    frame_result[peak_index, 7] = my_roi_bg
+                    frame_result[peak_index, 8] = its
+                else:
+                    frame_result[peak_index, :] = np.nan
+                    frame_result[peak_index, 0] = frame_index + start_frame + 1  # plus 1 to convert to MATLAB indexing
+                    frame_result[peak_index, 1] = peak_index + 1  # plus one to convert to MATLAB indexing
 
         return frame_result
 
@@ -548,8 +555,6 @@ class Gaussian:
                     q.put([start_frame, frame_index + 1])
                 else:
                     print('Done fitting frame ' + str(frame_index) + ' of ' + str(n_frames))
-
-        self.result = np.delete(self.result, range(tot_fits, len(frames) * self.roi_locations.shape[0]), axis=0)
 
         if gui is not None:
             gui.update_status(n_frames, n_frames)
@@ -613,34 +618,40 @@ class GaussianBackground(Gaussian):
 
             if self.threshold_method == "Strict" and \
                     self.fun_find_max(my_roi) - self.fun_calc_bg(my_roi) < self.thresholds['pixel_min']:
-                continue
-
-            result, its, success = self.fit_gaussian(my_roi, peak_index)
-
-            if self.threshold_method == "None":
-                if success == 0:
-                    continue
+                frame_result[peak_index, :] = np.nan
+                frame_result[peak_index, 0] = frame_index + start_frame + 1  # plus one to convert to MATLAB indexing
+                frame_result[peak_index, 1] = peak_index + 1  # plus one to convert to MATLAB indexing
             else:
-                if success == 0 or \
-                        result[2] < pos_min or result[2] > pos_max or result[1] < pos_min or result[1] > pos_max or \
-                        result[0] < int_min or result[0] > int_max or \
-                        result[3] < sig_min or result[3] > sig_max or result[4] < sig_min or result[4] > sig_max:
-                    continue
+                result, its, success = self.fit_gaussian(my_roi, peak_index)
 
-            self.params[peak_index, :] = result[3:5]
+                if self.threshold_method == "None":
+                    if success == 0:
+                        self.params[peak_index, :] = [self.init_sig, self.init_sig]
+                else:
+                    if success == 0 or \
+                            result[2] < pos_min or result[2] > pos_max or result[1] < pos_min or result[1] > pos_max or\
+                            result[0] < int_min or result[0] > int_max or \
+                            result[3] < sig_min or result[3] > sig_max or result[4] < sig_min or result[4] > sig_max:
+                        self.params[peak_index, :] = [self.init_sig, self.init_sig]
+                        success = 0
 
-            frame_result[peak_index, 0] = frame_index + start_frame
-            frame_result[peak_index, 1] = peak_index
-            # start position plus from center in ROI + half for indexing of pixels
-            frame_result[peak_index, 2] = result[1] + y - self.roi_size_1D + 0.5  # y
-            frame_result[peak_index, 3] = result[2] + x - self.roi_size_1D + 0.5  # x
-            frame_result[peak_index, 4] = result[0]
-            frame_result[peak_index, 5] = result[3]
-            frame_result[peak_index, 6] = result[4]
-            frame_result[peak_index, 7] = result[5]
-            frame_result[peak_index, 8] = its
+                if success == 1:
+                    self.params[peak_index, :] = result[3:5]
 
-        frame_result = frame_result[frame_result[:, 4] > 0]
+                    frame_result[peak_index, 0] = frame_index + start_frame + 1  # plus 1 to convert to MATLAB indexing
+                    frame_result[peak_index, 1] = peak_index + 1  # plus one to convert to MATLAB indexing
+                    # start position plus from center in ROI + half for indexing of pixels
+                    frame_result[peak_index, 2] = result[2] + x - self.roi_size_1D + 0.5  # x
+                    frame_result[peak_index, 3] = result[1] + y - self.roi_size_1D + 0.5  # y
+                    frame_result[peak_index, 4] = result[0]  # intensity
+                    frame_result[peak_index, 5] = result[4]  # sigma x
+                    frame_result[peak_index, 6] = result[3]  # sigma y
+                    frame_result[peak_index, 7] = result[5]  # background
+                    frame_result[peak_index, 8] = its
+                else:
+                    frame_result[peak_index, :] = np.nan
+                    frame_result[peak_index, 0] = frame_index + start_frame + 1  # plus 1 to convert to MATLAB indexing
+                    frame_result[peak_index, 1] = peak_index + 1  # plus one to convert to MATLAB indexing
 
         return frame_result
 
@@ -765,29 +776,34 @@ class Phasor:
         fft_values_list = fft_values_list(roi_bb)
 
         for frame_index, (fft_values, frame) in enumerate(zip(fft_values_list, frame_stack)):
-
+            success = 1
             my_frame_bg = self.fun_calc_bg(frame)
             frame_max = self.fun_find_max(frame)
 
             if self.threshold_method == "Strict" and frame_max < self.thresholds['pixel_min']:
-                continue
+                roi_result[frame_index, :] = np.nan
+                roi_result[frame_index, 0] = frame_index + 1  # plus one to convert to MATLAB indexing
+                roi_result[frame_index, 1] = roi_index + 1  # plus one to convert to MATLAB indexing
+            else:
+                pos_x, pos_y = self.fft_to_pos(fft_values)
 
-            pos_x, pos_y = self.fft_to_pos(fft_values)
+                if self.threshold_method != "None" and (pos_x > self.roi_size or pos_x < 0):
+                    success = 0
+                if self.threshold_method != "None" and (pos_y > self.roi_size or pos_y < 0):
+                    success = 0
 
-            if self.threshold_method != "None" and (pos_x > self.roi_size or pos_x < 0):
-                continue
-            if self.threshold_method != "None" and (pos_y > self.roi_size or pos_y < 0):
-                continue
-
-            roi_result[frame_index, 0] = frame_index
-            roi_result[frame_index, 1] = roi_index
-            # start position plus from center in ROI + half for indexing of pixels
-            roi_result[frame_index, 2] = y + pos_y - self.roi_size_1D
-            roi_result[frame_index, 3] = x + pos_x - self.roi_size_1D
-            roi_result[frame_index, 4] = frame_max - my_frame_bg  # returns max peak
-            roi_result[frame_index, 5] = my_frame_bg  # background
-
-        roi_result = roi_result[roi_result[:, 2] > 0]
+                if success == 1:
+                    roi_result[frame_index, 0] = frame_index + 1  # plus one to convert to MATLAB indexing
+                    roi_result[frame_index, 1] = roi_index + 1  # plus one to convert to MATLAB indexing
+                    # start position plus from center in ROI + half for indexing of pixels
+                    roi_result[frame_index, 2] = x + pos_x - self.roi_size_1D  # x
+                    roi_result[frame_index, 3] = y + pos_y - self.roi_size_1D  # y
+                    roi_result[frame_index, 4] = frame_max - my_frame_bg  # returns max peak
+                    roi_result[frame_index, 5] = my_frame_bg  # background
+                else:
+                    roi_result[frame_index, :] = np.nan
+                    roi_result[frame_index, 0] = frame_index + 1  # plus one to convert to MATLAB indexing
+                    roi_result[frame_index, 1] = roi_index + 1  # plus one to convert to MATLAB indexing
 
         return roi_result
 
@@ -843,8 +859,6 @@ class Phasor:
                     else:
                         gui.update_status(roi_index + 1, len(self.roi_locations) + 1)
 
-        self.result = np.delete(self.result, range(tot_fits, len(frames) * self.roi_locations.shape[0]), axis=0)
-
         if gui is not None:
             gui.update_status(len(self.roi_locations), len(self.roi_locations))
 
@@ -884,21 +898,24 @@ class PhasorDumb(Phasor):
         fft_values_list = fft_values_list(roi_bb)
 
         for frame_index, (fft_values, frame) in enumerate(zip(fft_values_list, frame_stack)):
-
+            success = 1
             pos_x, pos_y = self.fft_to_pos(fft_values)
 
             if self.threshold_method != "None" and (pos_x > self.roi_size or pos_x < 0):
-                continue
+                success = 0
             if self.threshold_method != "None" and (pos_y > self.roi_size or pos_y < 0):
-                continue
+                success = 0
 
-            roi_result[frame_index, 0] = frame_index
-            roi_result[frame_index, 1] = roi_index
-            # start position plus from center in ROI + half for indexing of pixels
-            roi_result[frame_index, 2] = y + pos_y - self.roi_size_1D
-            roi_result[frame_index, 3] = x + pos_x - self.roi_size_1D
-
-        roi_result = roi_result[roi_result[:, 2] > 0]
+            if success == 1:
+                roi_result[frame_index, 0] = frame_index + 1  # plus one to convert to MATLAB indexing
+                roi_result[frame_index, 1] = roi_index + 1  # plus one to convert to MATLAB indexing
+                # start position plus from center in ROI + half for indexing of pixels
+                roi_result[frame_index, 2] = x + pos_x - self.roi_size_1D  # x
+                roi_result[frame_index, 3] = y + pos_y - self.roi_size_1D  # y
+            else:
+                roi_result[frame_index, :] = np.nan
+                roi_result[frame_index, 0] = frame_index + 1  # plus one to convert to MATLAB indexing
+                roi_result[frame_index, 1] = roi_index + 1  # plus one to convert to MATLAB indexing
 
         return roi_result
 
@@ -936,23 +953,26 @@ class PhasorSum(Phasor):
         fft_values_list = fft_values_list(roi_bb)
 
         for frame_index, (fft_values, frame) in enumerate(zip(fft_values_list, frame_stack)):
-
+            success = 1
             frame_sum = np.sum(frame)
 
             pos_x, pos_y = self.fft_to_pos(fft_values)
 
             if self.threshold_method != "None" and (pos_x > self.roi_size or pos_x < 0):
-                continue
+                success = 0
             if self.threshold_method != "None" and (pos_y > self.roi_size or pos_y < 0):
-                continue
+                success = 0
 
-            roi_result[frame_index, 0] = frame_index
-            roi_result[frame_index, 1] = roi_index
-            # start position plus from center in ROI + half for indexing of pixels
-            roi_result[frame_index, 2] = y + pos_y - self.roi_size_1D
-            roi_result[frame_index, 3] = x + pos_x - self.roi_size_1D
-            roi_result[frame_index, 4] = frame_sum  # returns summation
-
-        roi_result = roi_result[roi_result[:, 2] > 0]
+            if success == 1:
+                roi_result[frame_index, 0] = frame_index + 1  # plus one to convert to MATLAB indexing
+                roi_result[frame_index, 1] = roi_index + 1  # plus one to convert to MATLAB indexing
+                # start position plus from center in ROI + half for indexing of pixels
+                roi_result[frame_index, 2] = x + pos_x - self.roi_size_1D  # x
+                roi_result[frame_index, 3] = y + pos_y - self.roi_size_1D  # y
+                roi_result[frame_index, 4] = frame_sum  # returns summation
+            else:
+                roi_result[frame_index, :] = np.nan
+                roi_result[frame_index, 0] = frame_index + 1  # plus one to convert to MATLAB indexing
+                roi_result[frame_index, 1] = roi_index + 1  # plus one to convert to MATLAB indexing
 
         return roi_result

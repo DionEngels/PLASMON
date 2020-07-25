@@ -31,6 +31,7 @@ v2.8: New method of destroy and updating
 v3.0: Ready for Peter review on functional level
 v3.1: cleaned up
 v3.2: further cleanup and restructuring
+v4.0: Bug fix to batch loading, MATLAB-ready output, settings and results text file output. Now really ready for Peter
 
 """
 
@@ -113,7 +114,7 @@ def mt_main(name, fitter, frames_split, roi_locations, shared, q):
     fitter : Fitter to be used
     frames_split : What frames this instance has to fit of the total .nd2
     roi_locations : ROI locations
-    shared : Shared memroy. The place where the results will be placed
+    shared : Shared memory. The place where the results will be placed
     q : Queue. Used to send status updates to GUI.
 
     Returns
@@ -828,7 +829,7 @@ class FittingPage(tk.Frame):
         if not success:
             return
 
-        self.roi_locations[self.dataset_index] = self.temp_roi_locations
+        self.roi_locations[self.dataset_index] = self.temp_roi_locations.copy()
 
         int_min = self.min_int_slider.get()
         int_max = self.max_int_slider.get()
@@ -997,8 +998,6 @@ class FittingPage(tk.Frame):
 
         n_processes = self.cores_var.get()
         basedir = os.getcwd()
-        start_frame = self.frame_begin_input.get()
-        end_frame = self.frame_end_input.get()
         method = self.method_var.get()
         rejection_type = self.rejection_var.get()
 
@@ -1017,35 +1016,36 @@ class FittingPage(tk.Frame):
                 return
             n_processes = 1
 
-        directory = ""
-        metadata_filtered = {}
-        roi_locations_dict = {}
-        results_dict = {}
         self.start_time = time.time()
         results_counter = 0
 
-        for dataset_index, filename in enumerate(self.filenames):
+        dataset_index_viewing = self.dataset_index
+
+        for self.dataset_index, filename in enumerate(self.filenames):
+            dataset_time = time.time()
             self.nd2.close()
             self.nd2 = ND2_Reader(filenames[self.dataset_index])
             self.frames = self.nd2
             self.metadata = self.nd2.metadata
-            self.dataset_index = dataset_index
 
-            roi_size = self.saved_settings[dataset_index]['roi_size']
+            roi_size = self.saved_settings[self.dataset_index]['roi_size']
 
-            roi_locations = self.roi_locations[dataset_index]
+            roi_locations = self.roi_locations[self.dataset_index]
 
             if method == "Phasor + Intensity":
-                fitter = fitting.Phasor(roi_size, self.saved_settings[dataset_index], rejection_type, method)
+                fitter = fitting.Phasor(roi_size, self.saved_settings[self.dataset_index], rejection_type, method)
             elif method == "Phasor":
-                fitter = fitting.PhasorDumb(roi_size, self.saved_settings[dataset_index], rejection_type, method)
+                fitter = fitting.PhasorDumb(roi_size, self.saved_settings[self.dataset_index], rejection_type, method)
             elif method == "Gaussian - Fit bg":
-                fitter = fitting.GaussianBackground(roi_size, self.saved_settings[dataset_index], rejection_type,
+                fitter = fitting.GaussianBackground(roi_size, self.saved_settings[self.dataset_index], rejection_type,
                                                     method, 6)
             elif method == "Gaussian - Estimate bg":
-                fitter = fitting.Gaussian(roi_size, self.saved_settings[dataset_index], rejection_type, method, 5)
+                fitter = fitting.Gaussian(roi_size, self.saved_settings[self.dataset_index], rejection_type, method, 5)
             else:
-                fitter = fitting.PhasorSum(roi_size, self.saved_settings[dataset_index], rejection_type, method)
+                fitter = fitting.PhasorSum(roi_size, self.saved_settings[self.dataset_index], rejection_type, method)
+
+            start_frame = self.frame_begin_input.get()
+            end_frame = self.frame_end_input.get()
 
             if start_frame == "Leave empty for start" and end_frame == "Leave empty for end":
                 end_frame = self.metadata['sequence_count']
@@ -1106,12 +1106,14 @@ class FittingPage(tk.Frame):
                     result = arr.reshape((len(roi_locations) * len(frames_split[i]), 9))
                     results[counter:counter + len(roi_locations) * len(frames_split[i])] = result
                     counter += len(roi_locations) * len(frames_split[i])
-
-                results = results[results[:, 3] != 0]
             else:
                 self.update_status(0, num_frames)
                 results = fitter.main(to_fit, self.metadata, roi_locations,
                                       gui=self, n_frames=num_frames)
+
+            # MATLAB works from bottom left as zero point, Python top left. Thus, y is switched
+
+            results[:, 2] = self.frames[0].shape[0] - results[:, 2]
 
             nm_or_pixels = self.dimension.get()
             if nm_or_pixels == "nm":
@@ -1139,18 +1141,29 @@ class FittingPage(tk.Frame):
 
             # Localization dict
             results_dict = {'Localizations': results}
-            results_counter += results.shape[0]
+
+            tools.save_to_csv_mat('metadata', metadata_filtered, directory)
+            tools.save_to_csv_mat('ROI_locations', roi_locations_dict, directory)
+            tools.save_to_csv_mat('Localizations', results_dict, directory)
+
+            total_fits = results.shape[0]
+            failed_fits = results[np.isnan(results[:, 3]), :].shape[0]
+            time_taken = round(time.time() - dataset_time, 3)
+
+            tools.text_output(self.saved_settings[self.dataset_index], method, rejection_type, nm_or_pixels,
+                              total_fits, failed_fits, time_taken, directory)
+
+            successful_fits = total_fits - failed_fits
+            results_counter += successful_fits
 
         end_message = 'Time taken: ' + str(round(time.time() - self.start_time, 3)) \
                       + ' s. Fits done: ' + str(results_counter)
 
         tk.messagebox.showinfo("Done!", end_message)
 
-        tools.save_to_csv_mat('metadata', metadata_filtered, directory)
-        tools.save_to_csv_mat('ROI_locations', roi_locations_dict, directory)
-        tools.save_to_csv_mat('Localizations', results_dict, directory)
-
         self.nd2.close()
+
+        self.dataset_index = dataset_index_viewing
 
         self.nd2 = ND2_Reader(self.filenames[self.dataset_index])
         self.frames = self.nd2

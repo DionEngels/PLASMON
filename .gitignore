@@ -138,6 +138,7 @@ __pycache__/
 
 # testing
 1nMimager_newGNRs_100mW/
+500pMATTO_9bp_100mW_100ms002/
 *.stats
 
 ## PyCharm
@@ -153,7 +154,7 @@ __pycache__/
 ..Fit_comparison/v3
 ..Fit_comparison/v4
 ..Fit_comparison/v5
-
+..Fit_comparison/v5_Yuyang
 ..Fit_comparison/v6
 ..Fit_comparison/v6_Yuyang
 ..Fit_comparison/v7

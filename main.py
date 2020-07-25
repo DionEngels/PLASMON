@@ -21,6 +21,7 @@ v1.5: removed MATLAB ROI finding
 v1.6: MATLAB v3 loading
 v1.7: cleanup
 v1.8: rejection options
+v2.0: ready for Peter review. MATLAB coordinate system output, bug fix and text output
 
  """
 
@@ -67,7 +68,7 @@ for name in filenames:
         except:
             pass
 
-        if DATASET == "MATLAB_v2" or "MATLAB_v3":
+        if DATASET == "MATLAB_v2" or DATASET == "MATLAB_v3":
             # Load in MATLAB data
 
             if DATASET == "MATLAB_v2":
@@ -122,10 +123,17 @@ for name in filenames:
 
         results = fitter.main(frames, metadata, ROI_locations)
 
-        print('Time taken: ' + str(round(time.time() - start, 3)) + ' s. Fits done: ' + str(results.shape[0]))
+        total_fits = results.shape[0]
+        failed_fits = results[np.isnan(results[:, 3]), :].shape[0]
+        successful_fits = total_fits - failed_fits
+
+        time_taken = round(time.time() - start, 3)
+
+        print('Time taken: ' + str(time_taken) + ' s. Fits done: ' + str(successful_fits))
 
         print('Starting saving')
         # %% Plot frames
+
         # for index, frame in enumerate(frames):
         #     toPlot = results[results[:, 0] == index]
         #     plt.imshow(frames[0], extent=[0,frame.shape[1],frame.shape[0],0], aspect='auto')
@@ -133,6 +141,11 @@ for name in filenames:
         #     plt.scatter(toPlot[:,3], toPlot[:,2], s=2, c='red', marker='x', alpha=0.5)
         #     plt.title("Frame number: " + str(index))
         #     plt.show()
+
+        # MATLAB works from bottom left as zero point, Python top left. Thus, y is switched
+
+        results[:, 2] = frames[0].shape[0] - results[:, 2]
+
         # %% filter metadata
         metadata_filtered = {k: v for k, v in metadata.items() if v is not None}
         del metadata_filtered['time_start']
@@ -148,3 +161,5 @@ for name in filenames:
         tools.save_to_csv_mat('metadata', metadata_filtered, directory)
         tools.save_to_csv_mat('ROI_locations', ROI_locations_dict, directory)
         tools.save_to_csv_mat('Localizations', results_dict, directory)
+
+        tools.text_output({}, METHOD, THRESHOLD_METHOD, "", total_fits, failed_fits, time_taken, directory)
