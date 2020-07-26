@@ -85,7 +85,7 @@ for name in filenames:
             # parse ND2 info
             frames = ND2
             metadata = ND2.metadata
-            # frames = frames[0:200]
+            #  frames = frames[0:5]
 
         # %% Find ROIs (for standard NP2 file)
         print('Starting to find ROIs')
@@ -151,15 +151,9 @@ for name in filenames:
         del metadata_filtered['time_start']
         del metadata_filtered['time_start_utc']
 
-        # ROI_locations dict
-        ROI_locations_dict = dict(zip(['x', 'y'], ROI_locations.T))
-
-        # Localization dict
-        results_dict = {'Localizations': results}
-
 # %% save everything
         tools.save_to_csv_mat('metadata', metadata_filtered, directory)
-        tools.save_to_csv_mat('ROI_locations', ROI_locations_dict, directory)
-        tools.save_to_csv_mat('Localizations', results_dict, directory)
+        tools.save_to_csv_mat_roi('ROI_locations', ROI_locations, frames[0].shape[0], directory)
+        tools.save_to_csv_mat_results('Localizations', results, METHOD, directory)
 
         tools.text_output({}, METHOD, THRESHOLD_METHOD, "", total_fits, failed_fits, time_taken, directory)

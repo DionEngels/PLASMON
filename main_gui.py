@@ -519,7 +519,7 @@ class FittingPage(tk.Frame):
 
         min_sigma_histogram = ttk.Button(self, text="Graph",
                                          command=lambda: self.fun_histogram("min_sigma"))
-        min_sigma_histogram.grid(row=6, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        min_sigma_histogram.grid(row=6, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         min_sigma_histogram_select = ttk.Button(self, text="Select min",
                                                 command=lambda: self.histogram_select("min_sigma"))
@@ -612,7 +612,7 @@ class FittingPage(tk.Frame):
         method_drop = ttk.OptionMenu(self, self.method_var, fit_options[1], *fit_options)
         method_drop.grid(row=24, column=0, columnspan=10, sticky="ew")
 
-        rejection_label = tk.Label(self, text="ROI size", bg='white', font=FONT_LABEL)
+        rejection_label = tk.Label(self, text="Rejection", bg='white', font=FONT_LABEL)
         rejection_label.grid(row=23, column=10, columnspan=10, sticky='EW', padx=PAD_SMALL)
 
         self.rejection_var = tk.StringVar(self)
@@ -1136,15 +1136,9 @@ class FittingPage(tk.Frame):
             del metadata_filtered['time_start']
             del metadata_filtered['time_start_utc']
 
-            # ROI_locations dict
-            roi_locations_dict = dict(zip(['x', 'y'], roi_locations.T))
-
-            # Localization dict
-            results_dict = {'Localizations': results}
-
             tools.save_to_csv_mat('metadata', metadata_filtered, directory)
-            tools.save_to_csv_mat('ROI_locations', roi_locations_dict, directory)
-            tools.save_to_csv_mat('Localizations', results_dict, directory)
+            tools.save_to_csv_mat_roi('ROI_locations', roi_locations, self.frames[0].shape[0], directory)
+            tools.save_to_csv_mat_results('Localizations', results, method, directory)
 
             total_fits = results.shape[0]
             failed_fits = results[np.isnan(results[:, 3]), :].shape[0]
@@ -1236,7 +1230,7 @@ class FittingPage(tk.Frame):
             self.histogram.clear()
             logbins = np.logspace(np.log10(bins[0]), np.log10(bins[-1]), len(bins))
             plt.hist(self.to_hist, bins=logbins)
-            plt.title("Intensity. Use graph select to change threshold")
+            plt.title("Intensity. Use grap select to change threshold")
             plt.axvline(x=min_int, color='red', linestyle='--')
             plt.axvline(x=max_int, color='red', linestyle='--')
             plt.xscale('log')

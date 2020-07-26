@@ -18,14 +18,22 @@ v4: settings and results text output: 25/07/2020
 
 from csv import DictWriter  # to save to csv
 from scipy.io import savemat  # to export for MATLAB
-from numpy import zeros
+from numpy import zeros, savetxt
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from datetime import datetime
 
 
+# translates the raw dictionary keys to user readable input
+TRANSLATOR_DICT = {'int_max': 'Maximum Intensity', 'int_min': 'Minimum Intensity', 'sigma_min': "Minimum Sigma",
+                   'sigma_max': "Maximum Sigma", 'corr_min': "Minimum Correlation",
+                   'pixel_min': "Minimum pixel intensity", 'roi_size': "ROI size", 'filter_size': "Filter size",
+                   'roi_side': "Side spacing", 'inter_roi': "ROI spacing"}
+
+
 def save_to_csv_mat(name, values, directory):
     """
+    Basic saver to .csv and .mat, only used by metadata
 
     Parameters
     ----------
@@ -42,23 +50,105 @@ def save_to_csv_mat(name, values, directory):
         fieldnames = [k[0] for k in values.items()]
         writer = DictWriter(csv_file, fieldnames=fieldnames)
 
-        writer.writeheader()
+        #  writer.writeheader()
         writer.writerow(values)
 
         savemat(directory + "/" + name + '.mat', values)
 
 
+def save_to_csv_mat_results(name, results, method, directory):
+    """
+    Save the results to .csv and .mat
+
+    Parameters
+    ----------
+    name : name to save to
+    results : results to save
+    method: method of of fitting used
+    directory : directory to save
+
+    Returns
+    -------
+    None.
+
+    """
+    with open(directory + "/" + name + '.csv', mode='w') as csv_file:
+        if method == "Phasor + Intensity":
+            header = "Frame index,ROI index,x position,y position,Pixel intensity peak,Background"
+            savetxt(directory + "/" + name + '.csv', results, delimiter=',', header=header)
+        elif method == "Phasor":
+            header = "Frame index,ROI index,x position,y position"
+            savetxt(directory + "/" + name + '.csv', results, delimiter=',', header=header)
+        elif method == "Phasor + Sum":
+            header = "Frame index,ROI index,x position,y position,Sum of ROI pixel values"
+            savetxt(directory + "/" + name + '.csv', results, delimiter=',', header=header)
+        elif method == "Gaussian - Fit bg":
+            header = "Frame index,ROI index,x position,y position,Intensity Gaussian,Sigma x,Sigma y,Background (" \
+                     "fitted),Iterations needed to converge"
+            savetxt(directory + "/" + name + '.csv', results, delimiter=',', header=header)
+        else:
+            header = "Frame index,ROI index,x position,y position,Intensity Gaussian,Sigma x,Sigma y,Background (" \
+                     "estimate),Iterations needed to converge"
+            savetxt(directory + "/" + name + '.csv', results, delimiter=',', header=header)
+
+    results_dict = {'Localizations': results}
+    savemat(directory + "/" + name + '.mat', results_dict)
+
+
+def save_to_csv_mat_roi(name, rois, height, directory):
+    """
+    Saves the ROIs to a .mat and .csv
+
+    Parameters
+    ----------
+    name : name to save to
+    rois : rois to save
+    directory : directory to save
+
+    Returns
+    -------
+    None.
+
+    """
+    rois = switch(rois)  # from y,x to x,y
+    rois[:, 1] = height - rois[:,1]  # MATLAB has origin in bottom left, Python top left. Switch y-axis to compensate
+    header = "x,y"
+    savetxt(directory + "/" + name + '.csv', rois, delimiter=',', header=header)
+
+    rois_dict = dict(zip(['x', 'y'], rois.T))
+    savemat(directory + "/" + name + '.mat', rois_dict)
+
+
 def text_output(settings, method, threshold_method, nm_or_pixels, total_fits, failed_fits, time_taken, directory):
+    """
+    Outputs all settings and results to a txt for reference
+
+    Parameters
+    ----------
+    settings: settings to find ROIs
+    method: method of fitting used
+    threshold_method: rejection method used
+    nm_or_pixels: nm or pixels output
+    total_fits: total fits done
+    failed_fits: failed fits
+    time_taken: total time taken
+    directory : directory to save
+
+    Returns
+    -------
+    None.
+
+    """
     with open(directory + "/" + "Localizations_info" + ".txt", mode='w') as text_file:
         now = datetime.now()
         text_file.write("Ran on: " + now.strftime('%d/%m/%Y %H:%M:%S') + "\n\n")
         text_file.write("Settings \n------------\n")
         for key, value in settings.items():
-            text_file.write(str(key) + ": " + str(value) + "\n")
+            text_file.write(str(TRANSLATOR_DICT[key]) + ": " + str(value) + "\n")
 
         text_file.write("\nMethod \n------------\n")
         text_file.write("Method: " + method + "\n")
-        text_file.write("Threshold method: " + threshold_method + "\n")
+        text_file.write("Rejection method: " + threshold_method + "\n")
         text_file.write("Nm or pixels: " + nm_or_pixels + "\n")
 
         text_file.write("\nResult \n------------\n")
@@ -84,6 +174,7 @@ def text_output(settings, method, threshold_method, nm_or_pixels, total_fits, fa
 
 def switch(array):
     """
+    Switches a single arrays values
 
     Parameters
     ----------

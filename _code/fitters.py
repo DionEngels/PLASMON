@@ -527,6 +527,8 @@ class Gaussian:
         """
         if n_frames is None:
             n_frames = metadata['sequence_count']
+        elif n_frames < 10:
+            n_frames = 10
 
         self.roi_locations = roi_locations
         self.params = np.zeros((self.roi_locations.shape[0], 2))
