@@ -12,6 +12,7 @@ Setup code
 v1: Full setup: 26/07/2020
 
 """
+_ = r'-b C:\Users\s150127\Downloads\__build_test'
 
 import os
 import shutil
@@ -29,7 +30,7 @@ if sys.platform == 'win32':
 include_files = []
 includes = ['tkinter']
 excludes = ['matplotlib.tests', 'numpy.random._examples']
-packages = ['numpy']
+packages = ['numpy', 'scipy', 'matplotlib']
 
 setup(
     name='MbxPython',
@@ -39,7 +40,7 @@ setup(
     options={'build_exe': {
         'packages': packages,
         'includes': includes,
-        #  'include_files': include_files,
+        'include_files': include_files,
         'include_msvcr': True,
         'excludes': excludes,
     }},
