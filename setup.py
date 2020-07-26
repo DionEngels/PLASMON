@@ -10,9 +10,10 @@ Setup code
 ----------------------------
 
 v1: Full setup: 26/07/2020
+v1.1: minor changes
 
 """
-_ = r'-b C:\Users\s150127\Downloads\__build_test'
+r'-b C:\Users\s150127\Downloads\__build_test'  # take this control location of build
 
 import os
 import shutil
@@ -30,11 +31,11 @@ if sys.platform == 'win32':
 include_files = []
 includes = ['tkinter']
 excludes = ['matplotlib.tests', 'numpy.random._examples']
-packages = ['numpy', 'scipy', 'matplotlib']
+packages = ['numpy', 'scipy', 'matplotlib', 'multiprocessing']
 
 setup(
     name='MbxPython',
-    description='Fast localization from .nd2 data',
+    description='MbxPython',
     version=__version__,
     executables=[Executable('main_gui.py', base=base)],
     options={'build_exe': {

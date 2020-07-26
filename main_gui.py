@@ -1316,6 +1316,7 @@ class FittingPage(tk.Frame):
 
 
 if __name__ == '__main__':
+    mp.freeze_support()
     gui = MbxPython()
     gui.geometry(str(GUI_WIDTH) + "x" + str(GUI_HEIGHT) + "+" + str(GUI_WIDTH_START) + "+" + str(GUI_HEIGHT_START))
 
