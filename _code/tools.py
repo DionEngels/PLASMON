@@ -7,12 +7,14 @@ MBx Python Data Analysis
 
 Tools
 
+Some additional tools used by MBx Python
+
 ----------------------------
 
-v1: Save to CSV & Mat: 31/05/2020
-v2: also switch array: 04/06/2020
-v3: cleaned up: 24/07/2020
-v4: settings and results text output: 25/07/2020
+v0.1: Save to CSV & Mat: 31/05/2020
+v0.2: also switch array: 04/06/2020
+v0.3: cleaned up: 24/07/2020
+v0.4: settings and results text output: 25/07/2020
 
 """
 
@@ -31,7 +33,7 @@ TRANSLATOR_DICT = {'int_max': 'Maximum Intensity', 'int_min': 'Minimum Intensity
                    'roi_side': "Side spacing", 'inter_roi': "ROI spacing"}
 
 
-def save_to_csv_mat(name, values, directory):
+def save_to_csv_mat(name, values, path):
     """
     Basic saver to .csv and .mat, only used by metadata
 
@@ -39,24 +41,24 @@ def save_to_csv_mat(name, values, directory):
     ----------
     name : name to save to
     values : values to save
-    directory : directory to save
+    path : path to save
 
     Returns
     -------
     None.
 
     """
-    with open(directory + "/" + name + '.csv', mode='w') as csv_file:
+    with open(path + "/" + name + '.csv', mode='w') as csv_file:
         fieldnames = [k[0] for k in values.items()]
         writer = DictWriter(csv_file, fieldnames=fieldnames)
 
         #  writer.writeheader()
         writer.writerow(values)
 
-        savemat(directory + "/" + name + '.mat', values)
+        savemat(path + "/" + name + '.mat', values)
 
 
-def save_to_csv_mat_results(name, results, method, directory):
+def save_to_csv_mat_results(name, results, method, path):
     """
     Save the results to .csv and .mat
 
@@ -65,37 +67,37 @@ def save_to_csv_mat_results(name, results, method, directory):
     name : name to save to
     results : results to save
     method: method of of fitting used
-    directory : directory to save
+    path : path to save
 
     Returns
     -------
     None.
 
     """
-    with open(directory + "/" + name + '.csv', mode='w') as csv_file:
+    with open(path + "/" + name + '.csv', mode='w') as csv_file:
         if method == "Phasor + Intensity":
             header = "Frame index,ROI index,x position,y position,Pixel intensity peak,Background"
-            savetxt(directory + "/" + name + '.csv', results, delimiter=',', header=header)
+            savetxt(path + "/" + name + '.csv', results, delimiter=',', header=header)
         elif method == "Phasor":
             header = "Frame index,ROI index,x position,y position"
-            savetxt(directory + "/" + name + '.csv', results, delimiter=',', header=header)
+            savetxt(path + "/" + name + '.csv', results, delimiter=',', header=header)
         elif method == "Phasor + Sum":
             header = "Frame index,ROI index,x position,y position,Sum of ROI pixel values"
-            savetxt(directory + "/" + name + '.csv', results, delimiter=',', header=header)
+            savetxt(path + "/" + name + '.csv', results, delimiter=',', header=header)
         elif method == "Gaussian - Fit bg":
             header = "Frame index,ROI index,x position,y position,Intensity Gaussian,Sigma x,Sigma y,Background (" \
                      "fitted),Iterations needed to converge"
-            savetxt(directory + "/" + name + '.csv', results, delimiter=',', header=header)
+            savetxt(path + "/" + name + '.csv', results, delimiter=',', header=header)
         else:
             header = "Frame index,ROI index,x position,y position,Intensity Gaussian,Sigma x,Sigma y,Background (" \
                      "estimate),Iterations needed to converge"
-            savetxt(directory + "/" + name + '.csv', results, delimiter=',', header=header)
+            savetxt(path + "/" + name + '.csv', results, delimiter=',', header=header)
 
     results_dict = {'Localizations': results}
-    savemat(directory + "/" + name + '.mat', results_dict)
+    savemat(path + "/" + name + '.mat', results_dict)
 
 
-def save_to_csv_mat_roi(name, rois, height, directory):
+def save_to_csv_mat_roi(name, rois, height, path):
     """
     Saves the ROIs to a .mat and .csv
 
@@ -103,7 +105,8 @@ def save_to_csv_mat_roi(name, rois, height, directory):
     ----------
     name : name to save to
     rois : rois to save
-    directory : directory to save
+    height : height of video to switch y-axis
+    path : path to save
 
     Returns
     -------
@@ -113,13 +116,13 @@ def save_to_csv_mat_roi(name, rois, height, directory):
     rois = switch(rois)  # from y,x to x,y
     rois[:, 1] = height - rois[:,1]  # MATLAB has origin in bottom left, Python top left. Switch y-axis to compensate
     header = "x,y"
-    savetxt(directory + "/" + name + '.csv', rois, delimiter=',', header=header)
+    savetxt(path + "/" + name + '.csv', rois, delimiter=',', header=header)
 
     rois_dict = dict(zip(['x', 'y'], rois.T))
-    savemat(directory + "/" + name + '.mat', rois_dict)
+    savemat(path + "/" + name + '.mat', rois_dict)
 
 
-def text_output(settings, method, threshold_method, nm_or_pixels, total_fits, failed_fits, time_taken, directory):
+def text_output(settings, method, threshold_method, nm_or_pixels, total_fits, failed_fits, time_taken, path):
     """
     Outputs all settings and results to a txt for reference
 
@@ -132,14 +135,14 @@ def text_output(settings, method, threshold_method, nm_or_pixels, total_fits, fa
     total_fits: total fits done
     failed_fits: failed fits
     time_taken: total time taken
-    directory : directory to save
+    path : path to save
 
     Returns
     -------
     None.
 
     """
-    with open(directory + "/" + "Localizations_info" + ".txt", mode='w') as text_file:
+    with open(path + "/" + "Localizations_info" + ".txt", mode='w') as text_file:
         now = datetime.now()
         text_file.write("Ran on: " + now.strftime('%d/%m/%Y %H:%M:%S') + "\n\n")
         text_file.write("Settings \n------------\n")

@@ -7,23 +7,21 @@ MBx Python Data Analysis
 
 Setup code
 
+This piece of code allows you to compile Mbx Python to an .exe
+
 ----------------------------
 
-v1: Full setup: 26/07/2020
-v1.1: minor changes
+v0.1: Full setup: 26/07/2020
+v0.2: minor changes
 
 """
 r'-b C:\Users\s150127\Downloads\__build_test'  # take this control location of build
 
 import os
-import shutil
 import sys
 from cx_Freeze import setup, Executable
 
-#  os.environ['TCL_LIBRARY'] = r'C:\bin\Python37-32\tcl\tcl8.6'
-#  os.environ['TK_LIBRARY'] = r'C:\bin\Python37-32\tcl\tk8.6'
-
-__version__ = '1.0.0'
+__version__ = '1.0'
 base = None
 if sys.platform == 'win32':
     base = 'Win32GUI'
@@ -37,7 +35,7 @@ setup(
     name='MbxPython',
     description='MbxPython',
     version=__version__,
-    executables=[Executable('main_gui.py', base=base)],
+    executables=[Executable('main_gui.py', targetName="MbxPython.exe", base=base)],
     options={'build_exe': {
         'packages': packages,
         'includes': includes,
@@ -48,6 +46,4 @@ setup(
 )
 
 path = os.path.abspath(os.path.join(os.path.realpath(__file__), os.pardir))
-build_path = os.path.join(path, 'build', 'exe.win32-3.7')
-#  shutil.copy(r'C:\bin\Python37-32\DLLs\tcl86t.dll', build_path)
-#  shutil.copy(r'C:\bin\Python37-32\DLLs\tk86t.dll', build_path)
+build_path = os.path.join(path, 'build')

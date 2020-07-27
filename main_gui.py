@@ -5,38 +5,22 @@ Created on Sat Jul 11 19:14:16 2020
 @author: Dion Engels
 MBx Python Data Analysis
 
-v1.0: first version GUI: 13/07/2020
-v1.1: Adding ROI size, wavelength to GUI: 13/07/2020
-v1.2: Small additions, 7x7 ROI
-v1.3: Disabling buttons, removing from grid
-v1.4: Save and change wavelength per data set
-v1.5: Allow for nm and pixel saving and MT
-v1.6: conforming to standards of Python
-v1.7: further cleanup
-v1.8: complete reconstruction of labels, sliders, and buttons
-v1.9: tweaked max sigma and max intensity
-v1.10: histograms
-v1.11: interactive histograms
-v1.12: Status for MP
-v1.13: removed wavelength
-v2.0: new ROI finding method: 20/07/2020
-v2.1: adding additional options for new ROI method
-v2.2: new ROI method finished, new options finished, and new Fitter options
-v2.3: Rejection options
-v2.4: new grid
-v2.5: styling
-v2.6: styling ttk
-v2.7: styling and warnings
-v2.8: New method of destroy and updating
-v3.0: Ready for Peter review on functional level
-v3.1: cleaned up
-v3.2: further cleanup and restructuring
-v4.0: Bug fix to batch loading, MATLAB-ready output, settings and results text file output. Now really ready for Peter
+main_GUI
+
+This package is for the GUI of Mbx Python.
+
+----------------------------
+
+v0.1: first version GUI: 13/07/2020
+v0.2: new ROI finding method: 20/07/2020
+v0.3: Styling, ready for review on functional level
+v0.4: Bug fix to batch loading, MATLAB-ready output, settings and results text file output.
+v0.4.1: different directory output
 
 """
 
 # GENERAL IMPORTS
-import os  # to get standard usage
+from os import getcwd, mkdir  # to get standard usage
 from sys import exit
 import time  # for timekeeping
 from win32api import GetSystemMetrics  # Get sys info
@@ -408,7 +392,7 @@ class LoadPage(tk.Frame):
         tk.Tk().withdraw()
         filenames = askopenfilenames(filetypes=FILETYPES,
                                      title="Select file",
-                                     initialdir=os.getcwd())
+                                     initialdir=getcwd())
 
         if len(filenames) == 0:
             return
@@ -774,7 +758,7 @@ class FittingPage(tk.Frame):
 
     def fit_rois(self):
         """
-        Fuction that takes all the inputs and uses it to fit ROIs
+        Function that takes all the inputs and uses it to fit ROIs
 
         Returns
         -------
@@ -997,7 +981,6 @@ class FittingPage(tk.Frame):
             return
 
         n_processes = self.cores_var.get()
-        basedir = os.getcwd()
         method = self.method_var.get()
         rejection_type = self.rejection_var.get()
 
@@ -1123,10 +1106,9 @@ class FittingPage(tk.Frame):
 
             # create folder for output
 
-            directory = filename.split(".")[0].split("/")[-1]
-            path = os.path.join(basedir, directory)
+            path = filename.split(".")[0]
             try:
-                os.mkdir(path)
+                mkdir(path)
             except:
                 pass
 
@@ -1136,16 +1118,16 @@ class FittingPage(tk.Frame):
             del metadata_filtered['time_start']
             del metadata_filtered['time_start_utc']
 
-            tools.save_to_csv_mat('metadata', metadata_filtered, directory)
-            tools.save_to_csv_mat_roi('ROI_locations', roi_locations, self.frames[0].shape[0], directory)
-            tools.save_to_csv_mat_results('Localizations', results, method, directory)
+            tools.save_to_csv_mat('metadata', metadata_filtered, path)
+            tools.save_to_csv_mat_roi('ROI_locations', roi_locations, self.frames[0].shape[0], path)
+            tools.save_to_csv_mat_results('Localizations', results, method, path)
 
             total_fits = results.shape[0]
             failed_fits = results[np.isnan(results[:, 3]), :].shape[0]
             time_taken = round(time.time() - dataset_time, 3)
 
             tools.text_output(self.saved_settings[self.dataset_index], method, rejection_type, nm_or_pixels,
-                              total_fits, failed_fits, time_taken, directory)
+                              total_fits, failed_fits, time_taken, path)
 
             successful_fits = total_fits - failed_fits
             results_counter += successful_fits

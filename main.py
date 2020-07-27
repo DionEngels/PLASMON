@@ -7,33 +7,38 @@ Created on Thu May 28 09:44:02 2020
 @author: Dion Engels
 MBx Python Data Analysis
 
+main
+
+The original main, working without a GUI. Mostly used for development purposes.
+
 ----------------------------
 
-v0.1, Loading & ROIs & Saving: 31/05/2020
-v0.2, rainSTORM inspired v1: 03/06/2020
-v0.3, rainSTORM inspired working v1: 04/06/2020
-v1.0, main working for .nd2 loading, no custom ROI fitting: 05/06/2020
-v1.1. MATLAB loading: 15/06/2020
-v1.2: own ROI finder: 11/07/2020
-v1.3: 7x7 and 9x9 ROIs: 13/07/2020
-v1.4: removed any wavelength dependency
-v1.5: removed MATLAB ROI finding
-v1.6: MATLAB v3 loading
-v1.7: cleanup
-v1.8: rejection options
-v2.0: ready for Peter review. MATLAB coordinate system output, bug fix and text output
+v0.1.1, Loading & ROIs & Saving: 31/05/2020
+v0.1.2, rainSTORM inspired v1: 03/06/2020
+v0.1.3, rainSTORM inspired working v1: 04/06/2020
+v0.2, main working for .nd2 loading, no custom ROI fitting: 05/06/2020
+v0.2.1. MATLAB loading: 15/06/2020
+v0.2.2: own ROI finder: 11/07/2020
+v0.2.3: 7x7 and 9x9 ROIs: 13/07/2020
+v0.2.4: removed any wavelength dependency
+v0.2.5: removed MATLAB ROI finding
+v0.2.6: MATLAB v3 loading
+v0.2.7: cleanup
+v0.2.8: rejection options
+v0.3.0: ready for Peter review. MATLAB coordinate system output, bug fix and text output
+v0.3.1: different directory for output
 
  """
 
 # GENERAL IMPORTS
-import os  # to get standard usage
+from os import mkdir  # to get standard usage
 import time  # for timekeeping
 
 # Numpy and matplotlib, for linear algebra and plotting respectively
 import numpy as np
 
 # ND2 related
-from pims import ND2_Reader  # reader of ND2 files
+from pims import ND2_Reader, FramesSequenceND  # reader of ND2 files
 
 # comparison to other fitters
 import scipy.io
@@ -59,12 +64,11 @@ THRESHOLD_METHOD = "Loose"  # "Strict", "Loose", or "None"
 
 for name in filenames:
     with ND2_Reader(name) as ND2:
+        FramesSequenceND.__init__(ND2)
         # create folder for output
-        basedir = os.getcwd()
-        directory = name.split(".")[0].split("/")[-1]
-        path = os.path.join(basedir, directory)
+        path = name.split(".")[0]
         try:
-            os.mkdir(path)
+            mkdir(path)
         except:
             pass
 
@@ -152,8 +156,8 @@ for name in filenames:
         del metadata_filtered['time_start_utc']
 
 # %% save everything
-        tools.save_to_csv_mat('metadata', metadata_filtered, directory)
-        tools.save_to_csv_mat_roi('ROI_locations', ROI_locations, frames[0].shape[0], directory)
-        tools.save_to_csv_mat_results('Localizations', results, METHOD, directory)
+        tools.save_to_csv_mat('metadata', metadata_filtered, path)
+        tools.save_to_csv_mat_roi('ROI_locations', ROI_locations, frames[0].shape[0], path)
+        tools.save_to_csv_mat_results('Localizations', results, METHOD, path)
 
-        tools.text_output({}, METHOD, THRESHOLD_METHOD, "", total_fits, failed_fits, time_taken, directory)
+        tools.text_output({}, METHOD, THRESHOLD_METHOD, "", total_fits, failed_fits, time_taken, path)

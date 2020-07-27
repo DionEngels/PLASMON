@@ -7,14 +7,16 @@ MBx Python Data Analysis
 
 ROI finding
 
+This package holds all the MBx Python parts that are required to find the ROIs in the .nd2 files
+
 ----------------------------
 
-v1.0, ROI detection:  31/05/2020
-v1.1, conventional naming: 04/06/2020
-v2.0: self-made ROI finding: 10/07/2020
-v3.0: clean up and based on SPectrA; correlation, pixel_int, sigma and int
-v4.0: bug fix ROI distance, ready for Peter review
-v4.1: clean up
+v0.1.0, ROI detection:  31/05/2020
+v0.1.1, conventional naming: 04/06/2020
+v0.2.0: self-made ROI finding: 10/07/2020
+v0.3.0: clean up and based on SPectrA; correlation, pixel_int, sigma and int
+v0.4.0: bug fix ROI distance, ready for Peter review
+v0.4.1: clean up
 
 """
 import numpy as np  # for linear algebra

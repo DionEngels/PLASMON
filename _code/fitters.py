@@ -7,22 +7,23 @@ MBx Python Data Analysis
 
 Fitters
 
+This package holds all the fitting algorithms of MBx Python.
+This includes 2 Gaussian fitters and 3 Phasor fitters.
+
 ----------------------------
 
-v0.1: Setup: 31/05/2020
-v1.0: rainSTORM slow, but working: 04/06/2020
-v2.0: optimilzations after initial speed check: 17/06/2020
-v3.0: optimization after second speed check. New fitters:
-      SettingsScipy, ScipyROIupdater, ScipyLog, ScipyFrameLastFit
-      ScipyROIloopBackground, PhasorROILoop, PhasorROILoopDum: 27/06/2020
-v3.1: Last fit frame loop with new method: 28/06/2020
-v4.0: removed all unneeded fitters
-v5.0: Three versions of cached fitter
-v6.0: FORTRAN enabled without cache, ST
-v7.0: cleanup and declare_functions function: 14/07/2020
-v8.0: PhasorSum, remove LastFit, rename, and clean up
-v9.0: Gaussian fitting (with or without background) and three Phasor fitters: 24/07/2020
-v9.1: NaN output instead of leaving out, MATLAB ready output
+v0.0.1: Setup: 31/05/2020
+v0.1: rainSTORM slow, but working: 04/06/2020
+v0.2: optimizations after initial speed check: 17/06/2020
+v0.3: optimization after second speed check: 27/06/2020
+v0.4: removed all unneeded fitters
+v0.5: Three versions of cached fitter
+v0.6: FORTRAN enabled without cache, ST
+v0.7: cleanup and declare_functions function: 14/07/2020
+v0.8: PhasorSum, remove LastFit, rename, and clean up
+v0.9: Gaussian fitting (with or without background) and three Phasor fitters: 24/07/2020
+v0.9.1: NaN output instead of leaving out, MATLAB ready output
+
 """
 # %% Imports
 from __future__ import division, print_function, absolute_import
