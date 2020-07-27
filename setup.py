@@ -21,7 +21,7 @@ import os
 import sys
 from cx_Freeze import setup, Executable
 
-r'-b C:\Users\s150127\Downloads\__build_test'  # take this control location of build
+r'-b C:\Users\s150127\Downloads\___MBx\build'  # take this control location of build
 
 __version__ = '1.0'
 base = None
