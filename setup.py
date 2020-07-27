@@ -13,13 +13,15 @@ This piece of code allows you to compile Mbx Python to an .exe
 
 v0.1: Full setup: 26/07/2020
 v0.2: minor changes
+v0.2.1: trying to get lower file size, no progress
 
 """
-r'-b C:\Users\s150127\Downloads\__build_test'  # take this control location of build
 
 import os
 import sys
 from cx_Freeze import setup, Executable
+
+r'-b C:\Users\s150127\Downloads\__build_test'  # take this control location of build
 
 __version__ = '1.0'
 base = None
@@ -29,7 +31,7 @@ if sys.platform == 'win32':
 include_files = []
 includes = ['tkinter']
 excludes = ['matplotlib.tests', 'numpy.random._examples']
-packages = ['numpy', 'scipy', 'matplotlib', 'multiprocessing']
+packages = ['numpy', 'matplotlib', 'multiprocessing', 'scipy']
 
 setup(
     name='MbxPython',

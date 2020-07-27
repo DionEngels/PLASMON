@@ -40,8 +40,8 @@ import numpy as np
 # ND2 related
 from pims import ND2_Reader, FramesSequenceND  # reader of ND2 files
 
-# comparison to other fitters
-import scipy.io
+# loading in .mat
+from scipy.io import loadmat
 
 # Own code
 import _code.roi_finding as roi_finding
@@ -76,9 +76,9 @@ for name in filenames:
             # Load in MATLAB data
 
             if DATASET == "MATLAB_v2":
-                frames = scipy.io.loadmat('Data_1000f_06_30_pure_matlab_bg_600_v2')['frame']
+                frames = loadmat('Data_1000f_06_30_pure_matlab_bg_600_v2')['frame']
             elif DATASET == "MATLAB_v3":
-                frames = scipy.io.loadmat('Data_1000f_06_30_pure_matlab_bg_600_v3')['frame']
+                frames = loadmat('Data_1000f_06_30_pure_matlab_bg_600_v3')['frame']
 
             frames = np.swapaxes(frames, 1, 2)
             frames = np.swapaxes(frames, 0, 1)
