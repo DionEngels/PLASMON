@@ -27,6 +27,7 @@ v0.2.7: cleanup
 v0.2.8: rejection options
 v0.3.0: ready for Peter review. MATLAB coordinate system output, bug fix and text output
 v0.3.1: different directory for output
+v0.3.2: no longer overwrites old data
 
  """
 
@@ -50,11 +51,10 @@ import _code.tools as tools
 
 # %% Inputs
 ROI_SIZE = 7  # 7 or 9
-FILTER_SIZE = 9
 
 # %% Initializations
 
-filenames = ("C:/Users/s150127/Downloads/_MBx dataset/1nMimager_newGNRs_100mW.nd2",)
+filenames = ("C:/Users/s150127/Downloads/___MBx/datasets/1nMimager_newGNRs_100mW.nd2",)
 
 METHOD = "Gaussian"
 DATASET = "MATLAB_v3"  # "MATLAB_v2, "MATLAB_v3" OR "YUYANG"
@@ -64,13 +64,24 @@ THRESHOLD_METHOD = "Loose"  # "Strict", "Loose", or "None"
 
 for name in filenames:
     with ND2_Reader(name) as ND2:
-        FramesSequenceND.__init__(ND2)
         # create folder for output
         path = name.split(".")[0]
-        try:
-            mkdir(path)
-        except:
-            pass
+        if DATASET == "MATLAB_v3" or DATASET == "MATLAB_v2":
+            path = r"C:\Users\s150127\Downloads\___MBx\datasets\MATLAB"
+
+        directory_try = 0
+        directory_success = False
+        while not directory_success:
+            try:
+                mkdir(path)
+                directory_success = True
+            except:
+                directory_try += 1
+                if directory_try == 1:
+                    path += "_%03d" % directory_try
+                else:
+                    path = path[:-4]
+                    path += "_%03d" % directory_try
 
         if DATASET == "MATLAB_v2" or DATASET == "MATLAB_v3":
             # Load in MATLAB data
@@ -96,7 +107,9 @@ for name in filenames:
 
         fitter = fitting.Gaussian(ROI_SIZE, {}, "None", "Gaussian", 5)
 
-        roi_finder = roi_finding.RoiFinder(FILTER_SIZE, frames[0], fitter, roi_size=ROI_SIZE)
+        roi_finder = roi_finding.RoiFinder(frames[0], fitter)
+        roi_finder.roi_size = ROI_SIZE
+        roi_finder.roi_size_1d = int((ROI_SIZE - 1) / 2)
 
         if DATASET == "MATLAB_v3":
             roi_finder.int_min = 100
@@ -146,9 +159,9 @@ for name in filenames:
         #     plt.title("Frame number: " + str(index))
         #     plt.show()
 
-        # MATLAB works from bottom left as zero point, Python top left. Thus, y is switched
-
-        results[:, 2] = frames[0].shape[0] - results[:, 2]
+        if DATASET == "YUYANG":
+            # MATLAB works from bottom left as zero point, Python top left. Thus, y is switched
+            results[:, 3] = frames[0].shape[0] - results[:, 3]
 
         # %% filter metadata
         metadata_filtered = {k: v for k, v in metadata.items() if v is not None}

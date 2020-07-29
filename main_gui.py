@@ -16,6 +16,9 @@ v0.2: new ROI finding method: 20/07/2020
 v0.3: Styling, ready for review on functional level
 v0.4: Bug fix to batch loading, MATLAB-ready output, settings and results text file output.
 v0.4.1: different directory output
+v0.4.2: prevent overwriting output
+v0.4.3: settings dict, one command to change dataset
+v0.4.4: saved standard values
 
 """
 
@@ -52,6 +55,8 @@ import multiprocessing as mp
 mpl.use("TkAgg")  # set back end to TK
 
 # %% Initializations. Defining filetypes, fonts, paddings, input sizes, and GUI sizes.
+
+__version__ = "0.4.4"
 
 FILETYPES = [("ND2", ".nd2")]
 
@@ -436,6 +441,7 @@ class FittingPage(tk.Frame):
         self.roi_locations = {}
         self.dataset_index = 0
         self.saved_settings = {}
+        self.default_settings = {}
         self.histogram = None
         self.to_hist = None
         self.roi_fitter = None
@@ -456,20 +462,6 @@ class FittingPage(tk.Frame):
         min_corr_histogram_select = ttk.Button(self, text="Graph select",
                                                command=lambda: self.histogram_select("corr_min"))
         min_corr_histogram_select.grid(row=2, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        min_pixel_label = tk.Label(self, text="Minimum pixel intensity", font=FONT_LABEL, bg='white')
-        min_pixel_label.grid(row=0, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        self.min_pixel_slider = NormalSlider(self, from_=0, to=5000,
-                                             row=1, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        min_pixel_histogram = ttk.Button(self, text="Graph",
-                                         command=lambda: self.fun_histogram("peak_min"))
-        min_pixel_histogram.grid(row=1, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        min_pixel_histogram_select = ttk.Button(self, text="Graph select",
-                                                command=lambda: self.histogram_select("peak_min"))
-        min_pixel_histogram_select.grid(row=2, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         min_int_label = tk.Label(self, text="Minimum Intensity", font=FONT_LABEL, bg='white')
         min_int_label.grid(row=3, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
@@ -560,8 +552,8 @@ class FittingPage(tk.Frame):
         self.button_right = NormalButton(self, ">>", row=11, column=35, columnspan=5, sticky='EW',
                                          padx=PAD_SMALL)
 
-        button_fit = ttk.Button(self, text="Fit", command=lambda: self.fit_rois())
-        button_fit.grid(row=12, column=0, columnspan=10, sticky='EW', padx=PAD_BIG)
+        button_find_rois = ttk.Button(self, text="Find ROIs", command=lambda: self.fit_rois())
+        button_find_rois.grid(row=12, column=0, columnspan=10, sticky='EW', padx=PAD_BIG)
 
         button_restore = ttk.Button(self, text="Restore default",
                                     command=lambda: self.restore_default())
@@ -649,6 +641,9 @@ class FittingPage(tk.Frame):
         self.time_status_label = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
                                              row=27, column=45, columnspan=5, sticky="ew", font=FONT_LABEL)
 
+        version_label = tk.Label(self, text="MBx Python, version: " + __version__, font=FONT_LABEL, bg='white')
+        version_label.grid(row=50, column=0, columnspan=10, sticky='EW', padx=PAD_SMALL)
+
         button_load_new = ttk.Button(self, text="Load new", command=lambda: self.load_new(parent))
         button_load_new.grid(row=50, column=45, columnspan=2, sticky='EW', padx=PAD_SMALL)
 
@@ -698,12 +693,12 @@ class FittingPage(tk.Frame):
         if self.dataset_index == len(filenames) - 1:
             self.button_right.updater(state='disabled')
         else:
-            self.button_right.updater(command=lambda: self.next_dataset())
+            self.button_right.updater(command=lambda: self.change_dataset(1))
 
         if self.dataset_index == 0:
             self.button_left.updater(state='disabled')
         else:
-            self.button_left.updater(command=lambda: self.previous_dataset())
+            self.button_left.updater(command=lambda: self.change_dataset(-1))
 
     # %% Fitting page, return to load page
 
@@ -733,26 +728,78 @@ class FittingPage(tk.Frame):
         None.
 
         """
-        self.roi_fitter = fitting.Gaussian(7, {}, "None", "Gaussian", 5)
 
-        self.roi_finder = roi_finding.RoiFinder(9, self.frames[0], self.roi_fitter)
+        if self.dataset_index in self.default_settings:
+            defaults = self.default_settings[self.dataset_index]
+            self.roi_finder = roi_finding.RoiFinder(self.frames[0], self.roi_fitter, settings=defaults)
 
-        self.min_int_slider.updater(from_=0, to=self.roi_finder.int_max / 4,
-                                    start=self.roi_finder.int_min)
-        self.max_int_slider.updater(from_=0, to=self.roi_finder.int_max,
-                                    start=self.roi_finder.int_max)
-        self.min_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
-                                      start=self.roi_finder.sigma_min)
-        self.max_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
-                                      start=self.roi_finder.sigma_max)
-        self.min_corr_slider.updater(from_=0, to=1, start=self.roi_finder.corr_min)
-        self.min_pixel_slider.updater(from_=0, to=np.max(self.frames[0]),
-                                      start=self.roi_finder.pixel_min)
+            self.min_int_slider.updater(from_=0, to=self.roi_finder.int_max / 4,
+                                        start=defaults['int_min'])
+            self.max_int_slider.updater(from_=0, to=self.roi_finder.int_max,
+                                        start=defaults['int_max'])
+            self.min_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
+                                          start=defaults['sigma_min'])
+            self.max_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
+                                          start=defaults['sigma_max'])
+            self.min_corr_slider.updater(from_=0, to=1, start=defaults['corr_min'])
+        else:
+            self.roi_fitter = fitting.Gaussian(7, {}, "None", "Gaussian", 5)
+
+            self.roi_finder = roi_finding.RoiFinder(self.frames[0], self.roi_fitter)
+
+            self.min_int_slider.updater(from_=0, to=self.roi_finder.int_max / 4,
+                                        start=self.roi_finder.int_min)
+            self.max_int_slider.updater(from_=0, to=self.roi_finder.int_max,
+                                        start=self.roi_finder.int_max)
+            self.min_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
+                                          start=self.roi_finder.sigma_min)
+            self.max_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
+                                          start=self.roi_finder.sigma_max)
+            self.min_corr_slider.updater(from_=0, to=1, start=self.roi_finder.corr_min)
+
         self.roi_var.set(roi_size_options[0])
 
         self.filter_input.updater()
         self.roi_side_input.updater()
         self.inter_roi_input.updater()
+
+        self.update()
+
+        self.fit_rois()
+
+        settings = self.read_out_settings()
+
+        settings['processed_frame'] = self.roi_finder.frame
+
+        self.default_settings[self.dataset_index] = settings
+
+    # %% Read out sliders, return dictionary
+
+    def read_out_settings(self):
+        """
+        Function that reads out all the settings, and saves it to a dict which it returns
+
+        Returns
+        -------
+        settings: a dictionary of all read-out settings
+        """
+        int_min = self.min_int_slider.get()
+        int_max = self.max_int_slider.get()
+        sigma_min = self.min_sigma_slider.get()
+        sigma_max = self.max_sigma_slider.get()
+        corr_min = self.min_corr_slider.get()
+        roi_size = int(self.roi_var.get()[0])
+
+        filter_size = int(self.filter_input.get())
+        roi_side = int(self.roi_side_input.get())
+        inter_roi = int(self.inter_roi_input.get())
+
+        settings = {'int_max': int_max, 'int_min': int_min,
+                    'sigma_min': sigma_min, 'sigma_max': sigma_max,
+                    'corr_min': corr_min, 'roi_size': roi_size, 'filter_size': filter_size,
+                    'roi_side': roi_side, 'inter_roi': inter_roi}
+
+        return settings
 
     # %% Fitting page, fit ROIs
 
@@ -763,33 +810,21 @@ class FittingPage(tk.Frame):
         Returns
         -------
         Updates the figures.
-        Also returns boolean whether or not it was a succes.
+        Also returns boolean whether or not it was a success.
 
         """
-        int_min = self.min_int_slider.get()
-        int_max = self.max_int_slider.get()
-        sigma_min = self.min_sigma_slider.get()
-        sigma_max = self.max_sigma_slider.get()
-        corr_min = self.min_corr_slider.get()
-        pixel_min = self.min_pixel_slider.get()
-        roi_size = int(self.roi_var.get()[0])
+        settings = self.read_out_settings()
 
-        filter_size = int(self.filter_input.get())
-        roi_side = int(self.roi_side_input.get())
-        inter_roi = int(self.inter_roi_input.get())
-
-        if roi_side < int((roi_size - 1) / 2):
+        if settings['roi_side'] < int((settings['roi_size'] - 1) / 2):
             tk.messagebox.showerror("ERROR", "Distance to size cannot be smaller than 1D ROI size")
             return False
-        if filter_size % 2 != 1:
+        if settings['filter_size'] % 2 != 1:
             tk.messagebox.showerror("ERROR", "Filter size should be odd")
             return False
 
-        self.roi_fitter = fitting.Gaussian(roi_size, {}, "None", "Gaussian", 5)
+        self.roi_fitter = fitting.Gaussian(settings['roi_size'], {}, "None", "Gaussian", 5)
 
-        self.roi_finder.change_settings(int_min, int_max, corr_min, pixel_min,
-                                        sigma_min, sigma_max, roi_size,
-                                        filter_size, roi_side, inter_roi)
+        self.roi_finder.change_settings(settings)
 
         self.temp_roi_locations = self.roi_finder.main(self.roi_fitter)
 
@@ -815,23 +850,7 @@ class FittingPage(tk.Frame):
 
         self.roi_locations[self.dataset_index] = self.temp_roi_locations.copy()
 
-        int_min = self.min_int_slider.get()
-        int_max = self.max_int_slider.get()
-        sigma_min = self.min_sigma_slider.get()
-        sigma_max = self.max_sigma_slider.get()
-        corr_min = self.min_corr_slider.get()
-        pixel_min = self.min_pixel_slider.get()
-        roi_size = int(self.roi_var.get()[0])
-
-        filter_size = int(self.filter_input.get())
-        roi_side = int(self.roi_side_input.get())
-        inter_roi = int(self.inter_roi_input.get())
-
-        settings = {'int_max': int_max, 'int_min': int_min,
-                    'sigma_min': sigma_min, 'sigma_max': sigma_max,
-                    'corr_min': corr_min, 'pixel_min': pixel_min,
-                    'roi_size': roi_size, 'filter_size': filter_size,
-                    'roi_side': roi_side, 'inter_roi': inter_roi}
+        settings = self.read_out_settings()
 
         self.saved_settings[self.dataset_index] = settings
 
@@ -864,8 +883,7 @@ class FittingPage(tk.Frame):
         self.max_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
                                       start=settings['sigma_max'])
         self.min_corr_slider.updater(from_=0, to=1, start=settings['corr_min'])
-        self.min_pixel_slider.updater(from_=0, to=np.max(self.frames[0]),
-                                      start=settings['pixel_min'])
+
         if settings['roi_size'] == 7:
             self.roi_var.set(roi_size_options[0])
         else:
@@ -875,11 +893,17 @@ class FittingPage(tk.Frame):
         self.roi_side_input.updater(settings['roi_side'])
         self.inter_roi_input.updater(settings['inter_roi'])
 
+        self.fit_rois()
+
     # %% Fitting page, switch between datasets
 
-    def next_dataset(self):
+    def change_dataset(self, change):
         """
-        Select next dataset
+        Select next or previous dataset
+
+        Parameters
+        ------
+        change: in what direction you want to change +1 or -1
 
         Returns
         -------
@@ -890,7 +914,7 @@ class FittingPage(tk.Frame):
         self.histogram = None
         self.to_hist = None
 
-        self.dataset_index += 1
+        self.dataset_index += change
         self.dataset_roi_status.updater(text="Dataset " + str(self.dataset_index + 1) + " of "
                                              + str(len(self.filenames)))
 
@@ -906,54 +930,12 @@ class FittingPage(tk.Frame):
         if self.dataset_index == len(self.filenames) - 1:
             self.button_right.updater(state='disabled')
         else:
-            self.button_right.updater(command=lambda: self.next_dataset())
+            self.button_right.updater(command=lambda: self.change_dataset(1))
 
         if self.dataset_index == 0:
             self.button_left.updater(state='disabled')
         else:
-            self.button_left.updater(command=lambda: self.previous_dataset())
-
-        if self.dataset_index in self.saved_settings:
-            self.button_restore_saved.updater(command=lambda: self.restore_saved())
-        else:
-            self.button_restore_saved.updater(state='disabled')
-
-    def previous_dataset(self):
-        """
-        Select previous dataset
-
-        Returns
-        -------
-        None.
-
-        """
-        self.temp_roi_locations = None
-        self.histogram = None
-        self.to_hist = None
-
-        self.dataset_index -= 1
-        self.dataset_roi_status.updater(text="Dataset " +
-                                             str(self.dataset_index + 1) + " of "
-                                             + str(len(self.filenames)))
-
-        self.nd2.close()
-        self.nd2 = ND2_Reader(filenames[self.dataset_index])
-        self.frames = self.nd2
-        self.metadata = self.nd2.metadata
-
-        self.fig.updater(self.frames[0])
-
-        self.restore_default()
-
-        if self.dataset_index == len(self.filenames) - 1:
-            self.button_right.updater(state='disabled')
-        else:
-            self.button_right.updater(command=lambda: self.next_dataset())
-
-        if self.dataset_index == 0:
-            self.button_left.updater(state='disabled')
-        else:
-            self.button_left.updater(command=lambda: self.previous_dataset())
+            self.button_left.updater(command=lambda: self.change_dataset(-1))
 
         if self.dataset_index in self.saved_settings:
             self.button_restore_saved.updater(command=lambda: self.restore_saved())
@@ -1107,10 +1089,19 @@ class FittingPage(tk.Frame):
             # create folder for output
 
             path = filename.split(".")[0]
-            try:
-                mkdir(path)
-            except:
-                pass
+            directory_try = 0
+            directory_success = False
+            while not directory_success:
+                try:
+                    mkdir(path)
+                    directory_success = True
+                except:
+                    directory_try += 1
+                    if directory_try == 1:
+                        path += "_%03d" % directory_try
+                    else:
+                        path = path[:-4]
+                        path += "_%03d" % directory_try
 
             # Save
 
@@ -1205,7 +1196,6 @@ class FittingPage(tk.Frame):
         max_int = self.max_int_slider.get()
         min_sigma = self.min_sigma_slider.get()
         max_sigma = self.max_sigma_slider.get()
-        min_peak = self.min_pixel_slider.get()
         min_corr = self.min_corr_slider.get()
 
         if variable == "min_int" or variable == "max_int":
@@ -1220,13 +1210,6 @@ class FittingPage(tk.Frame):
             plt.title("Sigma. Use graph select to change threshold")
             plt.axvline(x=min_sigma, color='red', linestyle='--')
             plt.axvline(x=max_sigma, color='red', linestyle='--')
-        elif variable == "peak_min":
-            self.histogram.clear()
-            logbins = np.logspace(np.log10(bins[0]), np.log10(bins[-1]), len(bins))
-            plt.hist(self.to_hist, bins=logbins)
-            plt.title("Minimum pixel value for peak. Use graph select to change threshold")
-            plt.axvline(x=min_peak, color='red', linestyle='--')
-            plt.xscale('log')
         else:
             self.histogram.clear()
             logbins = np.logspace(np.log10(bins[0]), np.log10(bins[-1]), len(bins))
@@ -1286,8 +1269,6 @@ class FittingPage(tk.Frame):
             self.min_sigma_slider.updater(start=click[0][0])
         elif variable == "max_sigma":
             self.max_sigma_slider.updater(start=click[0][0])
-        elif variable == "peak_min":
-            self.min_pixel_slider.updater(start=click[0][0])
         else:
             self.min_corr_slider.updater(start=click[0][0])
 

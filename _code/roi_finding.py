@@ -17,6 +17,7 @@ v0.2.0: self-made ROI finding: 10/07/2020
 v0.3.0: clean up and based on SPectrA; correlation, pixel_int, sigma and int
 v0.4.0: bug fix ROI distance, ready for Peter review
 v0.4.1: clean up
+v0.4.2: changed "change_settings"
 
 """
 import numpy as np  # for linear algebra
@@ -31,15 +32,15 @@ class RoiFinder:
     """
     Class to find ROIs in the first frame of a microscope video
     """
-    def __init__(self, filter_size, frame, fitter, pixel_min=None, corr_min=0.05,
+    def __init__(self, frame, fitter, filter_size=9, pixel_min=None, corr_min=0.05,
                  sigma_min=0, sigma_max=None, int_min=None, int_max=None,
-                 roi_size=7):
+                 roi_size=7, settings=None):
         """
         Parameters
         ----------
-        filter_size : Size of filter in pixels
         frame : Frame in which ROIs will be found
         fitter : Fitter to fit ROIs with. Is Gaussian fitter.
+        filter_size : optional, size of filter in pixels. The default is 9.
         pixel_min : optional, minimum pixel value threshold. The default is None.
         corr_min : optional, minimum correlation value threshold. The default is 0.05.
         sigma_min : optional, minimum sigma value threshold. The default is 0.
@@ -47,59 +48,76 @@ class RoiFinder:
         int_min : optional, minimum intensity value threshold. The default is None.
         int_max : optional, maximum intensity value threshold. The default is None.
         roi_size : optional, roi size.  The default is 7.
+        settings : for resetting when frame has already been loaded before
 
         Returns
         -------
         None.
 
         """
-
-        self.filter_size = int(filter_size)
-        self.roi_size = roi_size
-        self.roi_size_1d = int((self.roi_size - 1) / 2)
-        self.side_distance = 11
-        self.roi_distance = 6
-
-        self.base_frame = frame
-
-        background = medfilt(frame, kernel_size=self.filter_size)
-        background[background == 0] = np.min(background[background > 0])
-        self.frame = frame.astype('float') - background
-
-        self.threshold_sigma = 5
-        if pixel_min is None:
-            self.pixel_min = self.determine_threshold_min()
-        else:
-            self.pixel_min = pixel_min
-
         self.sigma_list = []
         self.int_list = []
         self.corr_list = []
-
-        self.corr_min = corr_min
-
         self.roi_locations = []
 
-        self.int_min = int_min
-        self.sigma_min = sigma_min
+        self.base_frame = frame
+        self.threshold_sigma = 5
 
-        if sigma_max is None or int_max is None or int_min is None:
-            self.sigma_max = 5
-            self.int_max = np.inf
-            self.int_min = 0
-            self.roi_locations = self.main(fitter)
-            if int_max is None or int_min is None:
-                self.int_sigma_limit(fitter, True, False)
-                if int_max is None:
-                    self.int_max = np.max(self.int_list) * 1.5  # 50% margin
-                if int_min is None:
-                    self.int_min = np.min(self.int_list) / 2
-            if sigma_max is None:
-                self.int_sigma_limit(fitter, False, True)
-                self.sigma_max = np.max(self.sigma_list) * 1.5  # 50% margin
+        if settings is None:
+            self.filter_size = int(filter_size)
+            self.roi_size = roi_size
+            self.roi_size_1d = int((self.roi_size - 1) / 2)
+            self.side_distance = 11
+            self.roi_distance = 6
+
+            background = medfilt(frame, kernel_size=self.filter_size)
+            background[background == 0] = np.min(background[background > 0])
+            self.frame = frame.astype('float') - background
+
+            if pixel_min is None:
+                self.pixel_min = self.determine_threshold_min()
+            else:
+                self.pixel_min = pixel_min
+
+            self.corr_min = corr_min
+            self.int_min = int_min
+            self.sigma_min = sigma_min
+
+            if sigma_max is None or int_max is None or int_min is None:
+                self.sigma_max = 5
+                self.int_max = np.inf
+                self.int_min = 0
+                self.roi_locations = self.main(fitter)
+                if int_max is None or int_min is None:
+                    self.int_sigma_limit(fitter, True, False)
+                    if int_max is None:
+                        self.int_max = np.max(self.int_list) * 1.5  # 50% margin
+                    if int_min is None:
+                        self.int_min = np.min(self.int_list) / 2
+                if sigma_max is None:
+                    self.int_sigma_limit(fitter, False, True)
+                    self.sigma_max = np.max(self.sigma_list) * 1.5  # 50% margin
+            else:
+                self.sigma_max = sigma_max
+                self.int_max = int_max
         else:
-            self.sigma_max = sigma_max
-            self.int_max = int_max
+            self.sigma_min = settings['sigma_min']
+            self.sigma_max = settings['sigma_max']
+
+            self.corr_min = settings['corr_min']
+            self.pixel_min = settings['pixel_min']
+
+            self.int_max = settings['int_max']
+            self.int_min = settings['int_min']
+
+            self.roi_size = settings['roi_size']
+            self.roi_size_1d = int((self.roi_size - 1) / 2)
+
+            self.side_distance = settings['roi_side']
+            self.roi_distance = settings['inter_roi']
+            self.filter_size = settings['filter_size']
+
+            self.frame = settings['processed_frame']
 
     def determine_threshold_min(self):
         """
@@ -120,47 +138,36 @@ class RoiFinder:
 
         return mean + self.threshold_sigma * std
 
-    def change_settings(self, int_min, int_max, corr_min, pixel_min,
-                        sigma_min, sigma_max, roi_size,
-                        filter_size, roi_side, inter_roi):
+    def change_settings(self, settings):
         """
         Changed the settings of the ROI finder. Only called by GUI.
 
         Parameters
         ----------
-        int_min : new value of minimum intensity
-        int_max : new value of maximum intensity
-        corr_min : new value of minimum correlation with 2D Gaussian
-        pixel_min : new value of minimum pixel value
-        sigma_min : new value of minimum sigma
-        sigma_max : new value of maximum sigma
-        roi_size : new value of roi size
-        filter_size : new value of filter size
-        roi_side : new value of minimum distance to side for each ROI
-        inter_roi : new value of minimum distance between ROIs.
+        settings: a dictionary of all settings
 
         Returns
         -------
         None.
 
         """
-        self.sigma_min = sigma_min
-        self.sigma_max = sigma_max
+        self.sigma_min = settings['sigma_min']
+        self.sigma_max = settings['sigma_max']
 
-        self.corr_min = corr_min
-        self.pixel_min = pixel_min
+        self.corr_min = settings['corr_min']
+        self.pixel_min = settings['pixel_min']
 
-        self.int_max = int_max
-        self.int_min = int_min
+        self.int_max = settings['int_max']
+        self.int_min = settings['int_min']
 
-        self.roi_size = roi_size
+        self.roi_size = settings['roi_size']
         self.roi_size_1d = int((self.roi_size - 1) / 2)
 
-        self.side_distance = roi_side
-        self.roi_distance = inter_roi
+        self.side_distance = settings['roi_side']
+        self.roi_distance = settings['inter_roi']
 
-        if filter_size != self.filter_size:
-            self.filter_size = filter_size
+        if settings['filter_size'] != self.filter_size:
+            self.filter_size = settings['filter_size']
             background = medfilt(self.base_frame, kernel_size=self.filter_size)
             background[background == 0] = np.min(background[background > 0])
             self.frame = self.base_frame.astype('float') - background

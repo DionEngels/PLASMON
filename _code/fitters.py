@@ -405,7 +405,7 @@ class Gaussian:
         else:
             params = self.phasor_guess(data)
             params[3:5] = self.params[peak_index, :]
-        p = self.least_squares(params, data, max_nfev=100)  # , gtol=1e-4, ftol=1e-4)
+        p = self.least_squares(params, data, max_nfev=100)  # , ftol=1e-10, xtol=1e-10, gtol=1e-10)
 
         return [p.x, p.nfev, p.success]
 
