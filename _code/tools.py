@@ -15,6 +15,7 @@ v0.1: Save to CSV & Mat: 31/05/2020
 v0.2: also switch array: 04/06/2020
 v0.3: cleaned up: 24/07/2020
 v0.4: settings and results text output: 25/07/2020
+v0.5: own ND2Reader class to prevent warnings: 29/07/2020
 
 """
 
@@ -24,6 +25,7 @@ from numpy import zeros, savetxt
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from datetime import datetime
+from pims_nd2 import ND2_Reader
 
 
 # translates the raw dictionary keys to user readable input
@@ -31,6 +33,18 @@ TRANSLATOR_DICT = {'int_max': 'Maximum Intensity', 'int_min': 'Minimum Intensity
                    'sigma_max': "Maximum Sigma", 'corr_min': "Minimum Correlation",
                    'roi_size': "ROI size", 'filter_size': "Filter size",
                    'roi_side': "Side spacing", 'inter_roi': "ROI spacing"}
+
+# %% Class to load in ND2s
+
+
+class ND2ReaderSelf(ND2_Reader):
+    """
+    Small class to read in ND2 using a prebuild ND2 Reader. Slightly edited to prevent it giving a warning
+    """
+    def __init__(self, filename, series=0, channel=0):
+        self._clear_axes()
+        self._get_frame_dict = dict()
+        super().__init__(filename, series=series, channel=channel)
 
 
 def save_to_csv_mat(name, values, path):

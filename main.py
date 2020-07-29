@@ -38,9 +38,6 @@ import time  # for timekeeping
 # Numpy and matplotlib, for linear algebra and plotting respectively
 import numpy as np
 
-# ND2 related
-from pims import ND2_Reader, FramesSequenceND  # reader of ND2 files
-
 # loading in .mat
 from scipy.io import loadmat
 
@@ -63,7 +60,7 @@ THRESHOLD_METHOD = "Loose"  # "Strict", "Loose", or "None"
 # %% Main loop cell
 
 for name in filenames:
-    with ND2_Reader(name) as ND2:
+    with tools.ND2ReaderSelf(name) as ND2:
         # create folder for output
         path = name.split(".")[0]
         if DATASET == "MATLAB_v3" or DATASET == "MATLAB_v2":

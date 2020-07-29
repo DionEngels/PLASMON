@@ -21,14 +21,18 @@ v0.4.3: settings dict, one command to change dataset
 v0.4.4: saved standard values
 v0.5: removed pixel min, moved min_corr in GUI
 v0.5.1: fixed size GUI
-
+v0.6: matplotlib fix, PIMS 0.5, and own ND2Reader class to prevent warnings
 """
+__version__ = "0.6"
 
 # GENERAL IMPORTS
-from os import getcwd, mkdir  # to get standard usage
+from os import getcwd, mkdir, environ # to get standard usage
+from tempfile import mkdtemp
 from sys import exit
 import time  # for timekeeping
 from win32api import GetSystemMetrics  # Get sys info
+
+environ['MPLCONFIGDIR'] = mkdtemp()
 
 # Numpy and matplotlib, for linear algebra and plotting respectively
 import numpy as np
@@ -43,9 +47,6 @@ import tkinter as tk  # for GUI
 from tkinter import ttk  # GUI styling
 from tkinter.filedialog import askopenfilenames  # for popup that asks to select .nd2's
 
-# ND2 related
-from pims import ND2_Reader  # reader of ND2 files
-
 # Own code
 import _code.roi_finding as roi_finding
 import _code.fitters as fitting
@@ -57,8 +58,6 @@ import multiprocessing as mp
 mpl.use("TkAgg")  # set back end to TK
 
 # %% Initializations. Defining filetypes, fonts, paddings, input sizes, and GUI sizes.
-
-__version__ = "0.5.1"
 
 FILETYPES = [("ND2", ".nd2")]
 
@@ -113,7 +112,7 @@ def mt_main(name, fitter, frames_split, roi_locations, shared, q):
     Fills shared memory
 
     """
-    nd2 = ND2_Reader(name)
+    nd2 = tools.ND2ReaderSelf(name)
     frames = nd2
     metadata = nd2.metadata
     metadata['sequence_count'] = len(frames_split)
@@ -684,7 +683,7 @@ class FittingPage(tk.Frame):
         self.dataset_roi_status.updater(text="Dataset " + str(self.dataset_index + 1) + " of " + str(len(filenames)))
         self.roi_status.updater(text="0 of " + str(len(filenames)) + " have settings")
 
-        self.nd2 = ND2_Reader(filenames[self.dataset_index])
+        self.nd2 = tools.ND2ReaderSelf(filenames[self.dataset_index])
         self.frames = self.nd2
         self.metadata = self.nd2.metadata
 
@@ -921,7 +920,7 @@ class FittingPage(tk.Frame):
                                              + str(len(self.filenames)))
 
         self.nd2.close()
-        self.nd2 = ND2_Reader(self.filenames[self.dataset_index])
+        self.nd2 = tools.ND2ReaderSelf(self.filenames[self.dataset_index])
         self.frames = self.nd2
         self.metadata = self.nd2.metadata
 
@@ -994,7 +993,7 @@ class FittingPage(tk.Frame):
         for self.dataset_index, filename in enumerate(self.filenames):
             dataset_time = time.time()
             self.nd2.close()
-            self.nd2 = ND2_Reader(filenames[self.dataset_index])
+            self.nd2 = tools.ND2ReaderSelf(filenames[self.dataset_index])
             self.frames = self.nd2
             self.metadata = self.nd2.metadata
 
@@ -1137,7 +1136,7 @@ class FittingPage(tk.Frame):
 
         self.dataset_index = dataset_index_viewing
 
-        self.nd2 = ND2_Reader(self.filenames[self.dataset_index])
+        self.nd2 = tools.ND2ReaderSelf(self.filenames[self.dataset_index])
         self.frames = self.nd2
         self.metadata = self.nd2.metadata
 
