@@ -19,6 +19,7 @@ v0.4.1: different directory output
 v0.4.2: prevent overwriting output
 v0.4.3: settings dict, one command to change dataset
 v0.4.4: saved standard values
+v0.5: removed pixel min, moved min_corr in GUI
 
 """
 
@@ -449,73 +450,73 @@ class FittingPage(tk.Frame):
         roi_finding_label = tk.Label(self, text="ROI finding", font=FONT_HEADER, bg='white')
         roi_finding_label.grid(row=0, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
-        min_corr_label = tk.Label(self, text="Minimum Correlation", font=FONT_LABEL, bg='white')
-        min_corr_label.grid(row=0, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        self.min_corr_slider = NormalSlider(self, from_=0, to=1, resolution=0.005,
-                                            row=1, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        min_corr_histogram = ttk.Button(self, text="Graph",
-                                        command=lambda: self.fun_histogram("corr_min"))
-        min_corr_histogram.grid(row=1, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        min_corr_histogram_select = ttk.Button(self, text="Graph select",
-                                               command=lambda: self.histogram_select("corr_min"))
-        min_corr_histogram_select.grid(row=2, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
         min_int_label = tk.Label(self, text="Minimum Intensity", font=FONT_LABEL, bg='white')
-        min_int_label.grid(row=3, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        min_int_label.grid(row=1, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         self.min_int_slider = NormalSlider(self, from_=0, to=1000,
-                                           row=4, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+                                           row=2, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         min_int_histogram = ttk.Button(self, text="Graph",
                                        command=lambda: self.fun_histogram("min_int"))
-        min_int_histogram.grid(row=4, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        min_int_histogram.grid(row=2, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         min_int_histogram_select = ttk.Button(self, text="Select min",
                                               command=lambda: self.histogram_select("min_int"))
-        min_int_histogram_select.grid(row=4, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        min_int_histogram_select.grid(row=2, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         max_int_label = tk.Label(self, text="Maximum Intensity", font=FONT_LABEL, bg='white')
-        max_int_label.grid(row=3, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        max_int_label.grid(row=1, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         self.max_int_slider = NormalSlider(self, from_=0, to=5000,
-                                           row=4, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+                                           row=2, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         max_int_histogram_select = ttk.Button(self, text="Select max",
                                               command=lambda: self.histogram_select("max_int"))
-        max_int_histogram_select.grid(row=4, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        max_int_histogram_select.grid(row=2, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         min_sigma_label = tk.Label(self, text="Minimum Sigma", font=FONT_LABEL, bg='white')
-        min_sigma_label.grid(row=5, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        min_sigma_label.grid(row=3, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         self.min_sigma_slider = NormalSlider(self, from_=0, to=5, resolution=0.01,
-                                             row=6, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+                                             row=4, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         min_sigma_histogram = ttk.Button(self, text="Graph",
                                          command=lambda: self.fun_histogram("min_sigma"))
-        min_sigma_histogram.grid(row=6, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        min_sigma_histogram.grid(row=4, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         min_sigma_histogram_select = ttk.Button(self, text="Select min",
                                                 command=lambda: self.histogram_select("min_sigma"))
-        min_sigma_histogram_select.grid(row=6, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        min_sigma_histogram_select.grid(row=4, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         max_sigma_label = tk.Label(self, text="Maximum Sigma", font=FONT_LABEL, bg='white')
-        max_sigma_label.grid(row=5, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        max_sigma_label.grid(row=3, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         self.max_sigma_slider = NormalSlider(self, from_=0, to=10, resolution=0.01,
-                                             row=6, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+                                             row=4, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         max_sigma_histogram_select = ttk.Button(self, text="Select max",
                                                 command=lambda: self.histogram_select("max_sigma"))
-        max_sigma_histogram_select.grid(row=6, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        max_sigma_histogram_select.grid(row=4, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         line = ttk.Separator(self, orient='horizontal')
-        line.grid(row=7, column=0, rowspan=1, columnspan=40, sticky='we')
+        line.grid(row=5, column=0, rowspan=1, columnspan=40, sticky='we')
 
         advanced_label = tk.Label(self, text="Advanced settings", font=FONT_SUBHEADER, bg='white')
-        advanced_label.grid(row=8, column=0, columnspan=40, sticky='EW', padx=PAD_SMALL)
+        advanced_label.grid(row=6, column=0, columnspan=40, sticky='EW', padx=PAD_SMALL)
+
+        min_corr_label = tk.Label(self, text="Minimum Correlation", font=FONT_LABEL, bg='white')
+        min_corr_label.grid(row=6, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        self.min_corr_slider = NormalSlider(self, from_=0, to=1, resolution=0.005,
+                                            row=7, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        min_corr_histogram = ttk.Button(self, text="Graph",
+                                        command=lambda: self.fun_histogram("corr_min"))
+        min_corr_histogram.grid(row=7, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        min_corr_histogram_select = ttk.Button(self, text="Graph select",
+                                               command=lambda: self.histogram_select("corr_min"))
+        min_corr_histogram_select.grid(row=7, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         roi_size_label = tk.Label(self, text="ROI size", bg='white', font=FONT_LABEL)
         roi_size_label.grid(row=9, column=0, columnspan=5, sticky='EW', padx=PAD_SMALL)
@@ -966,12 +967,15 @@ class FittingPage(tk.Frame):
         method = self.method_var.get()
         rejection_type = self.rejection_var.get()
 
-        if rejection_type == "Strict" and (method == "Phasor + Sum" or method == "Phasor"):
+        if rejection_type == "Strict" and (method == "Phasor + Sum" or method == "Phasor" or
+                                           method == "Phasor + Intensity"):
             rejection_check = tk.messagebox.askokcancel("Just a heads up",
-                                                        """These Phasor methods have no strict rejection option,
+                                                        """Phasor methods have no strict rejection option,
             so "Loose" rejection will be used""")
             if not rejection_check:
                 return
+            else:
+                rejection_type = "Loose"
 
         if n_processes > 1 and (method == "Phasor + Intensity" or method == "Phasor + Sum" or method == "Phasor"):
             cores_check = tk.messagebox.askokcancel("Just a heads up",

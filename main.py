@@ -113,7 +113,6 @@ for name in filenames:
 
         if DATASET == "MATLAB_v3":
             roi_finder.int_min = 100
-            roi_finder.pixel_min = 100
             roi_finder.corr_min = 0.001
 
         ROI_locations = roi_finder.main(fitter)
@@ -124,7 +123,7 @@ for name in filenames:
         print('Starting to prepare fitting')
         start = time.time()
 
-        thresholds = {'pixel_min': roi_finder.pixel_min, 'int_min': roi_finder.int_min, 'int_max': roi_finder.int_max,
+        thresholds = {'int_min': roi_finder.int_min, 'int_max': roi_finder.int_max,
                       'sigma_min': roi_finder.sigma_min, 'sigma_max': roi_finder.sigma_max}
 
         if METHOD == "Phasor":

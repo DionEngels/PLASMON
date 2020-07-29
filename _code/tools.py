@@ -29,7 +29,7 @@ from datetime import datetime
 # translates the raw dictionary keys to user readable input
 TRANSLATOR_DICT = {'int_max': 'Maximum Intensity', 'int_min': 'Minimum Intensity', 'sigma_min': "Minimum Sigma",
                    'sigma_max': "Maximum Sigma", 'corr_min': "Minimum Correlation",
-                   'pixel_min': "Minimum pixel intensity", 'roi_size': "ROI size", 'filter_size': "Filter size",
+                   'roi_size': "ROI size", 'filter_size': "Filter size",
                    'roi_side': "Side spacing", 'inter_roi': "ROI spacing"}
 
 

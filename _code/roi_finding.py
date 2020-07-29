@@ -18,6 +18,7 @@ v0.3.0: clean up and based on SPectrA; correlation, pixel_int, sigma and int
 v0.4.0: bug fix ROI distance, ready for Peter review
 v0.4.1: clean up
 v0.4.2: changed "change_settings"
+v0.5: removed pixel min
 
 """
 import numpy as np  # for linear algebra
@@ -32,7 +33,7 @@ class RoiFinder:
     """
     Class to find ROIs in the first frame of a microscope video
     """
-    def __init__(self, frame, fitter, filter_size=9, pixel_min=None, corr_min=0.05,
+    def __init__(self, frame, fitter, filter_size=9, corr_min=0.05,
                  sigma_min=0, sigma_max=None, int_min=None, int_max=None,
                  roi_size=7, settings=None):
         """
@@ -41,7 +42,6 @@ class RoiFinder:
         frame : Frame in which ROIs will be found
         fitter : Fitter to fit ROIs with. Is Gaussian fitter.
         filter_size : optional, size of filter in pixels. The default is 9.
-        pixel_min : optional, minimum pixel value threshold. The default is None.
         corr_min : optional, minimum correlation value threshold. The default is 0.05.
         sigma_min : optional, minimum sigma value threshold. The default is 0.
         sigma_max : optional, maximum sigma value threshold. The default is None.
@@ -61,7 +61,6 @@ class RoiFinder:
         self.roi_locations = []
 
         self.base_frame = frame
-        self.threshold_sigma = 5
 
         if settings is None:
             self.filter_size = int(filter_size)
@@ -73,11 +72,6 @@ class RoiFinder:
             background = medfilt(frame, kernel_size=self.filter_size)
             background[background == 0] = np.min(background[background > 0])
             self.frame = frame.astype('float') - background
-
-            if pixel_min is None:
-                self.pixel_min = self.determine_threshold_min()
-            else:
-                self.pixel_min = pixel_min
 
             self.corr_min = corr_min
             self.int_min = int_min
@@ -105,8 +99,6 @@ class RoiFinder:
             self.sigma_max = settings['sigma_max']
 
             self.corr_min = settings['corr_min']
-            self.pixel_min = settings['pixel_min']
-
             self.int_max = settings['int_max']
             self.int_min = settings['int_min']
 
@@ -118,25 +110,6 @@ class RoiFinder:
             self.filter_size = settings['filter_size']
 
             self.frame = settings['processed_frame']
-
-    def determine_threshold_min(self):
-        """
-        Automatic threshold determination of pixel values. Only used when threshold is not set by user
-
-        Returns
-        -------
-        Threshold
-
-        """
-        frame_ravel = np.ravel(self.frame)
-        mean = 0
-        std = 0
-
-        for _ in range(10):
-            mean, std = norm.fit(frame_ravel)
-            frame_ravel = frame_ravel[frame_ravel < mean + std * 5]
-
-        return mean + self.threshold_sigma * std
 
     def change_settings(self, settings):
         """
@@ -155,8 +128,6 @@ class RoiFinder:
         self.sigma_max = settings['sigma_max']
 
         self.corr_min = settings['corr_min']
-        self.pixel_min = settings['pixel_min']
-
         self.int_max = settings['int_max']
         self.int_min = settings['int_min']
 
@@ -251,7 +222,7 @@ class RoiFinder:
 
         Returns
         -------
-        None offically. Adapts ROI locations
+        None officially. Adapts ROI locations
 
         """
         keep_boolean = np.ones(self.roi_locations.shape[0], dtype=bool)
@@ -273,28 +244,6 @@ class RoiFinder:
             trues_in_roi = np.transpose(np.where(my_roi == True))
 
             if trues_in_roi.shape[0] > 1:
-                keep_boolean[roi_index] = False
-
-        self.roi_locations = self.roi_locations[keep_boolean, :]
-
-    def peak_int_min(self):
-        """
-        Rejects ROIs if pixel value is too low
-
-        Returns
-        -------
-        None officially. Changed self.roi_locations
-
-        """
-        keep_boolean = np.ones(self.roi_locations.shape[0], dtype=bool)
-
-        for roi_index, roi in enumerate(self.roi_locations):
-            y = int(roi[0])
-            x = int(roi[1])
-
-            peak_int = self.frame[y, x]
-
-            if peak_int < self.pixel_min:
                 keep_boolean[roi_index] = False
 
         self.roi_locations = self.roi_locations[keep_boolean, :]
@@ -362,11 +311,10 @@ class RoiFinder:
         roi_boolean, self.roi_locations = self.find_particles(return_corr)
 
         if return_corr:
+            self.corr_min = self.corr_min * 2
             return self.corr_list
 
         self.adjacent_or_boundary_rois(roi_boolean)
-
-        self.peak_int_min()
 
         self.int_sigma_limit(fitter, return_int, return_sigmas)
 
