@@ -20,6 +20,7 @@ v0.4.2: prevent overwriting output
 v0.4.3: settings dict, one command to change dataset
 v0.4.4: saved standard values
 v0.5: removed pixel min, moved min_corr in GUI
+v0.5.1: fixed size GUI
 
 """
 
@@ -57,7 +58,7 @@ mpl.use("TkAgg")  # set back end to TK
 
 # %% Initializations. Defining filetypes, fonts, paddings, input sizes, and GUI sizes.
 
-__version__ = "0.4.4"
+__version__ = "0.5.1"
 
 FILETYPES = [("ND2", ".nd2")]
 
@@ -75,10 +76,10 @@ INPUT_SMALL = 5
 
 width = GetSystemMetrics(0)
 height = GetSystemMetrics(1)
-GUI_WIDTH = int(width * 0.70)
-GUI_HEIGHT = int(height * 0.70)
-GUI_WIDTH_START = int(width * 0.15)
-GUI_HEIGHT_START = int(height * 0.15)
+GUI_WIDTH = 1344  # int(width * 0.70)
+GUI_HEIGHT = 756  # int(height * 0.70)
+GUI_WIDTH_START = int((width - GUI_WIDTH) / 2)
+GUI_HEIGHT_START = int((height - GUI_HEIGHT) / 2)
 DPI = 100
 
 # %% Options for dropdown menus
