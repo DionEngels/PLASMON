@@ -107,7 +107,7 @@ def save_to_csv_mat_results(name, results, method, path):
                      "estimate),Iterations needed to converge"
             savetxt(path + "/" + name + '.csv', results, delimiter=',', header=header)
 
-    results_dict = {'Localizations': results}
+    results_dict = {name: results}
     savemat(path + "/" + name + '.mat', results_dict)
 
 

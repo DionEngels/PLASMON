@@ -26,7 +26,7 @@ v0.6: matplotlib fix, PIMS 0.5, and own ND2Reader class to prevent warnings
 __version__ = "0.6"
 
 # GENERAL IMPORTS
-from os import getcwd, mkdir, environ # to get standard usage
+from os import getcwd, mkdir, environ  # to get standard usage
 from tempfile import mkdtemp
 from sys import exit
 import time  # for timekeeping

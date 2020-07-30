@@ -14,6 +14,7 @@ This piece of code allows you to compile Mbx Python to an .exe
 v0.1: Full setup: 26/07/2020
 v0.2: minor changes
 v0.2.1: trying to get lower file size, no progress
+v0.3: adding in dependencies to ensure working
 
 """
 
@@ -21,14 +22,27 @@ import os
 import sys
 from cx_Freeze import setup, Executable
 
+
 r'-b C:\Users\s150127\Downloads\___MBx\build'  # take this control location of build
 
 __version__ = '1.0'
+
+include_files = []
+PYTHON_INSTALL_DIR = os.path.dirname(os.path.dirname(os.__file__))
+os.environ['TCL_LIBRARY'] = os.path.join(PYTHON_INSTALL_DIR, 'tcl', 'tcl8.6')
+os.environ['TK_LIBRARY'] = os.path.join(PYTHON_INSTALL_DIR, 'tcl', 'tk8.6')
+
 base = None
 if sys.platform == 'win32':
     base = 'Win32GUI'
+    DLLS_FOLDER = os.path.join(PYTHON_INSTALL_DIR, 'Library', 'bin')
 
-include_files = []
+    dependencies = ['libiomp5md.dll', 'mkl_core.dll', 'mkl_def.dll', 'mkl_intel_thread.dll']
+
+    for dependency in dependencies:
+        include_files.append(os.path.join(DLLS_FOLDER, dependency))
+
+
 includes = ['tkinter']
 excludes = ['matplotlib.tests', 'numpy.random._examples']
 packages = ['numpy', 'matplotlib', 'multiprocessing', 'scipy']

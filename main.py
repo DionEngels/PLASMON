@@ -28,6 +28,7 @@ v0.2.8: rejection options
 v0.3.0: ready for Peter review. MATLAB coordinate system output, bug fix and text output
 v0.3.1: different directory for output
 v0.3.2: no longer overwrites old data
+v0.4: drift correction
 
  """
 
@@ -45,6 +46,7 @@ from scipy.io import loadmat
 import _code.roi_finding as roi_finding
 import _code.fitters as fitting
 import _code.tools as tools
+import _code.drift_correction as drift_correction
 
 # %% Inputs
 ROI_SIZE = 7  # 7 or 9
@@ -92,12 +94,14 @@ for name in filenames:
             frames = np.swapaxes(frames, 0, 1)
             metadata = {'NA': 1, 'calibration_um': 0.120, 'sequence_count': frames.shape[0], 'time_start': 3,
                         'time_start_utc': 3}
-            # frames = frames[0:100, :, :]
+            frames = frames[0:100, :, :]
+            n_frames = frames.shape[0]
         elif DATASET == "YUYANG":
             # parse ND2 info
             frames = ND2
             metadata = ND2.metadata
             #  frames = frames[0:5]
+            n_frames = len(frames)
 
         # %% Find ROIs (for standard NP2 file)
         print('Starting to find ROIs')
@@ -159,6 +163,11 @@ for name in filenames:
             # MATLAB works from bottom left as zero point, Python top left. Thus, y is switched
             results[:, 3] = frames[0].shape[0] - results[:, 3]
 
+        # %% drift correction
+
+        drift_corrector = drift_correction.DriftCorrector()
+        results_drift = drift_corrector.main(results, ROI_locations, n_frames)
+
         # %% filter metadata
         metadata_filtered = {k: v for k, v in metadata.items() if v is not None}
         del metadata_filtered['time_start']
@@ -168,5 +177,6 @@ for name in filenames:
         tools.save_to_csv_mat('metadata', metadata_filtered, path)
         tools.save_to_csv_mat_roi('ROI_locations', ROI_locations, frames[0].shape[0], path)
         tools.save_to_csv_mat_results('Localizations', results, METHOD, path)
+        tools.save_to_csv_mat_results('Localizations_drift', results_drift, METHOD, path)
 
         tools.text_output({}, METHOD, THRESHOLD_METHOD, "", total_fits, failed_fits, time_taken, path)
