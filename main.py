@@ -28,7 +28,7 @@ v0.2.8: rejection options
 v0.3.0: ready for Peter review. MATLAB coordinate system output, bug fix and text output
 v0.3.1: different directory for output
 v0.3.2: no longer overwrites old data
-v0.4: drift correction
+v0.4: drift correction v1: 31/07/2020
 
  """
 
@@ -55,8 +55,8 @@ ROI_SIZE = 7  # 7 or 9
 
 filenames = ("C:/Users/s150127/Downloads/___MBx/datasets/1nMimager_newGNRs_100mW.nd2",)
 
-METHOD = "Gaussian"
-DATASET = "MATLAB_v3"  # "MATLAB_v2, "MATLAB_v3" OR "YUYANG"
+METHOD = "PhasorDumb"
+DATASET = "YUYANG"  # "MATLAB_v2, "MATLAB_v3" OR "YUYANG"
 THRESHOLD_METHOD = "Loose"  # "Strict", "Loose", or "None"
 
 # %% Main loop cell
@@ -94,7 +94,7 @@ for name in filenames:
             frames = np.swapaxes(frames, 0, 1)
             metadata = {'NA': 1, 'calibration_um': 0.120, 'sequence_count': frames.shape[0], 'time_start': 3,
                         'time_start_utc': 3}
-            frames = frames[0:100, :, :]
+            #  frames = frames[0:100, :, :]
             n_frames = frames.shape[0]
         elif DATASET == "YUYANG":
             # parse ND2 info
@@ -148,7 +148,6 @@ for name in filenames:
 
         print('Time taken: ' + str(time_taken) + ' s. Fits done: ' + str(successful_fits))
 
-        print('Starting saving')
         # %% Plot frames
 
         # for index, frame in enumerate(frames):
@@ -165,9 +164,11 @@ for name in filenames:
 
         # %% drift correction
 
-        drift_corrector = drift_correction.DriftCorrector()
+        print('Starting drift correction')
+        drift_corrector = drift_correction.DriftCorrector(METHOD)
         results_drift = drift_corrector.main(results, ROI_locations, n_frames)
 
+        print('Starting saving')
         # %% filter metadata
         metadata_filtered = {k: v for k, v in metadata.items() if v is not None}
         del metadata_filtered['time_start']

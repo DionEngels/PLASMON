@@ -23,7 +23,6 @@ v0.5: removed pixel min
 """
 import numpy as np  # for linear algebra
 from scipy.signal import medfilt, convolve2d
-from scipy.stats import norm
 from scipy.ndimage.filters import maximum_filter
 
 # %% Python ROI finder

@@ -22,8 +22,9 @@ v0.4.4: saved standard values
 v0.5: removed pixel min, moved min_corr in GUI
 v0.5.1: fixed size GUI
 v0.6: matplotlib fix, PIMS 0.5, and own ND2Reader class to prevent warnings
+v0.7: drift correction v1: 31/07/2020
 """
-__version__ = "0.6"
+__version__ = "0.7"
 
 # GENERAL IMPORTS
 from os import getcwd, mkdir, environ  # to get standard usage
@@ -51,6 +52,7 @@ from tkinter.filedialog import askopenfilenames  # for popup that asks to select
 import _code.roi_finding as roi_finding
 import _code.fitters as fitting
 import _code.tools as tools
+import _code.drift_correction as drift_correction
 
 # Multiprocessing
 import multiprocessing as mp
@@ -1090,6 +1092,19 @@ class FittingPage(tk.Frame):
                 results[:, 2] = results[:, 2] * pixelsize_nm
                 results[:, 3] = results[:, 3] * pixelsize_nm
 
+            # drift correction
+
+            self.progress_status_label.updater(text="Drift correction dataset " +
+                                                    str(self.dataset_index + 1) + " of " + str(len(filenames)))
+            self.update()
+
+            drift_corrector = drift_correction.DriftCorrector(method)
+            results_drift = drift_corrector.main(results, roi_locations, num_frames)
+
+            self.progress_status_label.updater(text="Saving dataset " +
+                                                    str(self.dataset_index + 1) + " of " + str(len(filenames)))
+            self.update()
+
             # create folder for output
 
             path = filename.split(".")[0]
@@ -1116,6 +1131,7 @@ class FittingPage(tk.Frame):
             tools.save_to_csv_mat('metadata', metadata_filtered, path)
             tools.save_to_csv_mat_roi('ROI_locations', roi_locations, self.frames[0].shape[0], path)
             tools.save_to_csv_mat_results('Localizations', results, method, path)
+            tools.save_to_csv_mat_results('Localizations_drift', results_drift, method, path)
 
             total_fits = results.shape[0]
             failed_fits = results[np.isnan(results[:, 3]), :].shape[0]
