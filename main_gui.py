@@ -24,8 +24,9 @@ v0.5.1: fixed size GUI
 v0.6: matplotlib fix, PIMS 0.5, and own ND2Reader class to prevent warnings
 v0.7: drift correction v1: 31/07/2020
 v0.7.1: add button to restore to different saved settings
+v0.7.2: save figures and save drift
 """
-__version__ = "0.7.1"
+__version__ = "0.7.2"
 
 # GENERAL IMPORTS
 from os import getcwd, mkdir, environ  # to get standard usage
@@ -592,35 +593,43 @@ class FittingPage(tk.Frame):
                                       row=21, column=10, columnspan=30, font=FONT_STATUS)
 
         method_label = tk.Label(self, text="Method", font=FONT_LABEL, bg='white')
-        method_label.grid(row=23, column=0, columnspan=10, sticky='EW', padx=PAD_SMALL)
+        method_label.grid(row=23, column=0, columnspan=12, sticky='EW', padx=PAD_SMALL)
 
         self.method_var = tk.StringVar(self)
         method_drop = ttk.OptionMenu(self, self.method_var, fit_options[1], *fit_options)
-        method_drop.grid(row=24, column=0, columnspan=10, sticky="ew")
+        method_drop.grid(row=24, column=0, columnspan=12, sticky="ew")
 
         rejection_label = tk.Label(self, text="Rejection", bg='white', font=FONT_LABEL)
-        rejection_label.grid(row=23, column=10, columnspan=10, sticky='EW', padx=PAD_SMALL)
+        rejection_label.grid(row=23, column=12, columnspan=7, sticky='EW', padx=PAD_SMALL)
 
         self.rejection_var = tk.StringVar(self)
         rejection_drop = ttk.OptionMenu(self, self.rejection_var, rejection_options[1], *rejection_options)
-        rejection_drop.grid(row=24, column=10, columnspan=10, sticky='EW', padx=PAD_SMALL)
+        rejection_drop.grid(row=24, column=12, columnspan=7, sticky='EW', padx=PAD_SMALL)
 
         cores_label = tk.Label(self, text="#cores", font=FONT_LABEL, bg='white')
-        cores_label.grid(row=23, column=20, columnspan=10, sticky='EW', padx=PAD_BIG)
+        cores_label.grid(row=23, column=19, columnspan=7, sticky='EW', padx=PAD_BIG)
 
         self.total_cores = mp.cpu_count()
         cores_options = [1, int(self.total_cores / 2), int(self.total_cores * 3 / 4), int(self.total_cores)]
         self.cores_var = tk.IntVar(self)
         self.cores_drop = ttk.OptionMenu(self, self.cores_var, cores_options[0], *cores_options)
-        self.cores_drop.grid(row=24, column=20, columnspan=10, sticky='EW', padx=PAD_BIG)
+        self.cores_drop.grid(row=24, column=19, columnspan=7, sticky='EW', padx=PAD_BIG)
 
         dimensions_label = tk.Label(self, text="pixels or nm", font=FONT_LABEL, bg='white')
-        dimensions_label.grid(row=23, column=30, columnspan=10, sticky='EW', padx=PAD_BIG)
+        dimensions_label.grid(row=23, column=26, columnspan=7, sticky='EW', padx=PAD_BIG)
 
         dimension_options = ["nm", "pixels"]
         self.dimension = tk.StringVar(self)
         self.dimension_drop = ttk.OptionMenu(self, self.dimension, dimension_options[0], *dimension_options)
-        self.dimension_drop.grid(row=24, column=30, columnspan=10, sticky='EW', padx=PAD_BIG)
+        self.dimension_drop.grid(row=24, column=26, columnspan=7, sticky='EW', padx=PAD_BIG)
+
+        figures_label = tk.Label(self, text="pixels or nm", font=FONT_LABEL, bg='white')
+        figures_label.grid(row=23, column=33, columnspan=7, sticky='EW', padx=PAD_BIG)
+
+        figures_options = ["All", "Few", "None"]
+        self.figures_var = tk.StringVar(self)
+        self.figures_drop = ttk.OptionMenu(self, self.figures_var, figures_options[1], *figures_options)
+        self.figures_drop.grid(row=24, column=33, columnspan=7, sticky='EW', padx=PAD_BIG)
 
         frame_begin_label = tk.Label(self, text="Begin frame", font=FONT_LABEL, bg='white')
         frame_begin_label.grid(row=27, column=0, columnspan=20, sticky='EW', padx=PAD_BIG)
@@ -995,6 +1004,7 @@ class FittingPage(tk.Frame):
         n_processes = self.cores_var.get()
         method = self.method_var.get()
         rejection_type = self.rejection_var.get()
+        figures_option = self.figures_var.get()
 
         if rejection_type == "Strict" and (method == "Phasor + Sum" or method == "Phasor" or
                                            method == "Phasor + Intensity"):
@@ -1126,7 +1136,7 @@ class FittingPage(tk.Frame):
             self.update()
 
             drift_corrector = drift_correction.DriftCorrector(method)
-            results_drift = drift_corrector.main(results, roi_locations, num_frames)
+            results_drift, drift = drift_corrector.main(results, roi_locations, num_frames)
 
             self.progress_status_label.updater(text="Saving dataset " +
                                                     str(self.dataset_index + 1) + " of " + str(len(filenames)))
@@ -1157,10 +1167,14 @@ class FittingPage(tk.Frame):
 
             tools.save_to_csv_mat('metadata', metadata_filtered, path)
             tools.save_to_csv_mat_roi('ROI_locations', roi_locations, self.frames[0].shape[0], path)
+            tools.save_to_csv_mat_drift('Drift_correction', drift, path)
             tools.save_to_csv_mat_results('Localizations', results, method, path)
             tools.save_to_csv_mat_results('Localizations_drift', results_drift, method, path)
 
-            tools.save_graphs(results, results_drift, roi_locations, method, path)
+            if figures_option != "None":
+                self.progress_status_label.updater(text="Plotting dataset " +
+                                                        str(self.dataset_index + 1) + " of " + str(len(filenames)))
+                tools.save_graphs(results, results_drift, roi_locations, method, nm_or_pixels, figures_option, path)
 
             total_fits = results.shape[0]
             failed_fits = results[np.isnan(results[:, 3]), :].shape[0]
@@ -1175,6 +1189,7 @@ class FittingPage(tk.Frame):
         end_message = 'Time taken: ' + str(round(time.time() - self.start_time, 3)) \
                       + ' s. Fits done: ' + str(results_counter)
 
+        self.progress_status_label.updater(text="Done!")
         tk.messagebox.showinfo("Done!", end_message)
 
         self.nd2.close()

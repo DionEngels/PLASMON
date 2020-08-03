@@ -12,6 +12,7 @@ This package is for the drift correction of MBx Python.
 ----------------------------
 
 v0.1: drift correction v1: 31/07/2020
+v0.1.1: bug fix and save drift: 03/08/2020
 
 """
 
@@ -66,8 +67,7 @@ class DriftCorrector:
 
     def find_drift(self, roi_results):
 
-        if self.method == "Gaussian" or self.method == "GaussianBackground" \
-                or self.method == "Gaussian - Fit bg" or self.method == "Gaussian - Estimate bg":
+        if "Gaussian" in self.method:
             cutoff = self.find_cutoff(roi_results)
             roi_results[roi_results[:, 4] > cutoff, 2:] = np.nan
 
@@ -87,7 +87,9 @@ class DriftCorrector:
 
         return mean + self.threshold_sigma * std
 
-    def adjust_for_drift(self, mean_drift_x, mean_drift_y, results_drift):
+    def adjust_for_drift(self, mean_drift_x, mean_drift_y, results):
+
+        results_drift = results.copy()
 
         mean_drift_x_repeat = np.repeat(mean_drift_x, self.n_rois)
         mean_drift_y_repeat = np.repeat(mean_drift_y, self.n_rois)
@@ -95,4 +97,6 @@ class DriftCorrector:
         results_drift[:, 2] -= mean_drift_x_repeat
         results_drift[:, 3] -= mean_drift_y_repeat
 
-        return results_drift
+        drift = np.stack((mean_drift_x, mean_drift_y), axis=1)
+
+        return results_drift, drift
