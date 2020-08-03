@@ -16,6 +16,7 @@ v0.2: also switch array: 04/06/2020
 v0.3: cleaned up: 24/07/2020
 v0.4: settings and results text output: 25/07/2020
 v0.5: own ND2Reader class to prevent warnings: 29/07/2020
+v0.6: save drift and save figures: 03/08/2020
 
 """
 
@@ -26,7 +27,8 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from datetime import datetime
 from pims_nd2 import ND2_Reader
-
+from os import mkdir
+import time
 
 # translates the raw dictionary keys to user readable input
 TRANSLATOR_DICT = {'int_max': 'Maximum Intensity', 'int_min': 'Minimum Intensity', 'sigma_min': "Minimum Sigma",
@@ -128,12 +130,34 @@ def save_to_csv_mat_roi(name, rois, height, path):
 
     """
     rois = switch(rois)  # from y,x to x,y
-    rois[:, 1] = height - rois[:,1]  # MATLAB has origin in bottom left, Python top left. Switch y-axis to compensate
+    rois[:, 1] = height - rois[:, 1]  # MATLAB has origin in bottom left, Python top left. Switch y-axis to compensate
     header = "x,y"
     savetxt(path + "/" + name + '.csv', rois, delimiter=',', header=header)
 
-    rois_dict = dict(zip(['x', 'y'], rois.T))
+    rois_dict = dict(zip(['rois_x', 'rois_y'], rois.T))
     savemat(path + "/" + name + '.mat', rois_dict)
+
+
+def save_to_csv_mat_drift(name, drift, path):
+    """
+    Saves the drift correction to a .mat and .csv
+
+    Parameters
+    ----------
+    name : name to save to
+    drift : drift correction to save
+    path : path to save
+
+    Returns
+    -------
+    None.
+
+    """
+    header = "x,y"
+    savetxt(path + "/" + name + '.csv', drift, delimiter=',', header=header)
+
+    drift_dict = dict(zip(['x_drift', 'y_drift'], drift.T))
+    savemat(path + "/" + name + '.mat', drift_dict)
 
 
 def text_output(settings, method, threshold_method, nm_or_pixels, total_fits, failed_fits, time_taken, path):
@@ -235,3 +259,97 @@ def plot_rois(frame, roi_locations, roi_size):
 
     plt.title("ROI locations")
     plt.show()
+
+
+def save_graphs(results, results_drift, roi_locations, method, nm_or_pixels, figures_option, path):
+    """
+    Input results and drift-corrected results, puts out some example graphs for quick checking
+
+    Parameters
+    ----------
+    results: results of fitting
+    results_drift: drift-corrected results of fitting
+    roi_locations : locations of ROIs
+    method: method of fitting
+    nm_or_pixels: nm or pixels, for labels
+    figures_option: amount of figures to be plotted
+    path: path in which to place graphs
+
+    Returns
+    -------
+    None really. Outputs graphs to disk
+    """
+    path += "/Graphs"
+    mkdir(path)
+
+    fig = plt.figure()
+    ax = plt.subplot(111)
+
+    start = time.time()
+
+    if "Gaussian" in method:
+        overall_intensity = results[:, 4]
+        ax.hist(overall_intensity, bins=100)
+        ax.set_xlabel('Intensity (counts)')
+        ax.set_ylabel('Occurrence')
+        ax.set_title('Intensity occurrence')
+        name = path + "/" + "_Histogram_intensity.png"
+        fig.savefig(name, bbox_inches='tight')
+
+        plt.cla()
+        overall_sigma_x = results[:, 5]
+        overall_sigma_y = results[:, 6]
+        ax.hist(overall_sigma_x, bins=50)
+        ax.hist(overall_sigma_y, bins=50)
+        ax.set_xlabel('Sigmas (counts)')
+        ax.set_ylabel('Occurrence')
+        ax.set_title('Sigmas occurrence')
+        name = path + "/" + "_Histogram_sigma.png"
+        fig.savefig(name, bbox_inches='tight')
+
+    for roi_index, roi in enumerate(roi_locations):
+        if figures_option == "Few" and roi_index % int(roi_locations.shape[0]/5) != 0:
+            continue
+
+        if "Gaussian" in method:
+            intensities = results[results[:, 1] == roi_index+1, 4]
+            plt.cla()
+            ax.plot(intensities)
+            ax.set_xlabel('Frames')
+            ax.set_ylabel('Intensity (counts)')
+            ax.set_title('Time trace ROI ' + str(roi_index+1))
+            name = path + "/" + str(roi_index+1) + "_time_trace.png"
+            fig.savefig(name, bbox_inches='tight')
+
+        x_positions = results[results[:, 1] == roi_index+1, 2]
+        y_positions = results[results[:, 1] == roi_index + 1, 3]
+
+        plt.cla()
+        ax.scatter(x_positions, y_positions)
+        if nm_or_pixels == 'nm':
+            ax.set_xlabel('x-position (nm)')
+            ax.set_ylabel('y-position (nm)')
+        else:
+            ax.set_xlabel('x-position (pixels)')
+            ax.set_ylabel('y-position (pixels)')
+        ax.set_title('Scatter ROI ' + str(roi_index + 1))
+        name = path + "/" + str(roi_index + 1) + "_scatter.png"
+        fig.savefig(name, bbox_inches='tight')
+
+        x_positions = results_drift[results_drift[:, 1] == roi_index + 1, 2]
+        y_positions = results_drift[results_drift[:, 1] == roi_index + 1, 3]
+
+        plt.cla()
+        ax.scatter(x_positions, y_positions)
+        if nm_or_pixels == 'nm':
+            ax.set_xlabel('x-position (nm)')
+            ax.set_ylabel('y-position (nm)')
+        else:
+            ax.set_xlabel('x-position (pixels)')
+            ax.set_ylabel('y-position (pixels)')
+        ax.set_title('Scatter ROI ' + str(roi_index + 1) + " post drift")
+        name = path + "/" + str(roi_index + 1) + "_scatter_post_drift.png"
+        fig.savefig(name, bbox_inches='tight')
+
+    print('Time taken ' + str(round(time.time() - start, 3)))
+
