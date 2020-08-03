@@ -23,8 +23,9 @@ v0.5: removed pixel min, moved min_corr in GUI
 v0.5.1: fixed size GUI
 v0.6: matplotlib fix, PIMS 0.5, and own ND2Reader class to prevent warnings
 v0.7: drift correction v1: 31/07/2020
+v0.7.1: add button to restore to different saved settings
 """
-__version__ = "0.7"
+__version__ = "0.7.1"
 
 # GENERAL IMPORTS
 from os import getcwd, mkdir, environ  # to get standard usage
@@ -448,6 +449,7 @@ class FittingPage(tk.Frame):
         self.histogram = None
         self.to_hist = None
         self.roi_fitter = None
+        self.saved_settings_list = []
 
         roi_finding_label = tk.Label(self, text="ROI finding", font=FONT_HEADER, bg='white')
         roi_finding_label.grid(row=0, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
@@ -556,24 +558,29 @@ class FittingPage(tk.Frame):
                                          padx=PAD_SMALL)
 
         button_find_rois = ttk.Button(self, text="Find ROIs", command=lambda: self.fit_rois())
-        button_find_rois.grid(row=12, column=0, columnspan=10, sticky='EW', padx=PAD_BIG)
+        button_find_rois.grid(row=13, column=0, columnspan=10, sticky='EW', padx=PAD_BIG)
 
         button_restore = ttk.Button(self, text="Restore default",
                                     command=lambda: self.restore_default())
-        button_restore.grid(row=12, column=10, columnspan=10, sticky='EW', padx=PAD_BIG)
+        button_restore.grid(row=13, column=10, columnspan=10, sticky='EW', padx=PAD_BIG)
+
+        self.restore_saved_drop_var = tk.StringVar(self)
+        self.restore_saved_drop = ttk.OptionMenu(self, self.restore_saved_drop_var, *self.saved_settings_list)
+        self.restore_saved_drop.grid(row=12, column=20, columnspan=10, sticky="ew")
+        self.restore_saved_drop['state'] = 'disabled'
 
         self.button_restore_saved = NormalButton(self, text="Restore saved",
                                                  state='disabled',
                                                  command=lambda: self.restore_saved(),
-                                                 row=12, column=20,
+                                                 row=13, column=20,
                                                  columnspan=10, sticky='EW', padx=PAD_BIG)
 
         button_save = ttk.Button(self, text="Save",
                                  command=lambda: self.save_roi_settings())
-        button_save.grid(row=12, column=30, columnspan=10, sticky='EW', padx=PAD_BIG)
+        button_save.grid(row=13, column=30, columnspan=10, sticky='EW', padx=PAD_BIG)
 
         self.fig = FigureFrame(self, height=GUI_WIDTH*0.4, width=GUI_WIDTH*0.4, dpi=DPI)
-        self.fig.grid(row=0, column=40, columnspan=10, rowspan=13, sticky='EW', padx=PAD_SMALL)
+        self.fig.grid(row=0, column=40, columnspan=10, rowspan=14, sticky='EW', padx=PAD_SMALL)
 
         line = ttk.Separator(self, orient='horizontal')
         line.grid(row=18, column=0, rowspan=2, columnspan=50, sticky='we')
@@ -861,6 +868,17 @@ class FittingPage(tk.Frame):
             self.filenames)) + " have settings")
         self.button_restore_saved.updater(command=lambda: self.restore_saved())
 
+        self.restore_saved_drop['state'] = 'enabled'
+        self.restore_saved_drop['menu'].delete(0, 'end')
+
+        # Insert list of new options (tk._setit hooks them up to var)
+        for key in self.saved_settings.keys():
+            self.restore_saved_drop['menu'].add_command(label="Dataset " + str(key+1),
+                                                        command=tk._setit(self.restore_saved_drop_var,
+                                                                          "Dataset " + str(key+1)))
+
+        self.restore_saved_drop_var.set("Dataset " + str(self.dataset_index+1))
+
         if len(self.roi_locations) == len(self.filenames):
             self.button_fit.updater(state='enabled')
 
@@ -875,7 +893,11 @@ class FittingPage(tk.Frame):
         None, updates GUI
 
         """
-        settings = self.saved_settings[self.dataset_index]
+        selected_set = self.restore_saved_drop_var.get()  # take selected set
+
+        selected_set = int(selected_set.split()[-1]) - 1  # get number out to convert to correct dataset index
+
+        settings = self.saved_settings[selected_set]
 
         self.min_int_slider.updater(from_=0, to=self.roi_finder.int_max / 4,
                                     start=settings['int_min'])
@@ -930,6 +952,11 @@ class FittingPage(tk.Frame):
 
         self.restore_default()
 
+        if self.dataset_index in self.saved_settings:
+            self.restore_saved_drop_var.set("Dataset " + str(self.dataset_index + 1))
+        else:
+            self.restore_saved_drop_var.set("")
+
         if self.dataset_index == len(self.filenames) - 1:
             self.button_right.updater(state='disabled')
         else:
@@ -940,7 +967,7 @@ class FittingPage(tk.Frame):
         else:
             self.button_left.updater(command=lambda: self.change_dataset(-1))
 
-        if self.dataset_index in self.saved_settings:
+        if len(self.saved_settings) > 0:
             self.button_restore_saved.updater(command=lambda: self.restore_saved())
         else:
             self.button_restore_saved.updater(state='disabled')
@@ -1132,6 +1159,8 @@ class FittingPage(tk.Frame):
             tools.save_to_csv_mat_roi('ROI_locations', roi_locations, self.frames[0].shape[0], path)
             tools.save_to_csv_mat_results('Localizations', results, method, path)
             tools.save_to_csv_mat_results('Localizations_drift', results_drift, method, path)
+
+            tools.save_graphs(results, results_drift, roi_locations, method, path)
 
             total_fits = results.shape[0]
             failed_fits = results[np.isnan(results[:, 3]), :].shape[0]
