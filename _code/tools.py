@@ -17,6 +17,7 @@ v0.3: cleaned up: 24/07/2020
 v0.4: settings and results text output: 25/07/2020
 v0.5: own ND2Reader class to prevent warnings: 29/07/2020
 v0.6: save drift and save figures: 03/08/2020
+v0.6.1: better MATLAB ROI and Drift output
 
 """
 
@@ -49,9 +50,9 @@ class ND2ReaderSelf(ND2_Reader):
         super().__init__(filename, series=series, channel=channel)
 
 
-def save_to_csv_mat(name, values, path):
+def save_to_csv_mat_metadata(name, values, path):
     """
-    Basic saver to .csv and .mat, only used by metadata
+    Saver to .csv and .mat for metadata
 
     Parameters
     ----------
@@ -68,10 +69,12 @@ def save_to_csv_mat(name, values, path):
         fieldnames = [k[0] for k in values.items()]
         writer = DictWriter(csv_file, fieldnames=fieldnames)
 
-        #  writer.writeheader()
+        writer.writeheader()
         writer.writerow(values)
 
-        savemat(path + "/" + name + '.mat', values)
+        values_dict = {name: values}
+
+        savemat(path + "/" + name + '.mat', values_dict)
 
 
 def save_to_csv_mat_results(name, results, method, path):
@@ -134,7 +137,7 @@ def save_to_csv_mat_roi(name, rois, height, path):
     header = "x,y"
     savetxt(path + "/" + name + '.csv', rois, delimiter=',', header=header)
 
-    rois_dict = dict(zip(['rois_x', 'rois_y'], rois.T))
+    rois_dict = {name: rois}
     savemat(path + "/" + name + '.mat', rois_dict)
 
 
@@ -156,7 +159,7 @@ def save_to_csv_mat_drift(name, drift, path):
     header = "x,y"
     savetxt(path + "/" + name + '.csv', drift, delimiter=',', header=header)
 
-    drift_dict = dict(zip(['x_drift', 'y_drift'], drift.T))
+    drift_dict = {name: drift}
     savemat(path + "/" + name + '.mat', drift_dict)
 
 

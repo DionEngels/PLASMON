@@ -175,7 +175,7 @@ for name in filenames:
         del metadata_filtered['time_start_utc']
 
 # %% save everything
-        tools.save_to_csv_mat('metadata', metadata_filtered, path)
+        tools.save_to_csv_mat_metadata('metadata', metadata_filtered, path)
         tools.save_to_csv_mat_roi('ROI_locations', ROI_locations, frames[0].shape[0], path)
         tools.save_to_csv_mat_results('Localizations', results, METHOD, path)
         tools.save_to_csv_mat_results('Localizations_drift', results_drift, METHOD, path)

@@ -1165,7 +1165,7 @@ class FittingPage(tk.Frame):
             del metadata_filtered['time_start']
             del metadata_filtered['time_start_utc']
 
-            tools.save_to_csv_mat('metadata', metadata_filtered, path)
+            tools.save_to_csv_mat_metadata('metadata', metadata_filtered, path)
             tools.save_to_csv_mat_roi('ROI_locations', roi_locations, self.frames[0].shape[0], path)
             tools.save_to_csv_mat_drift('Drift_correction', drift, path)
             tools.save_to_csv_mat_results('Localizations', results, method, path)
