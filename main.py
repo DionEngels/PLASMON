@@ -55,7 +55,10 @@ ROI_SIZE = 7  # 7 or 9
 
 filenames = ("C:/Users/s150127/Downloads/___MBx/datasets/1nMimager_newGNRs_100mW.nd2",)
 
-METHOD = "PhasorDumb"
+fit_options = ["Gaussian - Fit bg", "Gaussian - Estimate bg",
+               "Phasor + Intensity", "Phasor + Sum", "Phasor"]
+
+METHOD = "Phasor"
 DATASET = "YUYANG"  # "MATLAB_v2, "MATLAB_v3" OR "YUYANG"
 THRESHOLD_METHOD = "Loose"  # "Strict", "Loose", or "None"
 
@@ -99,7 +102,7 @@ for name in filenames:
         elif DATASET == "YUYANG":
             # parse ND2 info
             frames = ND2
-            metadata = ND2.metadata
+            metadata = ND2.get_metadata()
             #  frames = frames[0:5]
             n_frames = len(frames)
 
@@ -127,15 +130,15 @@ for name in filenames:
         thresholds = {'int_min': roi_finder.int_min, 'int_max': roi_finder.int_max,
                       'sigma_min': roi_finder.sigma_min, 'sigma_max': roi_finder.sigma_max}
 
-        if METHOD == "Phasor":
+        if METHOD == "Phasor + Intensity":
             fitter = fitting.Phasor(ROI_SIZE, thresholds, THRESHOLD_METHOD, METHOD)
-        elif METHOD == "PhasorDumb":
+        elif METHOD == "Phasor":
             fitter = fitting.PhasorDumb(ROI_SIZE, thresholds, THRESHOLD_METHOD, METHOD)
-        elif METHOD == "PhasorSum":
+        elif METHOD == "Phasor + Sum":
             fitter = fitting.PhasorSum(ROI_SIZE, thresholds, THRESHOLD_METHOD, METHOD)
-        elif METHOD == "Gaussian":
+        elif METHOD == "Gaussian - Estimate bg":
             fitter = fitting.Gaussian(ROI_SIZE, thresholds, THRESHOLD_METHOD, METHOD, 5)
-        elif METHOD == "GaussianBackground":
+        elif METHOD == "Gaussian - Fit bg":
             fitter = fitting.GaussianBackground(ROI_SIZE, thresholds, THRESHOLD_METHOD, METHOD, 6)
 
         results = fitter.main(frames, metadata, ROI_locations)
@@ -166,17 +169,14 @@ for name in filenames:
 
         print('Starting drift correction')
         drift_corrector = drift_correction.DriftCorrector(METHOD)
-        results_drift = drift_corrector.main(results, ROI_locations, n_frames)
+        results_drift, drift = drift_corrector.main(results, ROI_locations, n_frames)
 
         print('Starting saving')
-        # %% filter metadata
-        metadata_filtered = {k: v for k, v in metadata.items() if v is not None}
-        del metadata_filtered['time_start']
-        del metadata_filtered['time_start_utc']
 
 # %% save everything
-        tools.save_to_csv_mat_metadata('metadata', metadata_filtered, path)
+        tools.save_to_csv_mat_metadata('metadata', metadata, path)
         tools.save_to_csv_mat_roi('ROI_locations', ROI_locations, frames[0].shape[0], path)
+        tools.save_to_csv_mat_drift('Drift_correction', drift, path)
         tools.save_to_csv_mat_results('Localizations', results, METHOD, path)
         tools.save_to_csv_mat_results('Localizations_drift', results_drift, METHOD, path)
 

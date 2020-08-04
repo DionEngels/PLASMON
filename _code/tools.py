@@ -28,8 +28,9 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from datetime import datetime
 from pims_nd2 import ND2_Reader
+from nd2reader import ND2Reader
+from nd2reader.parser import Parser
 from os import mkdir
-import time
 
 # translates the raw dictionary keys to user readable input
 TRANSLATOR_DICT = {'int_max': 'Maximum Intensity', 'int_min': 'Minimum Intensity', 'sigma_min': "Minimum Sigma",
@@ -38,6 +39,45 @@ TRANSLATOR_DICT = {'int_max': 'Maximum Intensity', 'int_min': 'Minimum Intensity
                    'roi_side': "Side spacing", 'inter_roi': "ROI spacing"}
 
 # %% Class to load in ND2s
+
+
+class ND2ReaderForMetadata(ND2Reader):
+
+    def __init__(self, filename):
+        super(ND2Reader, self).__init__()
+        self.filename = filename
+
+        # first use the parser to parse the file
+        self._fh = open(filename, "rb")
+        self._parser = Parser(self._fh)
+
+        # Setup metadata
+        self.metadata = self._parser.metadata
+
+        # Set data type
+        self._dtype = self._parser.get_dtype_from_metadata()
+
+        # Setup the axes
+        self._setup_axes()
+
+        # Other properties
+        self._timesteps = None
+
+    def get_metadata(self):
+        metadata_dict = self.metadata
+
+        metadata_dict.pop('rois')
+        metadata_dict.pop('z_levels')
+        metadata_dict.pop('frames')
+        metadata_dict.pop('date')
+
+        metadata_dict['pfs_status'] = self._parser._raw_metadata.pfs_status
+        metadata_dict['pfs_offset'] = self._parser._raw_metadata.pfs_offset
+
+        metadata_dict['timesteps'] = self.timesteps
+        metadata_dict['frame_rate'] = self.frame_rate
+
+        return metadata_dict
 
 
 class ND2ReaderSelf(ND2_Reader):
@@ -49,6 +89,22 @@ class ND2ReaderSelf(ND2_Reader):
         self._get_frame_dict = dict()
         super().__init__(filename, series=series, channel=channel)
 
+    def get_metadata(self):
+        metadata_dict = self.metadata
+        metadata_dict_filtered = {k: v for k, v in metadata_dict.items() if v is not None}
+        del metadata_dict_filtered['time_start']
+        del metadata_dict_filtered['time_start_utc']
+
+        nd2_part_2 = ND2ReaderForMetadata(self.filename)
+        metadata_dict_part2 = nd2_part_2.get_metadata()
+        total_metadata = {**metadata_dict_filtered, **metadata_dict_part2}
+
+        nd2_part_2.close()
+
+        return total_metadata
+
+
+# %% Saving stuff
 
 def save_to_csv_mat_metadata(name, values, path):
     """
@@ -288,8 +344,6 @@ def save_graphs(results, results_drift, roi_locations, method, nm_or_pixels, fig
     fig = plt.figure()
     ax = plt.subplot(111)
 
-    start = time.time()
-
     if "Gaussian" in method:
         overall_intensity = results[:, 4]
         ax.hist(overall_intensity, bins=100)
@@ -353,6 +407,3 @@ def save_graphs(results, results_drift, roi_locations, method, nm_or_pixels, fig
         ax.set_title('Scatter ROI ' + str(roi_index + 1) + " post drift")
         name = path + "/" + str(roi_index + 1) + "_scatter_post_drift.png"
         fig.savefig(name, bbox_inches='tight')
-
-    print('Time taken ' + str(round(time.time() - start, 3)))
-

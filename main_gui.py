@@ -25,8 +25,9 @@ v0.6: matplotlib fix, PIMS 0.5, and own ND2Reader class to prevent warnings
 v0.7: drift correction v1: 31/07/2020
 v0.7.1: add button to restore to different saved settings
 v0.7.2: save figures and save drift
+v0.7.3: new metadata
 """
-__version__ = "0.7.2"
+__version__ = "0.7.3"
 
 # GENERAL IMPORTS
 from os import getcwd, mkdir, environ  # to get standard usage
@@ -118,7 +119,7 @@ def mt_main(name, fitter, frames_split, roi_locations, shared, q):
     """
     nd2 = tools.ND2ReaderSelf(name)
     frames = nd2
-    metadata = nd2.metadata
+    metadata = nd2.get_metadata()
     metadata['sequence_count'] = len(frames_split)
     frames = frames[frames_split]
 
@@ -623,7 +624,7 @@ class FittingPage(tk.Frame):
         self.dimension_drop = ttk.OptionMenu(self, self.dimension, dimension_options[0], *dimension_options)
         self.dimension_drop.grid(row=24, column=26, columnspan=7, sticky='EW', padx=PAD_BIG)
 
-        figures_label = tk.Label(self, text="pixels or nm", font=FONT_LABEL, bg='white')
+        figures_label = tk.Label(self, text="Figures", font=FONT_LABEL, bg='white')
         figures_label.grid(row=23, column=33, columnspan=7, sticky='EW', padx=PAD_BIG)
 
         figures_options = ["All", "Few", "None"]
@@ -703,7 +704,7 @@ class FittingPage(tk.Frame):
 
         self.nd2 = tools.ND2ReaderSelf(filenames[self.dataset_index])
         self.frames = self.nd2
-        self.metadata = self.nd2.metadata
+        self.metadata = self.nd2.get_metadata()
 
         self.fig.updater(self.frames[0])
 
@@ -955,7 +956,7 @@ class FittingPage(tk.Frame):
         self.nd2.close()
         self.nd2 = tools.ND2ReaderSelf(self.filenames[self.dataset_index])
         self.frames = self.nd2
-        self.metadata = self.nd2.metadata
+        self.metadata = self.nd2.get_metadata()
 
         self.fig.updater(self.frames[0])
 
@@ -1034,7 +1035,7 @@ class FittingPage(tk.Frame):
             self.nd2.close()
             self.nd2 = tools.ND2ReaderSelf(filenames[self.dataset_index])
             self.frames = self.nd2
-            self.metadata = self.nd2.metadata
+            self.metadata = self.nd2.get_metadata()
 
             roi_size = self.saved_settings[self.dataset_index]['roi_size']
 
@@ -1161,11 +1162,7 @@ class FittingPage(tk.Frame):
 
             # Save
 
-            metadata_filtered = {k: v for k, v in self.metadata.items() if v is not None}
-            del metadata_filtered['time_start']
-            del metadata_filtered['time_start_utc']
-
-            tools.save_to_csv_mat_metadata('metadata', metadata_filtered, path)
+            tools.save_to_csv_mat_metadata('metadata', self.metadata, path)
             tools.save_to_csv_mat_roi('ROI_locations', roi_locations, self.frames[0].shape[0], path)
             tools.save_to_csv_mat_drift('Drift_correction', drift, path)
             tools.save_to_csv_mat_results('Localizations', results, method, path)
@@ -1198,7 +1195,7 @@ class FittingPage(tk.Frame):
 
         self.nd2 = tools.ND2ReaderSelf(self.filenames[self.dataset_index])
         self.frames = self.nd2
-        self.metadata = self.nd2.metadata
+        self.metadata = self.nd2.get_metadata()
 
     # %% Fitting page, update the status
 
@@ -1323,7 +1320,11 @@ class FittingPage(tk.Frame):
         None.
 
         """
-        click = self.histogram.ginput(1)
+        try:
+            click = self.histogram.ginput(1)
+        except AttributeError:
+            tk.messagebox.showerror("You cannot do that", "You cannot click on a figure without having a figure open")
+            return
 
         if variable == "min_int":
             self.min_int_slider.updater(start=int(click[0][0]))
