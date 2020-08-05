@@ -26,11 +26,12 @@ v0.7: drift correction v1: 31/07/2020
 v0.7.1: add button to restore to different saved settings
 v0.7.2: save figures and save drift
 v0.7.3: new metadata
+v0.8: GUI part of HSM
 """
-__version__ = "0.7.3"
+__version__ = "0.8"
 
 # GENERAL IMPORTS
-from os import getcwd, mkdir, environ  # to get standard usage
+from os import getcwd, mkdir, environ, listdir  # to get standard usage
 from tempfile import mkdtemp
 from sys import exit
 import time  # for timekeeping
@@ -49,7 +50,7 @@ import matplotlib.patches as patches
 # GUI
 import tkinter as tk  # for GUI
 from tkinter import ttk  # GUI styling
-from tkinter.filedialog import askopenfilenames  # for popup that asks to select .nd2's
+from tkinter.filedialog import askopenfilenames, askdirectory  # for popup that asks to select .nd2's or folders
 
 # Own code
 import _code.roi_finding as roi_finding
@@ -95,6 +96,7 @@ rejection_options = ["Strict", "Loose", "None"]
 
 roi_size_options = ["7x7", "9x9"]
 
+
 # %% Multiprocessing main
 
 
@@ -129,6 +131,7 @@ def mt_main(name, fitter, frames_split, roi_locations, shared, q):
     for result_index, result in enumerate(local_result):
         shared[9 * result_index:9 * (result_index + 1)] = result[:]
 
+
 # %% Quit
 
 
@@ -137,6 +140,7 @@ def quit_program():
     gui.destroy()
     exit(0)
 
+
 # %% Own buttons / fields
 
 
@@ -144,6 +148,7 @@ class BigButton(ttk.Frame):
     """
     Big button, used for FIT and LOAD
     """
+
     def __init__(self, parent, height=None, width=None, text="", command=None, state='enabled'):
         ttk.Frame.__init__(self, parent, height=height, width=width)
 
@@ -160,8 +165,9 @@ class FigureFrame(tk.Frame):
     """
     Frame in which Figure sits.
     """
+
     def __init__(self, parent, height=None, width=None, dpi=DPI):
-        tk.Frame.__init__(self, parent, height=height+40, width=width,
+        tk.Frame.__init__(self, parent, height=height + 40, width=width,
                           highlightbackground="black", highlightthickness=2)
 
         self.pack_propagate(0)
@@ -203,7 +209,7 @@ class FigureFrame(tk.Frame):
             roi_locations_temp = roi_locations - roi_size
 
             for roi in roi_locations_temp:
-                rect = patches.Rectangle((roi[1], roi[0]), roi_size*2+1, roi_size*2+1,
+                rect = patches.Rectangle((roi[1], roi[0]), roi_size * 2 + 1, roi_size * 2 + 1,
                                          linewidth=0.5, edgecolor='r', facecolor='none')
                 fig_sub.add_patch(rect)
 
@@ -215,6 +221,7 @@ class EntryPlaceholder(ttk.Entry):
     """
     Entry with a placeholder text in grey
     """
+
     def __init__(self, master=None, placeholder="PLACEHOLDER", *args, **kwargs):
         super().__init__(master, *args, style="Placeholder.TEntry", **kwargs)
         self.placeholder = placeholder
@@ -249,6 +256,7 @@ class NormalButton:
     My normal button, again with an updater function to update the button.
     Only buttons that need updating use this class
     """
+
     def __init__(self, parent, text=None, row=None, column=None,
                  rowspan=1, columnspan=1, command=None, state='enabled', sticky=None, padx=0, pady=0):
         self._btn = ttk.Button(parent, text=text, command=command, state=state)
@@ -276,6 +284,7 @@ class NormalSlider:
     """
     My normal slider, again with an updater function to update the slider.
     """
+
     def __init__(self, parent, from_=0, to=np.inf, resolution=1, start=0,
                  row=None, column=None, rowspan=1, columnspan=1, sticky=None, padx=0, pady=0):
         self._scale = tk.Scale(parent, from_=from_, to=to, orient='horizontal',
@@ -318,6 +327,7 @@ class NormalLabel:
     """
     My normal label, again with an updater function to update the label.
     """
+
     def __init__(self, parent, text=None, font=None, bd=None, relief=None,
                  row=None, column=None, rowspan=1, columnspan=1, sticky=None, padx=0, pady=0):
         self._label = tk.Label(parent, text=text, font=font, bd=bd, relief=relief, bg='white')
@@ -341,6 +351,7 @@ class NormalLabel:
             text = self.text
         self._label['text'] = text
 
+
 # %% Controller
 
 
@@ -348,6 +359,7 @@ class MbxPython(tk.Tk):
     """
     Controller of GUI. This container calls the page we need (load page or fitting page)
     """
+
     def __init__(self, *args, **kwargs):
         tk.Tk.__init__(self, *args, **kwargs)
 
@@ -380,6 +392,7 @@ class MbxPython(tk.Tk):
         frame.update_init(self, cont, filenames)
         frame.tkraise()
 
+
 # %% Loading page
 
 
@@ -387,6 +400,7 @@ class LoadPage(tk.Frame):
     """
     Loading page. On this page, there is only a big button to load ND2s
     """
+
     def __init__(self, parent, controller):
         tk.Frame.__init__(self, parent)
         self.configure(bg='white')
@@ -410,6 +424,7 @@ class LoadPage(tk.Frame):
 
         controller.show_fitting_frame(FittingPage, filenames)
 
+
 # %% Fitting page, initial update (after loading)
 
 
@@ -417,6 +432,7 @@ class FittingPage(tk.Frame):
     """
     Fitting page. This is main page of the program
     """
+
     def __init__(self, parent, container, reset=False):
         """
         Initial declaration of fitting page. Buttons/sliders/etc. that are to be updated are linked to self using
@@ -452,6 +468,8 @@ class FittingPage(tk.Frame):
         self.to_hist = None
         self.roi_fitter = None
         self.saved_settings_list = []
+        self.hsm_folder_full = None
+        self.hsm_folder_show = None
 
         roi_finding_label = tk.Label(self, text="ROI finding", font=FONT_HEADER, bg='white')
         roi_finding_label.grid(row=0, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
@@ -552,37 +570,69 @@ class FittingPage(tk.Frame):
         line = ttk.Separator(self, orient='horizontal')
         line.grid(row=10, column=0, rowspan=1, columnspan=40, sticky='we')
 
-        self.button_left = NormalButton(self, text="<<", row=11, column=0, columnspan=5, sticky='EW',
+        hsm_label = tk.Label(self, text="HSM (not yet implemented)", font=FONT_HEADER, bg='white')
+        hsm_label.grid(row=11, column=0, columnspan=40, sticky='EW', padx=PAD_SMALL)
+
+        self.hsm_load = NormalButton(self, text="Load HSM data", row=12, column=0, columnspan=8, sticky='EW',
+                                     padx=PAD_SMALL, command=lambda: self.load_hsm())
+
+        self.hsm_clear = NormalButton(self, text="Clear HSM", row=13, column=0, columnspan=8, sticky='EW',
+                                      padx=PAD_SMALL, command=lambda: self.clear_hsm())
+
+        hsm_disp_label = tk.Label(self, text="Loaded folder:", font=FONT_LABEL, bg='white', anchor='e')
+        hsm_disp_label.grid(row=12, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        self.hsm_folder_disp = tk.Label(self, text="", font=FONT_LABEL, bg='white')
+        self.hsm_folder_disp.grid(row=12, column=16, columnspan=24, sticky='EW', padx=PAD_SMALL)
+
+        hsm_correct_label = tk.Label(self, text="Correction file:", font=FONT_LABEL, bg='white', anchor='e')
+        hsm_correct_label.grid(row=13, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        path_hsm_corrections = getcwd() + "/spectral_corrections"
+
+        self.hsm_correct_options = listdir(path_hsm_corrections)
+        self.hsm_correct_options = [option[:-4] for option in self.hsm_correct_options]  # remove .mat in name
+
+        self.hsm_correct_var = tk.StringVar(self)
+        self.hsm_correct_drop = ttk.OptionMenu(self, self.hsm_correct_var, [], *self.hsm_correct_options)
+        self.hsm_correct_drop.grid(row=13, column=16, columnspan=24, sticky="ew")
+
+
+
+        line = ttk.Separator(self, orient='horizontal')
+        line.grid(row=15, column=0, rowspan=1, columnspan=40, sticky='we')
+
+        self.button_left = NormalButton(self, text="<<", row=16, column=0, columnspan=5, sticky='EW',
                                         padx=PAD_SMALL)
         self.dataset_roi_status = NormalLabel(self, text="TBD",
-                                              row=11, column=5, columnspan=30, font=FONT_STATUS)
-        self.button_right = NormalButton(self, ">>", row=11, column=35, columnspan=5, sticky='EW',
+                                              row=16, column=5, columnspan=30, font=FONT_STATUS)
+        self.button_right = NormalButton(self, ">>", row=16, column=35, columnspan=5, sticky='EW',
                                          padx=PAD_SMALL)
 
         button_find_rois = ttk.Button(self, text="Find ROIs", command=lambda: self.fit_rois())
-        button_find_rois.grid(row=13, column=0, columnspan=10, sticky='EW', padx=PAD_BIG)
+        button_find_rois.grid(row=17, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         button_restore = ttk.Button(self, text="Restore default",
                                     command=lambda: self.restore_default())
-        button_restore.grid(row=13, column=10, columnspan=10, sticky='EW', padx=PAD_BIG)
+        button_restore.grid(row=17, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         self.restore_saved_drop_var = tk.StringVar(self)
         self.restore_saved_drop = ttk.OptionMenu(self, self.restore_saved_drop_var, *self.saved_settings_list)
-        self.restore_saved_drop.grid(row=12, column=20, columnspan=10, sticky="ew")
+        self.restore_saved_drop.grid(row=17, column=16, columnspan=8, sticky="ew")
         self.restore_saved_drop['state'] = 'disabled'
 
         self.button_restore_saved = NormalButton(self, text="Restore saved",
                                                  state='disabled',
                                                  command=lambda: self.restore_saved(),
-                                                 row=13, column=20,
-                                                 columnspan=10, sticky='EW', padx=PAD_BIG)
+                                                 row=17, column=24,
+                                                 columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         button_save = ttk.Button(self, text="Save",
                                  command=lambda: self.save_roi_settings())
-        button_save.grid(row=13, column=30, columnspan=10, sticky='EW', padx=PAD_BIG)
+        button_save.grid(row=17, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
-        self.fig = FigureFrame(self, height=GUI_WIDTH*0.4, width=GUI_WIDTH*0.4, dpi=DPI)
-        self.fig.grid(row=0, column=40, columnspan=10, rowspan=14, sticky='EW', padx=PAD_SMALL)
+        self.fig = FigureFrame(self, height=GUI_WIDTH * 0.4, width=GUI_WIDTH * 0.4, dpi=DPI)
+        self.fig.grid(row=0, column=40, columnspan=10, rowspan=18, sticky='EW', padx=PAD_SMALL)
 
         line = ttk.Separator(self, orient='horizontal')
         line.grid(row=18, column=0, rowspan=2, columnspan=50, sticky='we')
@@ -661,8 +711,9 @@ class FittingPage(tk.Frame):
         self.time_status_label = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
                                              row=27, column=45, columnspan=5, sticky="ew", font=FONT_LABEL)
 
-        version_label = tk.Label(self, text="MBx Python, version: " + __version__, font=FONT_LABEL, bg='white')
-        version_label.grid(row=50, column=0, columnspan=10, sticky='EW', padx=PAD_SMALL)
+        version_label = tk.Label(self, text="MBx Python, version: " + __version__, font=FONT_LABEL, bg='white',
+                                 anchor='w')
+        version_label.grid(row=50, column=0, columnspan=20, sticky='EW', padx=PAD_SMALL)
 
         button_load_new = ttk.Button(self, text="Load new", command=lambda: self.load_new(parent))
         button_load_new.grid(row=50, column=45, columnspan=2, sticky='EW', padx=PAD_SMALL)
@@ -793,7 +844,7 @@ class FittingPage(tk.Frame):
 
         self.default_settings[self.dataset_index] = settings
 
-    # %% Read out sliders, return dictionary
+    # %% Read out sliders and other settings, return dictionary
 
     def read_out_settings(self):
         """
@@ -814,10 +865,14 @@ class FittingPage(tk.Frame):
         roi_side = int(self.roi_side_input.get())
         inter_roi = int(self.inter_roi_input.get())
 
+        hsm_directory = self.hsm_folder_full
+        hsm_correction = self.hsm_correct_var.get()
+
         settings = {'int_max': int_max, 'int_min': int_min,
                     'sigma_min': sigma_min, 'sigma_max': sigma_max,
                     'corr_min': corr_min, 'roi_size': roi_size, 'filter_size': filter_size,
-                    'roi_side': roi_side, 'inter_roi': inter_roi}
+                    'roi_side': roi_side, 'inter_roi': inter_roi,
+                    'hsm_directory': hsm_directory, 'hsm_correction': hsm_correction}
 
         return settings
 
@@ -883,11 +938,11 @@ class FittingPage(tk.Frame):
 
         # Insert list of new options (tk._setit hooks them up to var)
         for key in self.saved_settings.keys():
-            self.restore_saved_drop['menu'].add_command(label="Dataset " + str(key+1),
+            self.restore_saved_drop['menu'].add_command(label="Dataset " + str(key + 1),
                                                         command=tk._setit(self.restore_saved_drop_var,
-                                                                          "Dataset " + str(key+1)))
+                                                                          "Dataset " + str(key + 1)))
 
-        self.restore_saved_drop_var.set("Dataset " + str(self.dataset_index+1))
+        self.restore_saved_drop_var.set("Dataset " + str(self.dataset_index + 1))
 
         if len(self.roi_locations) == len(self.filenames):
             self.button_fit.updater(state='enabled')
@@ -964,8 +1019,12 @@ class FittingPage(tk.Frame):
 
         if self.dataset_index in self.saved_settings:
             self.restore_saved_drop_var.set("Dataset " + str(self.dataset_index + 1))
+            self.hsm_correct_var.set(self.saved_settings[self.dataset_index]['hsm_correction'])
+            hsm_folder_show = '/'.join(self.saved_settings[self.dataset_index]['hsm_directory'].split('/')[-2:])
+            self.hsm_folder_disp['text'] = hsm_folder_show
         else:
             self.restore_saved_drop_var.set("")
+            self.clear_hsm()
 
         if self.dataset_index == len(self.filenames) - 1:
             self.button_right.updater(state='disabled')
@@ -1037,21 +1096,22 @@ class FittingPage(tk.Frame):
             self.frames = self.nd2
             self.metadata = self.nd2.get_metadata()
 
-            roi_size = self.saved_settings[self.dataset_index]['roi_size']
+            dataset_settings = self.saved_settings[self.dataset_index]
+
+            roi_size = dataset_settings['roi_size']
 
             roi_locations = self.roi_locations[self.dataset_index]
 
             if method == "Phasor + Intensity":
-                fitter = fitting.Phasor(roi_size, self.saved_settings[self.dataset_index], rejection_type, method)
+                fitter = fitting.Phasor(roi_size, dataset_settings, rejection_type, method)
             elif method == "Phasor":
-                fitter = fitting.PhasorDumb(roi_size, self.saved_settings[self.dataset_index], rejection_type, method)
+                fitter = fitting.PhasorDumb(roi_size, dataset_settings, rejection_type, method)
             elif method == "Gaussian - Fit bg":
-                fitter = fitting.GaussianBackground(roi_size, self.saved_settings[self.dataset_index], rejection_type,
-                                                    method, 6)
+                fitter = fitting.GaussianBackground(roi_size, dataset_settings, rejection_type, method, 6)
             elif method == "Gaussian - Estimate bg":
-                fitter = fitting.Gaussian(roi_size, self.saved_settings[self.dataset_index], rejection_type, method, 5)
+                fitter = fitting.Gaussian(roi_size, dataset_settings, rejection_type, method, 5)
             else:
-                fitter = fitting.PhasorSum(roi_size, self.saved_settings[self.dataset_index], rejection_type, method)
+                fitter = fitting.PhasorSum(roi_size, dataset_settings, rejection_type, method)
 
             start_frame = self.frame_begin_input.get()
             end_frame = self.frame_end_input.get()
@@ -1139,6 +1199,18 @@ class FittingPage(tk.Frame):
             drift_corrector = drift_correction.DriftCorrector(method)
             results_drift, drift = drift_corrector.main(results, roi_locations, num_frames)
 
+            # HSM
+
+            hsm_dir = dataset_settings['hsm_directory']
+            hsm_corr = dataset_settings['hsm_correction']
+
+            if hsm_dir is not None and hsm_corr != []:
+                self.progress_status_label.updater(text="HSM dataset " +
+                                                        str(self.dataset_index + 1) + " of " + str(len(filenames)))
+                self.update()
+
+                # ADD HSM stuff here
+
             self.progress_status_label.updater(text="Saving dataset " +
                                                     str(self.dataset_index + 1) + " of " + str(len(filenames)))
             self.update()
@@ -1177,7 +1249,7 @@ class FittingPage(tk.Frame):
             failed_fits = results[np.isnan(results[:, 3]), :].shape[0]
             time_taken = round(time.time() - dataset_time, 3)
 
-            tools.text_output(self.saved_settings[self.dataset_index], method, rejection_type, nm_or_pixels,
+            tools.text_output(dataset_settings, method, rejection_type, nm_or_pixels,
                               total_fits, failed_fits, time_taken, path)
 
             successful_fits = total_fits - failed_fits
@@ -1339,6 +1411,23 @@ class FittingPage(tk.Frame):
 
         self.histogram.clear()
         self.make_histogram(variable)
+
+    def load_hsm(self):
+        tk.Tk().withdraw()
+        hsm_folder = askdirectory(title="Select folder in which HSM data is located", initialdir=getcwd())
+
+        if len(hsm_folder) == 0:
+            return
+        else:
+            self.hsm_folder_full = hsm_folder
+            hsm_folder_show = '/'.join(hsm_folder.split('/')[-2:])
+            self.hsm_folder_disp['text'] = hsm_folder_show
+
+    def clear_hsm(self):
+        self.hsm_folder_full = None
+        self.hsm_folder_disp['text'] = ""
+        self.hsm_correct_var.set("")
+
 
 # %% START GUI and declare styles (how things look)
 

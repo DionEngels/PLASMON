@@ -243,6 +243,10 @@ def text_output(settings, method, threshold_method, nm_or_pixels, total_fits, fa
         now = datetime.now()
         text_file.write("Ran on: " + now.strftime('%d/%m/%Y %H:%M:%S') + "\n\n")
         text_file.write("Settings \n------------\n")
+
+        hsm_directory = settings.pop('hsm_directory', "None")
+        hsm_correction = settings.pop('hsm_correction', "None")
+
         for key, value in settings.items():
             text_file.write(str(TRANSLATOR_DICT[key]) + ": " + str(value) + "\n")
 
@@ -256,6 +260,10 @@ def text_output(settings, method, threshold_method, nm_or_pixels, total_fits, fa
         text_file.write("Failed fits: " + str(failed_fits) + "\n")
         text_file.write("Successful fits: " + str(total_fits - failed_fits) + "\n")
         text_file.write("Time taken: " + str(time_taken) + "\n\n")
+
+        text_file.write("\nHSM \n------------\n")
+        text_file.write("Directory: " + str(hsm_directory) + "\n")
+        text_file.write("Correction file: " + str(hsm_correction) + "\n")
 
         text_file.write("Meaning of variables in Localizations output: \n")
         if method == "Phasor + Intensity":
