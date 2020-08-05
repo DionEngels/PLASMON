@@ -47,6 +47,7 @@ import _code.roi_finding as roi_finding
 import _code.fitters as fitting
 import _code.tools as tools
 import _code.drift_correction as drift_correction
+import _code.hsm as hsm
 
 # %% Inputs
 ROI_SIZE = 7  # 7 or 9
@@ -54,6 +55,7 @@ ROI_SIZE = 7  # 7 or 9
 # %% Initializations
 
 filenames = ("C:/Users/s150127/Downloads/___MBx/datasets/1nMimager_newGNRs_100mW.nd2",)
+hsm_dir = ("C:/Users/s150127/Downloads/___MBx/datasets/_1nMimager_newGNRs_100mW_HSM",)
 
 fit_options = ["Gaussian - Fit bg", "Gaussian - Estimate bg",
                "Phasor + Intensity", "Phasor + Sum", "Phasor"]
@@ -61,6 +63,7 @@ fit_options = ["Gaussian - Fit bg", "Gaussian - Estimate bg",
 METHOD = "Phasor"
 DATASET = "YUYANG"  # "MATLAB_v2, "MATLAB_v3" OR "YUYANG"
 THRESHOLD_METHOD = "Loose"  # "Strict", "Loose", or "None"
+CORRECTION = "SN_objTIRF_PFS_510-800" #  "Matej_670-890"
 
 # %% Main loop cell
 
@@ -103,7 +106,7 @@ for name in filenames:
             # parse ND2 info
             frames = ND2
             metadata = ND2.get_metadata()
-            #  frames = frames[0:5]
+            frames = frames[0:100]
             n_frames = len(frames)
 
         # %% Find ROIs (for standard NP2 file)
@@ -170,6 +173,13 @@ for name in filenames:
         print('Starting drift correction')
         drift_corrector = drift_correction.DriftCorrector(METHOD)
         results_drift, drift = drift_corrector.main(results, ROI_locations, n_frames)
+
+        # %% HSM
+
+        print('Starting HSM')
+
+        hsm = hsm.HSM(hsm_dir, ROI_locations, metadata, CORRECTION)
+        hsm_result = hsm.main()
 
         print('Starting saving')
 
