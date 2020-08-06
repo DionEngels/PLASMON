@@ -28,8 +28,9 @@ v0.7.2: save figures and save drift
 v0.7.3: new metadata
 v0.8: GUI part of HSM
 v0.8.1: metadata v3
+v1.0: roll-out version one
 """
-__version__ = "0.8.1"
+__version__ = "1.0"
 
 # GENERAL IMPORTS
 from os import getcwd, mkdir, environ, listdir  # to get standard usage
