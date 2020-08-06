@@ -18,10 +18,12 @@ v0.4: settings and results text output: 25/07/2020
 v0.5: own ND2Reader class to prevent warnings: 29/07/2020
 v0.6: save drift and save figures: 03/08/2020
 v0.6.1: better MATLAB ROI and Drift output
+v0.7: metadata v2
+v0.8: metadata v3
 
 """
 
-from csv import DictWriter  # to save to csv
+from csv import writer  # to save to csv
 from scipy.io import savemat  # to export for MATLAB
 from numpy import zeros, savetxt
 import matplotlib.pyplot as plt
@@ -71,13 +73,52 @@ class ND2ReaderForMetadata(ND2Reader):
         metadata_dict.pop('frames')
         metadata_dict.pop('date')
 
-        metadata_dict['pfs_status'] = self._parser._raw_metadata.pfs_status
-        metadata_dict['pfs_offset'] = self._parser._raw_metadata.pfs_offset
+        metadata_dict['pfs_status'] = self.parser._raw_metadata.pfs_status
+        metadata_dict['pfs_offset'] = self.parser._raw_metadata.pfs_offset
 
-        metadata_dict['timesteps'] = self.timesteps
+        info_to_parse = self.parser._raw_metadata.image_text_info
+        metadata_text_dict = self.parse_text_info(info_to_parse)
+
+        metadata_dict['timesteps'] = self.timesteps.tolist()
         metadata_dict['frame_rate'] = self.frame_rate
 
-        return metadata_dict
+        return metadata_dict, metadata_text_dict
+
+    @staticmethod
+    def parse_text_info(info_to_parse):
+        main_part = info_to_parse[b'SLxImageTextInfo']
+        metadata_text_dict = {}
+
+        for key, value in main_part.items():
+            value_string = value.decode("utf-8")
+            if value_string != '':
+                split_string = value_string.split('\r\n')
+                for line in split_string:
+                    if line == '':
+                        continue
+                    try:
+                        key, value = line.split(':')  # try to split, works for most
+                    except Exception as e:
+                        if "too many" in str(e):
+                            try:
+                                _ = datetime.strptime(line, "%d-%m-%Y  %H:%M:%S")  # date
+                                key = 'date'
+                                value = line
+                            except:
+                                split_line = line.split(':')  # microscope name has a : in it
+                                key = split_line[0]
+                                value = ":".join(split_line[1:])
+                        elif "not enough" in str(e):
+                            continue
+                    if key == 'Metadata' or key == '':  # remove emtpy stuff and the metadata header key
+                        continue
+                    key = key.lstrip()  # remove the spaces at the start of some keys
+                    if type(value) is str:
+                        value = value.lstrip()  # remove the spaces at the start of some value that are strings
+                    key = key.replace(" ", "_")  # prevent spaces in key name, matlab does not like that
+                    metadata_text_dict[key] = value
+
+        return metadata_text_dict
 
 
 class ND2ReaderSelf(ND2_Reader):
@@ -96,8 +137,8 @@ class ND2ReaderSelf(ND2_Reader):
         del metadata_dict_filtered['time_start_utc']
 
         nd2_part_2 = ND2ReaderForMetadata(self.filename)
-        metadata_dict_part2 = nd2_part_2.get_metadata()
-        total_metadata = {**metadata_dict_filtered, **metadata_dict_part2}
+        metadata_dict_part2, metadata_text_dict = nd2_part_2.get_metadata()
+        total_metadata = {**metadata_dict_filtered, **metadata_text_dict, **metadata_dict_part2}
 
         nd2_part_2.close()
 
@@ -122,15 +163,13 @@ def save_to_csv_mat_metadata(name, values, path):
 
     """
     with open(path + "/" + name + '.csv', mode='w') as csv_file:
-        fieldnames = [k[0] for k in values.items()]
-        writer = DictWriter(csv_file, fieldnames=fieldnames)
 
-        writer.writeheader()
-        writer.writerow(values)
+        writer_item = writer(csv_file)  # csv_file, fieldnames="")
+        writer_item.writerows(values.items())
 
         values_dict = {name: values}
 
-        savemat(path + "/" + name + '.mat', values_dict)
+        savemat(path + "/" + name + '.mat', values_dict, long_field_names=True)
 
 
 def save_to_csv_mat_results(name, results, method, path):
