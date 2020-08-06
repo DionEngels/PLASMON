@@ -1250,7 +1250,7 @@ class FittingPage(tk.Frame):
             failed_fits = results[np.isnan(results[:, 3]), :].shape[0]
             time_taken = round(time.time() - dataset_time, 3)
 
-            tools.text_output(dataset_settings, method, rejection_type, nm_or_pixels,
+            tools.text_output(dataset_settings.copy(), method, rejection_type, nm_or_pixels,
                               total_fits, failed_fits, time_taken, path)
 
             successful_fits = total_fits - failed_fits
