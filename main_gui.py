@@ -1189,8 +1189,10 @@ class FittingPage(tk.Frame):
             nm_or_pixels = self.dimension.get()
             if nm_or_pixels == "nm":
                 pixelsize_nm = self.metadata['calibration_um'] * 1000
-                results[:, 2] = results[:, 2] * pixelsize_nm
-                results[:, 3] = results[:, 3] * pixelsize_nm
+                results[:, 2] *= pixelsize_nm  # x position to nm
+                results[:, 3] *= pixelsize_nm  # y position to nm
+                results[:, 4] *= pixelsize_nm  # sigma x to nm
+                results[:, 5] *= pixelsize_nm  # simga y to nm
 
             # drift correction
 

@@ -12,6 +12,7 @@ This package is for the HSM part of MBx Python.
 ----------------------------
 
 v0.0.1: Loading in multiple nd2, finding .mats
+v0.0.2: complete but not workingtea
 
 """
 import os
@@ -21,6 +22,8 @@ from scipy.io import loadmat
 import mat73
 from scipy.signal import medfilt, fftconvolve
 from scipy.ndimage import shift
+import _code.fitters as fitting
+from scipy.optimize import curve_fit
 
 
 class HSM:
@@ -28,12 +31,15 @@ class HSM:
     Class for HSM of MBx Python
     """
 
-    def __init__(self, directory, roi_locations, metadata, correction):
+    def __init__(self, directory, frame_zero, roi_locations, metadata, correction):
 
         self.roi_locations = roi_locations
+        self.hsm_result = np.zeros((roi_locations.shape[0], 4))
         self.metadata = metadata
+        self.frame_zero = frame_zero
+        self.frame_merge = None
 
-        # load in frame
+        # load in nd2 frames
 
         self.nd2_dir = directory[0]
         nd2_dir_files = os.listdir(self.nd2_dir)
@@ -80,7 +86,45 @@ class HSM:
 
         self.frames, self.frame_merge = self.hsm_drift()
 
-        return
+        corr = self.normxcorr2(self.frame_merge, self.frame_zero)
+        maxima = np.transpose(np.asarray(np.where(corr == np.amax(corr))))[0]
+        offset = maxima - np.asarray(self.frame_merge.shape)
+
+        self.roi_locations += offset
+
+        raw_intensity = np.zeros((self.roi_locations.shape[0], self.frames.shape[0]))
+        intensity = np.zeros((self.roi_locations.shape[0], self.frames.shape[0]))
+
+        roi_size = 9
+        roi_size_1d = int((roi_size - 1) / 2)
+
+        fitter = fitting.Gaussian(roi_size, {}, "None", "Gaussian", 5)
+
+        def lorentzian(x, a, x0):
+            return a / ((x - x0) ** 2 + a ** 2) / np.pi
+
+        for roi_index, roi in enumerate(self.roi_locations):
+            y = int(roi[0])
+            x = int(roi[1])
+
+            for frame_index, frame in enumerate(self.frames):
+                my_roi = frame[y - roi_size_1d:y + roi_size_1d + 1, x - roi_size_1d:x + roi_size_1d + 1]
+                result, _, success = fitter.fit_gaussian(my_roi, roi_index)
+                raw_intensity[roi_index, frame_index] = 2 * np.pi * result[0] * result[3] * result[4]
+                intensity[roi_index, frame_index] = raw_intensity[roi_index, frame_index] / shape[frame_index]
+
+            res, cov = curve_fit(lorentzian, wavelength, intensity[roi_index, :])
+            perr = np.sqrt(np.diag(cov))
+
+            self.hsm_result[roi_index, 0] = roi_index
+            self.hsm_result[roi_index, 1] = res[1]
+            self.hsm_result[roi_index, 2] = res[0]
+            self.hsm_result[roi_index, 3] = perr**2
+
+        intensity_result = np.concatenate((np.array(range(self.roi_locations.shape[0]))[:, np.newaxis], intensity),
+                                          axis=1)
+
+        return self.hsm_result, intensity_result
 
     @staticmethod
     def normxcorr2(template, image, mode="full"):

@@ -10,7 +10,7 @@ number_y = 10;
 
 n_frames = 1000;
 %% load in data
-load v9/Gaussian_tol10
+load v9/Gaussian_tol1
 
 %% fit checker setup
 x_column = 3; %what column has x-pos in the return data

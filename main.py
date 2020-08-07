@@ -63,7 +63,7 @@ fit_options = ["Gaussian - Fit bg", "Gaussian - Estimate bg",
 METHOD = "Phasor"
 DATASET = "YUYANG"  # "MATLAB_v2, "MATLAB_v3" OR "YUYANG"
 THRESHOLD_METHOD = "Loose"  # "Strict", "Loose", or "None"
-CORRECTION = "SN_objTIRF_PFS_510-800" #  "Matej_670-890"
+CORRECTION = "SN_objTIRF_PFS_510-800"  # "Matej_670-890"
 
 # %% Main loop cell
 
@@ -178,8 +178,8 @@ for name in filenames:
 
         print('Starting HSM')
 
-        hsm = hsm.HSM(hsm_dir, ROI_locations, metadata, CORRECTION)
-        hsm_result = hsm.main()
+        hsm = hsm.HSM(hsm_dir, frames[0], ROI_locations, metadata, CORRECTION)
+        hsm_result, hsm_intensity = hsm.main()
 
         print('Starting saving')
 
