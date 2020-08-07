@@ -367,7 +367,7 @@ def plot_rois(frame, roi_locations, roi_size):
     plt.show()
 
 
-def save_graphs(results, results_drift, roi_locations, method, nm_or_pixels, figures_option, path):
+def save_graphs(frame, results, results_drift, roi_locations, method, nm_or_pixels, figures_option, path):
     """
     Input results and drift-corrected results, puts out some example graphs for quick checking
 
@@ -389,27 +389,70 @@ def save_graphs(results, results_drift, roi_locations, method, nm_or_pixels, fig
     mkdir(path)
 
     fig = plt.figure()
-    ax = plt.subplot(111)
-
     if "Gaussian" in method:
-        overall_intensity = results[:, 4]
-        ax.hist(overall_intensity, bins=100)
-        ax.set_xlabel('Intensity (counts)')
-        ax.set_ylabel('Occurrence')
-        ax.set_title('Intensity occurrence')
-        name = path + "/" + "_Histogram_intensity.png"
-        fig.savefig(name, bbox_inches='tight')
+        ax_overview = plt.subplot(10, 4, (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16))
+        ax_sigma = plt.subplots(10, 4, (17, 18, 21, 22))
+        ax_int = plt.subplot(10, 4, (19, 20, 23, 24))
+        ax_roi1_frame = plt.subplot(10, 4, 25)
+        ax_roi1_tt = plt.subplot(10, 4, 26)
+        ax_roi1_loc = plt.subplot(10, 4, 29)
+        ax_roi1_loc_drift = plt.subplot(10, 4, 30)
+        ax_roi2_frame = plt.subplot(10, 4, 27)
+        ax_roi2_tt = plt.subplot(10, 4, 28)
+        ax_roi2_loc = plt.subplot(10, 4, 31)
+        ax_roi2_loc_drift = plt.subplot(10, 4, 32)
+        ax_roi3_frame = plt.subplot(10, 4, 33)
+        ax_roi3_tt = plt.subplot(10, 4, 34)
+        ax_roi3_loc = plt.subplot(10, 4, 37)
+        ax_roi3_loc_drift = plt.subplot(10, 4, 38)
+        ax_roi4_frame = plt.subplot(10, 4, 35)
+        ax_roi4_tt = plt.subplot(10, 4, 36)
+        ax_roi4_loc = plt.subplot(10, 4, 39)
+        ax_roi4_loc_drift = plt.subplot(10, 4, 40)
 
-        plt.cla()
+        overall_intensity = results[:, 4]
+        ax_int.hist(overall_intensity, bins=100)
+        ax_int.set_xlabel('Intensity (counts)')
+        ax_int.set_ylabel('Occurrence')
+        ax_int.set_title('Intensity occurrence')
+        #  name = path + "/" + "_Histogram_intensity.png"
+        #  fig.savefig(name, bbox_inches='tight')
+
         overall_sigma_x = results[:, 5]
         overall_sigma_y = results[:, 6]
-        ax.hist(overall_sigma_x, bins=50)
-        ax.hist(overall_sigma_y, bins=50)
-        ax.set_xlabel('Sigmas (counts)')
-        ax.set_ylabel('Occurrence')
-        ax.set_title('Sigmas occurrence')
-        name = path + "/" + "_Histogram_sigma.png"
-        fig.savefig(name, bbox_inches='tight')
+        ax_sigma.hist(overall_sigma_x, bins=50, label='sigma x')
+        ax_sigma.hist(overall_sigma_y, bins=50, label='sigma y')
+        ax_sigma.set_xlabel('Sigmas (counts)')
+        ax_sigma.set_ylabel('Occurrence')
+        ax_sigma.set_title('Sigmas occurrence')
+        ax_sigma.legend()
+    else:
+        ax_overview = plt.subplot(8, 4, (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16))
+        ax_roi1_frame = plt.subplot(8, 4, 17)
+        ax_roi1_tt = plt.subplot(8, 4, 18)
+        ax_roi1_loc = plt.subplot(8, 4, 21)
+        ax_roi1_loc_drift = plt.subplot(8, 4, 22)
+        ax_roi2_frame = plt.subplot(8, 4, 19)
+        ax_roi2_tt = plt.subplot(8, 4, 20)
+        ax_roi2_loc = plt.subplot(8, 4, 23)
+        ax_roi2_loc_drift = plt.subplot(8, 4, 24)
+        ax_roi3_frame = plt.subplot(8, 4, 25)
+        ax_roi3_tt = plt.subplot(8, 4, 26)
+        ax_roi3_loc = plt.subplot(8, 4, 29)
+        ax_roi3_loc_drift = plt.subplot(8, 4, 30)
+        ax_roi4_frame = plt.subplot(8, 4, 27)
+        ax_roi4_tt = plt.subplot(8, 4, 28)
+        ax_roi4_loc = plt.subplot(8, 4, 31)
+        ax_roi4_loc_drift = plt.subplot(8, 4, 32)
+
+    ax_overview.imshow(frame, extent=[0, frame.shape[1], frame.shape[0], 0], aspect='auto')
+
+
+    if figures_option == "Few":
+
+    else:
+        roi_list = roi_locations
+
 
     for roi_index, roi in enumerate(roi_locations):
         if figures_option == "Few" and roi_index % int(roi_locations.shape[0]/5) != 0:

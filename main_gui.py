@@ -1247,7 +1247,8 @@ class FittingPage(tk.Frame):
             if figures_option != "None":
                 self.progress_status_label.updater(text="Plotting dataset " +
                                                         str(self.dataset_index + 1) + " of " + str(len(filenames)))
-                tools.save_graphs(results, results_drift, roi_locations, method, nm_or_pixels, figures_option, path)
+                tools.save_graphs(self.frames[0], results, results_drift, roi_locations, method, nm_or_pixels,
+                                  figures_option, path)
 
             total_fits = results.shape[0]
             failed_fits = results[np.isnan(results[:, 3]), :].shape[0]
