@@ -16,6 +16,7 @@ v0.2: minor changes
 v0.2.1: trying to get lower file size, no progress
 v0.3: adding in dependencies to ensure working
 v0.4: also copy spectral corrections
+v1.0: initial release done
 
 """
 
@@ -26,7 +27,7 @@ from cx_Freeze import setup, Executable
 
 r'-b C:\Users\s150127\Downloads\___MBx\build'  # take this control location of build
 
-__version__ = '1.0'
+__version__ = '1.1'
 
 include_files = ['spectral_corrections/']
 PYTHON_INSTALL_DIR = os.path.dirname(os.path.dirname(os.__file__))

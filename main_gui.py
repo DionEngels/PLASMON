@@ -29,13 +29,15 @@ v0.7.3: new metadata
 v0.8: GUI part of HSM
 v0.8.1: metadata v3
 v1.0: roll-out version one
+v1.0.1: instant bugfix open all .nd2s
+v1.1: Bugfixes and improved figures (WIP)
 """
-__version__ = "1.0"
+__version__ = "1.1"
 
 # GENERAL IMPORTS
 from os import getcwd, mkdir, environ, listdir  # to get standard usage
 from tempfile import mkdtemp
-from sys import exit
+import sys
 import time  # for timekeeping
 from win32api import GetSystemMetrics  # Get sys info
 
@@ -53,12 +55,15 @@ import matplotlib.patches as patches
 import tkinter as tk  # for GUI
 from tkinter import ttk  # GUI styling
 from tkinter.filedialog import askopenfilenames, askdirectory  # for popup that asks to select .nd2's or folders
+import traceback
 
 # Own code
 import _code.roi_finding as roi_finding
 import _code.fitters as fitting
 import _code.tools as tools
 import _code.drift_correction as drift_correction
+import _code.figure_making as figuring
+import _code.output as outputting
 
 # Multiprocessing
 import multiprocessing as mp
@@ -140,8 +145,14 @@ def mt_main(name, fitter, frames_split, roi_locations, shared, q):
 def quit_program():
     global gui
     gui.destroy()
-    exit(0)
+    sys.exit(0)
 
+# %% Divert errors
+
+
+def show_error(self, exc, val, tb):
+    error = traceback.format_exception(exc, val, tb)
+    tk.messagebox.showerror("Error. Send screenshot to Dion", message=error)
 
 # %% Own buttons / fields
 
@@ -452,6 +463,7 @@ class FittingPage(tk.Frame):
         None. GUI.
 
         """
+
         if not reset:
             tk.Frame.__init__(self, parent)
             self.configure(bg='white')
@@ -599,8 +611,6 @@ class FittingPage(tk.Frame):
         self.hsm_correct_drop = ttk.OptionMenu(self, self.hsm_correct_var, [], *self.hsm_correct_options)
         self.hsm_correct_drop.grid(row=13, column=16, columnspan=24, sticky="ew")
 
-
-
         line = ttk.Separator(self, orient='horizontal')
         line.grid(row=15, column=0, rowspan=1, columnspan=40, sticky='we')
 
@@ -676,13 +686,13 @@ class FittingPage(tk.Frame):
         self.dimension_drop = ttk.OptionMenu(self, self.dimension, dimension_options[0], *dimension_options)
         self.dimension_drop.grid(row=24, column=26, columnspan=7, sticky='EW', padx=PAD_BIG)
 
-        figures_label = tk.Label(self, text="Figures", font=FONT_LABEL, bg='white')
+        figures_label = tk.Label(self, text="All Figures", font=FONT_LABEL, bg='white')
         figures_label.grid(row=23, column=33, columnspan=7, sticky='EW', padx=PAD_BIG)
 
-        figures_options = ["All", "Few", "None"]
-        self.figures_var = tk.StringVar(self)
-        self.figures_drop = ttk.OptionMenu(self, self.figures_var, figures_options[1], *figures_options)
-        self.figures_drop.grid(row=24, column=33, columnspan=7, sticky='EW', padx=PAD_BIG)
+        self.figures_var = tk.StringVar(self, value="Overview")
+        self.figures_check = tk.Checkbutton(self, variable=self.figures_var, onvalue="All", offvalue="Overview",
+                                            bg="white")
+        self.figures_check.grid(row=24, column=33, columnspan=7, sticky='EW', padx=PAD_BIG)
 
         frame_begin_label = tk.Label(self, text="Begin frame", font=FONT_LABEL, bg='white')
         frame_begin_label.grid(row=27, column=0, columnspan=20, sticky='EW', padx=PAD_BIG)
@@ -1191,8 +1201,9 @@ class FittingPage(tk.Frame):
                 pixelsize_nm = self.metadata['calibration_um'] * 1000
                 results[:, 2] *= pixelsize_nm  # x position to nm
                 results[:, 3] *= pixelsize_nm  # y position to nm
-                results[:, 4] *= pixelsize_nm  # sigma x to nm
-                results[:, 5] *= pixelsize_nm  # simga y to nm
+                if "Gaussian" in method:
+                    results[:, 5] *= pixelsize_nm  # sigma x to nm
+                    results[:, 6] *= pixelsize_nm  # sigma y to nm
 
             # drift correction
 
@@ -1201,7 +1212,7 @@ class FittingPage(tk.Frame):
             self.update()
 
             drift_corrector = drift_correction.DriftCorrector(method)
-            results_drift, drift = drift_corrector.main(results, roi_locations, num_frames)
+            results_drift, drift, event_or_not = drift_corrector.main(results, roi_locations, num_frames)
 
             # HSM
 
@@ -1238,24 +1249,23 @@ class FittingPage(tk.Frame):
 
             # Save
 
-            tools.save_to_csv_mat_metadata('metadata', self.metadata, path)
-            tools.save_to_csv_mat_roi('ROI_locations', roi_locations, self.frames[0].shape[0], path)
-            tools.save_to_csv_mat_drift('Drift_correction', drift, path)
-            tools.save_to_csv_mat_results('Localizations', results, method, path)
-            tools.save_to_csv_mat_results('Localizations_drift', results_drift, method, path)
+            outputting.save_to_csv_mat_metadata('metadata', self.metadata, path)
+            outputting.save_to_csv_mat_roi('ROI_locations', roi_locations, self.frames[0].shape[0], path)
+            outputting.save_to_csv_mat_drift('Drift_correction', drift, path)
+            outputting.save_to_csv_mat_results('Localizations', results, method, path)
+            outputting.save_to_csv_mat_results('Localizations_drift', results_drift, method, path)
 
-            if figures_option != "None":
-                self.progress_status_label.updater(text="Plotting dataset " +
-                                                        str(self.dataset_index + 1) + " of " + str(len(filenames)))
-                tools.save_graphs(self.frames[0], results, results_drift, roi_locations, method, nm_or_pixels,
-                                  figures_option, path)
+            self.progress_status_label.updater(text="Plotting dataset " +
+                                                    str(self.dataset_index + 1) + " of " + str(len(filenames)))
+            figuring.save_graphs(self.frames, results, results_drift, roi_locations, method, nm_or_pixels,
+                                 figures_option, path, event_or_not, dataset_settings)
 
             total_fits = results.shape[0]
             failed_fits = results[np.isnan(results[:, 3]), :].shape[0]
             time_taken = round(time.time() - dataset_time, 3)
 
-            tools.text_output(dataset_settings.copy(), method, rejection_type, nm_or_pixels,
-                              total_fits, failed_fits, time_taken, path)
+            outputting.text_output(dataset_settings.copy(), method, rejection_type, nm_or_pixels,
+                                   total_fits, failed_fits, time_taken, path)
 
             successful_fits = total_fits - failed_fits
             results_counter += successful_fits
@@ -1314,6 +1324,32 @@ class FittingPage(tk.Frame):
 
     # %% Histogram of sliders
 
+    def fun_histogram(self, variable):
+        """
+        Actually makes the histogram
+
+        Parameters
+        ----------
+        variable : Variable to make histogram of
+
+        Returns
+        -------
+        None, outputs figure
+
+        """
+        if variable == "min_int" or variable == "max_int":
+            self.to_hist = self.roi_finder.main(self.roi_fitter, return_int=True)
+        elif variable == "peak_min":
+            self.to_hist = np.ravel(self.frames[0])
+        elif variable == "corr_min":
+            self.to_hist = self.roi_finder.main(self.roi_fitter, return_corr=True)
+        else:
+            self.to_hist = self.roi_finder.main(self.roi_fitter, return_sigmas=True)
+
+        self.histogram = plt.figure(figsize=(6.4 * 1.2, 4.8 * 1.2))
+
+        self.make_histogram(variable)
+
     def make_histogram(self, variable):
         """
         Makes histograms of parameters.
@@ -1356,33 +1392,7 @@ class FittingPage(tk.Frame):
             plt.axvline(x=min_corr, color='red', linestyle='--')
             plt.xscale('log')
 
-        plt.show()
-
-    def fun_histogram(self, variable):
-        """
-        Actually makes the histogram
-
-        Parameters
-        ----------
-        variable : Variable to make histogram of
-
-        Returns
-        -------
-        None, outputs figure
-
-        """
-        if variable == "min_int" or variable == "max_int":
-            self.to_hist = self.roi_finder.main(self.roi_fitter, return_int=True)
-        elif variable == "peak_min":
-            self.to_hist = np.ravel(self.frames[0])
-        elif variable == "corr_min":
-            self.to_hist = self.roi_finder.main(self.roi_fitter, return_corr=True)
-        else:
-            self.to_hist = self.roi_finder.main(self.roi_fitter, return_sigmas=True)
-
-        self.histogram = plt.figure(figsize=(6.4 * 1.2, 4.8 * 1.2))
-
-        self.make_histogram(variable)
+        self.histogram.show()
 
     def histogram_select(self, variable):
         """
@@ -1449,4 +1459,5 @@ if __name__ == '__main__':
     ttk_style.configure("TSeparator", background="black")
     ttk_style.configure("TMenubutton", font=FONT_DROP, background="White")
 
+    tk.Tk.report_callback_exception = show_error
     gui.mainloop()
