@@ -12,6 +12,7 @@ Everything related to making figures
 ----------------------------
 
 v1.0: split from tools: 07/08/2020
+v1.1: individual ROI figures
 
 """
 
@@ -21,6 +22,7 @@ from numpy import asarray, invert, concatenate
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.gridspec import GridSpec
+from concurrent.futures import ThreadPoolExecutor as Executor
 
 
 def plot_rois(frame, roi_locations, roi_size):
@@ -77,7 +79,6 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
     path += "/Graphs"
     mkdir(path)
 
-
     if "Gaussian" in method:
         fig = plt.figure(constrained_layout=True, figsize=(16, 40))
         widths = [1] * 4
@@ -128,6 +129,7 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
     ax_overview.set_ylabel('y (pixels)')
     ax_overview.set_title('Full first frame')
 
+    to_save_list = []
     roi_list = []
     if roi_locations.shape[0] > 3:
         for roi_index in range(roi_locations.shape[0]):
@@ -155,9 +157,9 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
         my_roi = frame[y - roi_size_1d:y + roi_size_1d + 1, x - roi_size_1d:x + roi_size_1d + 1]
 
         ax_frame.imshow(my_roi, extent=[0, my_roi.shape[1], my_roi.shape[0], 0], aspect='auto')
-        ax_tt.set_xlabel('x (pixels)')
-        ax_tt.set_ylabel('y (pixels)')
-        ax_tt.set_title('Zoom-in ROI ' + str(roi_index + 1))
+        ax_frame.set_xlabel('x (pixels)')
+        ax_frame.set_ylabel('y (pixels)')
+        ax_frame.set_title('Zoom-in ROI ' + str(roi_index + 1))
 
         intensities = results[results[:, 1] == roi_index + 1, 4]
         ax_tt.plot(intensities)
@@ -198,4 +200,61 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
     fig.savefig(name, bbox_inches='tight')
 
     if figures_option == "All":
-        pass
+        for roi_index in range(roi_locations.shape[0]):
+            fig = plt.figure(figsize=(8, 8))
+            ax_frame = fig.add_subplot(2, 2, 1)
+            ax_tt = fig.add_subplot(2, 2, 2)
+            ax_loc = fig.add_subplot(2, 2, 3)
+            ax_loc_drift = fig.add_subplot(2, 2, 4)
+
+            y = int(roi_locations[roi_index, 0])
+            x = int(roi_locations[roi_index, 1])
+            event_or_not_roi = event_or_not[:, roi_index]
+            frame_index = [frame_index for frame_index, true_false in enumerate(event_or_not_roi) if not true_false][0]
+            frame = asarray(frames[frame_index])
+            my_roi = frame[y - roi_size_1d:y + roi_size_1d + 1, x - roi_size_1d:x + roi_size_1d + 1]
+
+            ax_frame.imshow(my_roi, extent=[0, my_roi.shape[1], my_roi.shape[0], 0], aspect='auto')
+            ax_frame.set_xlabel('x (pixels)')
+            ax_frame.set_ylabel('y (pixels)')
+            ax_frame.set_title('Zoom-in ROI ' + str(roi_index + 1))
+
+            intensities = results[results[:, 1] == roi_index + 1, 4]
+            ax_tt.plot(intensities)
+            ax_tt.set_xlabel('Frames')
+            ax_tt.set_ylabel('Intensity (counts)')
+            ax_tt.set_title('Time trace ROI ' + str(roi_index + 1))
+
+            x_positions = results[results[:, 1] == roi_index + 1, 2]
+            y_positions = results[results[:, 1] == roi_index + 1, 3]
+
+            ax_loc.scatter(x_positions[invert(event_or_not_roi)], y_positions[invert(event_or_not_roi)],
+                           label='non-events')
+            ax_loc.scatter(x_positions[event_or_not_roi], y_positions[event_or_not_roi], label='events')
+            if nm_or_pixels == 'nm':
+                ax_loc.set_xlabel('x-position (nm)')
+                ax_loc.set_ylabel('y-position (nm)')
+            else:
+                ax_loc.set_xlabel('x-position (pixels)')
+                ax_loc.set_ylabel('y-position (pixels)')
+            ax_loc.set_title('Scatter ROI ' + str(roi_index + 1))
+            ax_loc.axis('equal')
+            ax_loc.legend()
+
+            x_positions = results_drift[results_drift[:, 1] == roi_index + 1, 2]
+            y_positions = results_drift[results_drift[:, 1] == roi_index + 1, 3]
+
+            ax_loc_drift.scatter(x_positions[invert(event_or_not_roi)], y_positions[invert(event_or_not_roi)],
+                                 label='non-events')
+            ax_loc_drift.scatter(x_positions[event_or_not_roi], y_positions[event_or_not_roi], label='events')
+            if nm_or_pixels == 'nm':
+                ax_loc_drift.set_xlabel('x-position (nm)')
+                ax_loc_drift.set_ylabel('y-position (nm)')
+            else:
+                ax_loc_drift.set_xlabel('x-position (pixels)')
+                ax_loc_drift.set_ylabel('y-position (pixels)')
+            ax_loc_drift.set_title('Scatter ROI ' + str(roi_index + 1) + " post drift")
+            ax_loc_drift.axis('equal')
+
+            name = path + "/" + "ROI" + str(roi_index+1)+".png"
+            fig.savefig(name, bbox_inches='tight')

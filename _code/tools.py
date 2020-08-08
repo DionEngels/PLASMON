@@ -21,6 +21,7 @@ v0.6.1: better MATLAB ROI and Drift output
 v0.7: metadata v2
 v0.8: metadata v3
 v1.0: bug fixes
+v1.0.1: metadata goldmine found, to be implemented
 
 """
 from numpy import zeros
@@ -70,10 +71,38 @@ class ND2ReaderForMetadata(ND2Reader):
         info_to_parse = self.parser._raw_metadata.image_text_info
         metadata_text_dict = self.parse_text_info(info_to_parse)
 
+        info_to_parse2 = self.parser._raw_metadata.image_metadata_sequence
+        metadata_text_dict2 = self.parse_text_info2(info_to_parse2)
+
         metadata_dict['timesteps'] = self.timesteps.tolist()
         metadata_dict['frame_rate'] = self.frame_rate
 
         return metadata_dict, metadata_text_dict
+
+    def recursive_add_to_dict(self, dictionary):
+        metadata_text_dict = {}
+        for key_decoded, value_decoded in dictionary.items():
+            if type(key_decoded) is bytes:
+                key_decoded = key_decoded.decode("utf-8")
+            if type(value_decoded) is bytes:
+                value_decoded = value_decoded.decode("utf-8")
+
+            if type(value_decoded) == dict:
+                return_dict = self.recursive_add_to_dict(value_decoded)
+                metadata_text_dict[key_decoded] = return_dict
+            elif type(value_decoded) != str:
+                metadata_text_dict[key_decoded] = value_decoded
+            else:
+                pass
+
+        return metadata_text_dict
+
+    def parse_text_info2(self, info_to_parse):
+        main_part = info_to_parse[b'SLxPictureMetadata']
+
+        metadata_text_dict = self.recursive_add_to_dict(main_part)
+
+        return metadata_text_dict
 
     @staticmethod
     def parse_text_info(info_to_parse):
