@@ -28,15 +28,51 @@ v1.1: emptied out: 09/08/2020
 from numpy import zeros
 
 
-def switch_to_matlab_coordinates(array, height):
+def change_to_pixels(results, metadata, method):
+    pixelsize_nm = metadata['pixel_microns'] * 1000
+    results[:, 2] *= pixelsize_nm  # y position to nm
+    results[:, 3] *= pixelsize_nm  # x position to nm
+    if "Gaussian" in method:
+        results[:, 5] *= pixelsize_nm  # sigma y to nm
+        results[:, 6] *= pixelsize_nm  # sigma x to nm
+
+    return results
+
+
+def roi_to_matlab_coordinates(roi_locs, height):
+
+    roi_locs = switch_axis(roi_locs)
+    roi_locs[:, 1] = height - roi_locs[:, 1]
+
+    return roi_locs
+
+
+def switch_results_to_matlab_coordinates(results, height, method, nm_or_pixels, metadata):
+
+    results[:, 0] += 1  # add one to frame counting
+    results[:, 1] += 1  # add one to ROI counting
+
+    results[:, 2:4] = switch_axis_to_matlab_coordinates(results[:, 2:4], height, nm_or_pixels, metadata)  # switch x-y
+
+    if "Gaussian" in method:
+        results[:, 5:7] = switch_axis(results[:, 5:7])  # switch sigma x-y if Gaussian
+
+    return results
+
+
+def switch_axis_to_matlab_coordinates(array, height, nm_or_pixels="pixels", metadata=None):
 
     array = switch_axis(array)
-    array[:, 1] = height - array[:, 1]
+    if nm_or_pixels == "nm":
+        pixelsize_nm = metadata['pixel_microns'] * 1000
+        array[:, 1] = height*pixelsize_nm - array[:, 1]
+    else:
+        array[:, 1] = height - array[:, 1]
 
     return array
 
 
-def switch(array):
+def switch_axis(array):
     """
     Switches a single arrays values
 

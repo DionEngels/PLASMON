@@ -18,7 +18,6 @@ v1.0: split from tools: 07/08/2020
 from csv import writer  # to save to csv
 from scipy.io import savemat  # to export for MATLAB
 from numpy import savetxt
-import _code.tools as tools
 from datetime import datetime
 
 # translates the raw dictionary keys to user readable input
@@ -91,7 +90,7 @@ def save_to_csv_mat_results(name, results, method, path):
     savemat(path + "/" + name + '.mat', results_dict)
 
 
-def save_to_csv_mat_roi(name, rois, height, path):
+def save_to_csv_mat_roi(name, rois, path):
     """
     Saves the ROIs to a .mat and .csv
 
@@ -107,8 +106,6 @@ def save_to_csv_mat_roi(name, rois, height, path):
     None.
 
     """
-    rois = tools.switch(rois)  # from y,x to x,y
-    rois[:, 1] = height - rois[:, 1]  # MATLAB has origin in bottom left, Python top left. Switch y-axis to compensate
     header = "x,y"
     savetxt(path + "/" + name + '.csv', rois, delimiter=',', header=header)
 

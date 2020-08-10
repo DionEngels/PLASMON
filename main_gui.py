@@ -148,12 +148,14 @@ def quit_program():
     gui.destroy()
     sys.exit(0)
 
+
 # %% Divert errors
 
 
 def show_error(self, exc, val, tb):
     error = traceback.format_exception(exc, val, tb)
     tk.messagebox.showerror("Error. Send screenshot to Dion", message=error)
+
 
 # %% Own buttons / fields
 
@@ -1193,18 +1195,9 @@ class FittingPage(tk.Frame):
                 results = fitter.main(to_fit, self.metadata, roi_locations,
                                       gui=self, n_frames=num_frames)
 
-            # MATLAB works from bottom left as zero point, Python top left. Thus, y is switched
-
-            results[:, 2] = self.frames[0].shape[0] - results[:, 2]
-
             nm_or_pixels = self.dimension.get()
             if nm_or_pixels == "nm":
-                pixelsize_nm = self.metadata['pixel_microns'] * 1000
-                results[:, 2] *= pixelsize_nm  # x position to nm
-                results[:, 3] *= pixelsize_nm  # y position to nm
-                if "Gaussian" in method:
-                    results[:, 5] *= pixelsize_nm  # sigma x to nm
-                    results[:, 6] *= pixelsize_nm  # sigma y to nm
+                results = tools.change_to_pixels(results, self.metadata, method)
 
             # drift correction
 
@@ -1227,10 +1220,6 @@ class FittingPage(tk.Frame):
 
                 # ADD HSM stuff here
 
-            self.progress_status_label.updater(text="Saving dataset " +
-                                                    str(self.dataset_index + 1) + " of " + str(len(filenames)))
-            self.update()
-
             # create folder for output
 
             path = filename.split(".")[0]
@@ -1248,18 +1237,33 @@ class FittingPage(tk.Frame):
                         path = path[:-4]
                         path += "_%03d" % directory_try
 
-            # Save
-
-            outputting.save_to_csv_mat_metadata('metadata', self.metadata, path)
-            outputting.save_to_csv_mat_roi('ROI_locations', roi_locations, self.frames[0].shape[0], path)
-            outputting.save_to_csv_mat_drift('Drift_correction', drift, path)
-            outputting.save_to_csv_mat_results('Localizations', results, method, path)
-            outputting.save_to_csv_mat_results('Localizations_drift', results_drift, method, path)
+            # Plotting
 
             self.progress_status_label.updater(text="Plotting dataset " +
                                                     str(self.dataset_index + 1) + " of " + str(len(filenames)))
             figuring.save_graphs(self.frames, results, results_drift, roi_locations, method, nm_or_pixels,
                                  figures_option, path, event_or_not, dataset_settings)
+
+            # Switch to MATLAB coordinates
+
+            results = tools.switch_results_to_matlab_coordinates(results, self.frames[0].shape[0],
+                                                                 method, nm_or_pixels, self.metadata)
+            results_drift = tools.switch_results_to_matlab_coordinates(results_drift, self.frames[0].shape[0],
+                                                                       method, nm_or_pixels, self.metadata)
+            roi_locations = tools.roi_to_matlab_coordinates(roi_locations, self.frames[0].shape[0])
+            drift = tools.switch_axis(drift)
+
+            # Save
+
+            self.progress_status_label.updater(text="Saving dataset " +
+                                                    str(self.dataset_index + 1) + " of " + str(len(filenames)))
+            self.update()
+
+            outputting.save_to_csv_mat_metadata('metadata', self.metadata, path)
+            outputting.save_to_csv_mat_roi('ROI_locations', roi_locations, path)
+            outputting.save_to_csv_mat_drift('Drift_correction', drift, path)
+            outputting.save_to_csv_mat_results('Localizations', results, method, path)
+            outputting.save_to_csv_mat_results('Localizations_drift', results_drift, method, path)
 
             total_fits = results.shape[0]
             failed_fits = results[np.isnan(results[:, 3]), :].shape[0]

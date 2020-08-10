@@ -488,20 +488,20 @@ class Gaussian:
             if success == 1:
                 self.params[peak_index, :] = result[3:5]
 
-                frame_result[peak_index, 0] = frame_index + start_frame + 1  # plus 1 to convert to MATLAB indexing
-                frame_result[peak_index, 1] = peak_index + 1  # plus one to convert to MATLAB indexing
+                frame_result[peak_index, 0] = frame_index + start_frame
+                frame_result[peak_index, 1] = peak_index
                 # start position plus from center in ROI + half for indexing of pixels
-                frame_result[peak_index, 2] = result[2] + x - self.roi_size_1D + 0.5  # x
-                frame_result[peak_index, 3] = result[1] + y - self.roi_size_1D + 0.5  # y
+                frame_result[peak_index, 2] = result[1] + y - self.roi_size_1D + 0.5  # y
+                frame_result[peak_index, 3] = result[2] + x - self.roi_size_1D + 0.5  # x
                 frame_result[peak_index, 4] = result[0]  # intensity
-                frame_result[peak_index, 5] = result[4]  # sigma x
-                frame_result[peak_index, 6] = result[3]  # sigma y
+                frame_result[peak_index, 5] = result[3]  # sigma y
+                frame_result[peak_index, 6] = result[4]  # sigma x
                 frame_result[peak_index, 7] = my_roi_bg
                 frame_result[peak_index, 8] = its
             else:
                 frame_result[peak_index, :] = np.nan
-                frame_result[peak_index, 0] = frame_index + start_frame + 1  # plus 1 to convert to MATLAB indexing
-                frame_result[peak_index, 1] = peak_index + 1  # plus one to convert to MATLAB indexing
+                frame_result[peak_index, 0] = frame_index + start_frame
+                frame_result[peak_index, 1] = peak_index
 
         return frame_result
 
@@ -637,20 +637,20 @@ class GaussianBackground(Gaussian):
             if success == 1:
                 self.params[peak_index, :] = result[3:5]
 
-                frame_result[peak_index, 0] = frame_index + start_frame + 1  # plus 1 to convert to MATLAB indexing
-                frame_result[peak_index, 1] = peak_index + 1  # plus one to convert to MATLAB indexing
+                frame_result[peak_index, 0] = frame_index + start_frame
+                frame_result[peak_index, 1] = peak_index
                 # start position plus from center in ROI + half for indexing of pixels
-                frame_result[peak_index, 2] = result[2] + x - self.roi_size_1D + 0.5  # x
-                frame_result[peak_index, 3] = result[1] + y - self.roi_size_1D + 0.5  # y
+                frame_result[peak_index, 2] = result[1] + y - self.roi_size_1D + 0.5  # y
+                frame_result[peak_index, 3] = result[2] + x - self.roi_size_1D + 0.5  # x
                 frame_result[peak_index, 4] = result[0]  # intensity
-                frame_result[peak_index, 5] = result[4]  # sigma x
-                frame_result[peak_index, 6] = result[3]  # sigma y
+                frame_result[peak_index, 5] = result[3]  # sigma y
+                frame_result[peak_index, 6] = result[4]  # sigma x
                 frame_result[peak_index, 7] = result[5]  # background
                 frame_result[peak_index, 8] = its
             else:
                 frame_result[peak_index, :] = np.nan
-                frame_result[peak_index, 0] = frame_index + start_frame + 1  # plus 1 to convert to MATLAB indexing
-                frame_result[peak_index, 1] = peak_index + 1  # plus one to convert to MATLAB indexing
+                frame_result[peak_index, 0] = frame_index + start_frame
+                frame_result[peak_index, 1] = peak_index
 
         return frame_result
 
@@ -790,17 +790,17 @@ class Phasor:
                 success = 0
 
             if success == 1:
-                roi_result[frame_index, 0] = frame_index + 1  # plus one to convert to MATLAB indexing
-                roi_result[frame_index, 1] = roi_index + 1  # plus one to convert to MATLAB indexing
+                roi_result[frame_index, 0] = frame_index
+                roi_result[frame_index, 1] = roi_index
                 # start position plus from center in ROI + half for indexing of pixels
-                roi_result[frame_index, 2] = x + pos_x - self.roi_size_1D  # x
-                roi_result[frame_index, 3] = y + pos_y - self.roi_size_1D  # y
+                roi_result[frame_index, 2] = y + pos_y - self.roi_size_1D  # y
+                roi_result[frame_index, 3] = x + pos_x - self.roi_size_1D  # x
                 roi_result[frame_index, 4] = frame_max - my_frame_bg  # returns max peak
                 roi_result[frame_index, 5] = my_frame_bg  # background
             else:
                 roi_result[frame_index, :] = np.nan
-                roi_result[frame_index, 0] = frame_index + 1  # plus one to convert to MATLAB indexing
-                roi_result[frame_index, 1] = roi_index + 1  # plus one to convert to MATLAB indexing
+                roi_result[frame_index, 0] = frame_index
+                roi_result[frame_index, 1] = roi_index
 
         return roi_result
 
@@ -907,15 +907,15 @@ class PhasorDumb(Phasor):
                 success = 0
 
             if success == 1:
-                roi_result[frame_index, 0] = frame_index + 1  # plus one to convert to MATLAB indexing
-                roi_result[frame_index, 1] = roi_index + 1  # plus one to convert to MATLAB indexing
+                roi_result[frame_index, 0] = frame_index
+                roi_result[frame_index, 1] = roi_index
                 # start position plus from center in ROI + half for indexing of pixels
-                roi_result[frame_index, 2] = x + pos_x - self.roi_size_1D  # x
-                roi_result[frame_index, 3] = y + pos_y - self.roi_size_1D  # y
+                roi_result[frame_index, 2] = y + pos_y - self.roi_size_1D  # y
+                roi_result[frame_index, 3] = x + pos_x - self.roi_size_1D  # x
             else:
                 roi_result[frame_index, :] = np.nan
-                roi_result[frame_index, 0] = frame_index + 1  # plus one to convert to MATLAB indexing
-                roi_result[frame_index, 1] = roi_index + 1  # plus one to convert to MATLAB indexing
+                roi_result[frame_index, 0] = frame_index
+                roi_result[frame_index, 1] = roi_index
 
         return roi_result
 
@@ -967,15 +967,15 @@ class PhasorSum(Phasor):
                 success = 0
 
             if success == 1:
-                roi_result[frame_index, 0] = frame_index + 1  # plus one to convert to MATLAB indexing
-                roi_result[frame_index, 1] = roi_index + 1  # plus one to convert to MATLAB indexing
+                roi_result[frame_index, 0] = frame_index
+                roi_result[frame_index, 1] = roi_index
                 # start position plus from center in ROI + half for indexing of pixels
-                roi_result[frame_index, 2] = x + pos_x - self.roi_size_1D  # x
-                roi_result[frame_index, 3] = y + pos_y - self.roi_size_1D  # y
+                roi_result[frame_index, 2] = y + pos_y - self.roi_size_1D  # y
+                roi_result[frame_index, 3] = x + pos_x - self.roi_size_1D  # x
                 roi_result[frame_index, 4] = frame_sum  # returns summation
             else:
                 roi_result[frame_index, :] = np.nan
-                roi_result[frame_index, 0] = frame_index + 1  # plus one to convert to MATLAB indexing
-                roi_result[frame_index, 1] = roi_index + 1  # plus one to convert to MATLAB indexing
+                roi_result[frame_index, 0] = frame_index
+                roi_result[frame_index, 1] = roi_index
 
         return roi_result

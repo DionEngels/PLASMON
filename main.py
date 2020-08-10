@@ -189,14 +189,7 @@ for name in filenames:
 
         print('Starting saving')
 
-        # %% save everything
-        outputting.save_to_csv_mat_metadata('metadata', metadata, path)
-        outputting.save_to_csv_mat_roi('ROI_locations', ROI_locations, frames[0].shape[0], path)
-        outputting.save_to_csv_mat_drift('Drift_correction', drift, path)
-        outputting.save_to_csv_mat_results('Localizations', results, METHOD, path)
-        outputting.save_to_csv_mat_results('Localizations_drift', results_drift, METHOD, path)
-
-        outputting.text_output({}, METHOD, THRESHOLD_METHOD, "", total_fits, failed_fits, time_taken, path)
+        # %% Figures
 
         settings = {'roi_size': ROI_SIZE}
 
@@ -206,5 +199,20 @@ for name in filenames:
                              path, event_or_not, settings)
 
         time_taken = round(time.time() - start, 3)
-
         print('Time taken plotting: ' + str(time_taken) + ' s. Fits done: ' + str(successful_fits))
+
+        # %% Convert coordinate system
+
+        results = tools.switch_results_to_matlab_coordinates(results, frames[0].shape[0], METHOD)
+        results_drift = tools.switch_results_to_matlab_coordinates(results_drift, frames[0].shape[0], METHOD)
+        roi_locations = tools.switch_axis_to_matlab_coordinates(roi_locations, frames[0].shape[0])
+        drift = tools.switch_axis(drift)
+
+        # %% save everything
+        outputting.save_to_csv_mat_metadata('metadata', metadata, path)
+        outputting.save_to_csv_mat_roi('ROI_locations', ROI_locations, frames[0].shape[0], path)
+        outputting.save_to_csv_mat_drift('Drift_correction', drift, path)
+        outputting.save_to_csv_mat_results('Localizations', results, METHOD, path)
+        outputting.save_to_csv_mat_results('Localizations_drift', results_drift, METHOD, path)
+
+        outputting.text_output({}, METHOD, THRESHOLD_METHOD, "", total_fits, failed_fits, time_taken, path)

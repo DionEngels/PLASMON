@@ -14,6 +14,7 @@ This package is for the drift correction of MBx Python.
 v0.1: drift correction v1: 31/07/2020
 v0.1.1: bug fix and save drift: 03/08/2020
 v1.0: more output just after initial release: 07/08/2020
+v1.1: switch to Python coordinate system: 10/08/2020
 
 """
 
@@ -58,12 +59,12 @@ class DriftCorrector:
         all_drift_x = np.zeros((self.n_frames, self.n_rois))
         all_drift_y = np.zeros((self.n_frames, self.n_rois))
 
-        for i in range(1, self.n_rois+1):  # find drift per ROI
+        for i in range(self.n_rois):  # find drift per ROI
             roi_results = results[results[:, 1] == i, :]
             roi_drift_x, roi_drift_y, event_or_not_roi = self.find_drift(roi_results)
-            all_drift_x[:, i-1] = roi_drift_x  # -1 since converted to MATLAB counting
-            all_drift_y[:, i-1] = roi_drift_y  # -1 since converted to MATLAB counting
-            event_or_not_total[:, i-1] = event_or_not_roi
+            all_drift_x[:, i] = roi_drift_x
+            all_drift_y[:, i] = roi_drift_y
+            event_or_not_total[:, i] = event_or_not_roi
         mean_drift_x = np.nanmean(all_drift_x, axis=1)  # average drift of all ROIs
         mean_drift_y = np.nanmean(all_drift_y, axis=1)  # average drift of all ROIs
 
@@ -86,8 +87,8 @@ class DriftCorrector:
         else:
             event_or_not = [False]*roi_results.shape[0]
 
-        roi_drift_x = roi_results[:, 2] - roi_results[0, 2]
-        roi_drift_y = roi_results[:, 3] - roi_results[0, 3]
+        roi_drift_y = roi_results[:, 2] - roi_results[0, 2]
+        roi_drift_x = roi_results[:, 3] - roi_results[0, 3]
 
         return roi_drift_x, roi_drift_y, event_or_not
 
@@ -109,9 +110,9 @@ class DriftCorrector:
         mean_drift_x_repeat = np.repeat(mean_drift_x, self.n_rois)
         mean_drift_y_repeat = np.repeat(mean_drift_y, self.n_rois)
 
-        results_drift[:, 2] -= mean_drift_x_repeat
-        results_drift[:, 3] -= mean_drift_y_repeat
+        results_drift[:, 2] -= mean_drift_y_repeat
+        results_drift[:, 3] -= mean_drift_x_repeat
 
-        drift = np.stack((mean_drift_x, mean_drift_y), axis=1)
+        drift = np.stack((mean_drift_y, mean_drift_x), axis=1)
 
         return results_drift, drift
