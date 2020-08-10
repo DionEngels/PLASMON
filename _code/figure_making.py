@@ -143,10 +143,6 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
     for roi_list_index, roi_index in enumerate(roi_list):
         row = start_row + int(int(roi_list_index / 2)*2)
         column = (roi_index % 2) * 2
-        ax_frame = fig.add_subplot(gs[row, column])
-        ax_tt = fig.add_subplot(gs[row, column + 1])
-        ax_loc = fig.add_subplot(gs[row + 1, column])
-        ax_loc_drift = fig.add_subplot(gs[row + 1, column + 1])
 
         y = int(roi_locations[roi_index, 0])
         x = int(roi_locations[roi_index, 1])
@@ -156,20 +152,24 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
         frame = asarray(frames[frame_index])
         my_roi = frame[y - roi_size_1d:y + roi_size_1d + 1, x - roi_size_1d:x + roi_size_1d + 1]
 
+        ax_frame = fig.add_subplot(gs[row, column])
         ax_frame.imshow(my_roi, extent=[0, my_roi.shape[1], my_roi.shape[0], 0], aspect='auto')
         ax_frame.set_xlabel('x (pixels)')
         ax_frame.set_ylabel('y (pixels)')
         ax_frame.set_title('Zoom-in ROI ' + str(roi_index + 1))
 
-        intensities = results[results[:, 1] == roi_index + 1, 4]
-        ax_tt.plot(intensities)
-        ax_tt.set_xlabel('Frames')
-        ax_tt.set_ylabel('Intensity (counts)')
-        ax_tt.set_title('Time trace ROI ' + str(roi_index + 1))
+        if "Gaussian" in method:
+            ax_tt = fig.add_subplot(gs[row, column + 1])
+            intensities = results[results[:, 1] == roi_index + 1, 4]
+            ax_tt.plot(intensities)
+            ax_tt.set_xlabel('Frames')
+            ax_tt.set_ylabel('Intensity (counts)')
+            ax_tt.set_title('Time trace ROI ' + str(roi_index + 1))
 
         x_positions = results[results[:, 1] == roi_index + 1, 2]
         y_positions = results[results[:, 1] == roi_index + 1, 3]
 
+        ax_loc = fig.add_subplot(gs[row + 1, column])
         ax_loc.scatter(x_positions[invert(event_or_not_roi)], y_positions[invert(event_or_not_roi)], label='non-events')
         ax_loc.scatter(x_positions[event_or_not_roi], y_positions[event_or_not_roi], label='events')
         if nm_or_pixels == 'nm':
@@ -185,6 +185,7 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
         x_positions = results_drift[results_drift[:, 1] == roi_index + 1, 2]
         y_positions = results_drift[results_drift[:, 1] == roi_index + 1, 3]
 
+        ax_loc_drift = fig.add_subplot(gs[row + 1, column + 1])
         ax_loc_drift.scatter(x_positions[invert(event_or_not_roi)], y_positions[invert(event_or_not_roi)], label='non-events')
         ax_loc_drift.scatter(x_positions[event_or_not_roi], y_positions[event_or_not_roi], label='events')
         if nm_or_pixels == 'nm':
@@ -202,10 +203,6 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
     if figures_option == "All":
         for roi_index in range(roi_locations.shape[0]):
             fig = plt.figure(figsize=(8, 8))
-            ax_frame = fig.add_subplot(2, 2, 1)
-            ax_tt = fig.add_subplot(2, 2, 2)
-            ax_loc = fig.add_subplot(2, 2, 3)
-            ax_loc_drift = fig.add_subplot(2, 2, 4)
 
             y = int(roi_locations[roi_index, 0])
             x = int(roi_locations[roi_index, 1])
@@ -214,20 +211,24 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
             frame = asarray(frames[frame_index])
             my_roi = frame[y - roi_size_1d:y + roi_size_1d + 1, x - roi_size_1d:x + roi_size_1d + 1]
 
+            ax_frame = fig.add_subplot(2, 2, 1)
             ax_frame.imshow(my_roi, extent=[0, my_roi.shape[1], my_roi.shape[0], 0], aspect='auto')
             ax_frame.set_xlabel('x (pixels)')
             ax_frame.set_ylabel('y (pixels)')
             ax_frame.set_title('Zoom-in ROI ' + str(roi_index + 1))
 
-            intensities = results[results[:, 1] == roi_index + 1, 4]
-            ax_tt.plot(intensities)
-            ax_tt.set_xlabel('Frames')
-            ax_tt.set_ylabel('Intensity (counts)')
-            ax_tt.set_title('Time trace ROI ' + str(roi_index + 1))
+            if "Gaussian" in method:
+                ax_tt = fig.add_subplot(2, 2, 2)
+                intensities = results[results[:, 1] == roi_index + 1, 4]
+                ax_tt.plot(intensities)
+                ax_tt.set_xlabel('Frames')
+                ax_tt.set_ylabel('Intensity (counts)')
+                ax_tt.set_title('Time trace ROI ' + str(roi_index + 1))
 
             x_positions = results[results[:, 1] == roi_index + 1, 2]
             y_positions = results[results[:, 1] == roi_index + 1, 3]
 
+            ax_loc = fig.add_subplot(2, 2, 3)
             ax_loc.scatter(x_positions[invert(event_or_not_roi)], y_positions[invert(event_or_not_roi)],
                            label='non-events')
             ax_loc.scatter(x_positions[event_or_not_roi], y_positions[event_or_not_roi], label='events')
@@ -244,6 +245,7 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
             x_positions = results_drift[results_drift[:, 1] == roi_index + 1, 2]
             y_positions = results_drift[results_drift[:, 1] == roi_index + 1, 3]
 
+            ax_loc_drift = fig.add_subplot(2, 2, 4)
             ax_loc_drift.scatter(x_positions[invert(event_or_not_roi)], y_positions[invert(event_or_not_roi)],
                                  label='non-events')
             ax_loc_drift.scatter(x_positions[event_or_not_roi], y_positions[event_or_not_roi], label='events')

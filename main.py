@@ -50,6 +50,7 @@ import _code.tools as tools
 import _code.drift_correction as drift_correction
 import _code.figure_making as figuring
 import _code.output as outputting
+import _code.nd2_reading as nd2_reading
 import _code.hsm as hsm
 
 # %% Inputs
@@ -73,7 +74,7 @@ CORRECTION = "SN_objTIRF_PFS_510-800"  # "Matej_670-890"
 # %% Main loop cell
 
 for name in filenames:
-    with tools.ND2ReaderSelf(name) as ND2:
+    with nd2_reading.ND2ReaderSelf(name) as ND2:
         # create folder for output
         path = name.split(".")[0]
         if DATASET == "MATLAB_v3" or DATASET == "MATLAB_v2":

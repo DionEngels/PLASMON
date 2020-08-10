@@ -526,7 +526,7 @@ class Gaussian:
 
         """
         if n_frames is None:
-            n_frames = metadata['sequence_count']
+            n_frames = metadata['num_frames']
         elif n_frames < 10:
             n_frames = 10
 
@@ -536,6 +536,7 @@ class Gaussian:
         tot_fits = 0
 
         for frame_index, frame in enumerate(frames):
+            frame = np.asarray(frame)
             if frame_index == 0:
                 frame_result = self.fitter(frame_index, frame, start_frame)
                 n_fits = frame_result.shape[0]

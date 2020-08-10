@@ -64,6 +64,7 @@ import _code.tools as tools
 import _code.drift_correction as drift_correction
 import _code.figure_making as figuring
 import _code.output as outputting
+import _code.nd2_reading as nd2_reading
 
 # Multiprocessing
 import multiprocessing as mp
@@ -126,10 +127,10 @@ def mt_main(name, fitter, frames_split, roi_locations, shared, q):
     Fills shared memory
 
     """
-    nd2 = tools.ND2ReaderSelf(name)
+    nd2 = nd2_reading.ND2ReaderSelf(name)
     frames = nd2
     metadata = nd2.get_metadata()
-    metadata['sequence_count'] = len(frames_split)
+    metadata['num_frames'] = len(frames_split)
     frames = frames[frames_split]
 
     local_result = fitter.main(frames, metadata, roi_locations,
@@ -765,7 +766,7 @@ class FittingPage(tk.Frame):
         self.dataset_roi_status.updater(text="Dataset " + str(self.dataset_index + 1) + " of " + str(len(filenames)))
         self.roi_status.updater(text="0 of " + str(len(filenames)) + " have settings")
 
-        self.nd2 = tools.ND2ReaderSelf(filenames[self.dataset_index])
+        self.nd2 = nd2_reading.ND2ReaderSelf(filenames[self.dataset_index])
         self.frames = self.nd2
         self.metadata = self.nd2.get_metadata()
 
@@ -1021,7 +1022,7 @@ class FittingPage(tk.Frame):
                                              + str(len(self.filenames)))
 
         self.nd2.close()
-        self.nd2 = tools.ND2ReaderSelf(self.filenames[self.dataset_index])
+        self.nd2 = nd2_reading.ND2ReaderSelf(self.filenames[self.dataset_index])
         self.frames = self.nd2
         self.metadata = self.nd2.get_metadata()
 
@@ -1104,7 +1105,7 @@ class FittingPage(tk.Frame):
         for self.dataset_index, filename in enumerate(self.filenames):
             dataset_time = time.time()
             self.nd2.close()
-            self.nd2 = tools.ND2ReaderSelf(filenames[self.dataset_index])
+            self.nd2 = nd2_reading.ND2ReaderSelf(filenames[self.dataset_index])
             self.frames = self.nd2
             self.metadata = self.nd2.get_metadata()
 
@@ -1129,7 +1130,7 @@ class FittingPage(tk.Frame):
             end_frame = self.frame_end_input.get()
 
             if start_frame == "Leave empty for start" and end_frame == "Leave empty for end":
-                end_frame = self.metadata['sequence_count']
+                end_frame = self.metadata['num_frames']
                 start_frame = 0
                 to_fit = self.frames
             elif start_frame == "Leave empty for start" and end_frame != "Leave empty for end":
@@ -1138,7 +1139,7 @@ class FittingPage(tk.Frame):
                 to_fit = self.frames[:end_frame]
             elif start_frame != "Leave empty for start" and end_frame == "Leave empty for end":
                 start_frame = int(start_frame)
-                end_frame = self.metadata['sequence_count']
+                end_frame = self.metadata['num_frames']
                 to_fit = self.frames[start_frame:]
             else:  # start_frame != "Leave empty for start" and end_frame != "Leave empty for end":
                 start_frame = int(start_frame)
@@ -1198,7 +1199,7 @@ class FittingPage(tk.Frame):
 
             nm_or_pixels = self.dimension.get()
             if nm_or_pixels == "nm":
-                pixelsize_nm = self.metadata['calibration_um'] * 1000
+                pixelsize_nm = self.metadata['pixel_microns'] * 1000
                 results[:, 2] *= pixelsize_nm  # x position to nm
                 results[:, 3] *= pixelsize_nm  # y position to nm
                 if "Gaussian" in method:
@@ -1280,7 +1281,7 @@ class FittingPage(tk.Frame):
 
         self.dataset_index = dataset_index_viewing
 
-        self.nd2 = tools.ND2ReaderSelf(self.filenames[self.dataset_index])
+        self.nd2 = nd2_reading.ND2ReaderSelf(self.filenames[self.dataset_index])
         self.frames = self.nd2
         self.metadata = self.nd2.get_metadata()
 
@@ -1459,5 +1460,5 @@ if __name__ == '__main__':
     ttk_style.configure("TSeparator", background="black")
     ttk_style.configure("TMenubutton", font=FONT_DROP, background="White")
 
-    tk.Tk.report_callback_exception = show_error
+    #  tk.Tk.report_callback_exception = show_error
     gui.mainloop()
