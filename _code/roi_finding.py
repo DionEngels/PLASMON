@@ -19,6 +19,8 @@ v0.4.0: bug fix ROI distance, ready for Peter review
 v0.4.1: clean up
 v0.4.2: changed "change_settings"
 v0.5: removed pixel min
+v1.0: bugfixes
+v1.1: list creation bugfixes
 
 """
 import numpy as np  # for linear algebra
@@ -182,8 +184,6 @@ class RoiFinder:
         locations : List of ROI locations
 
         """
-        if return_corr:
-            self.corr_min = self.corr_min / 2
 
         compare = self.make_gaussian(self.roi_size)
 
@@ -307,10 +307,21 @@ class RoiFinder:
 
         """
 
+        if return_corr and self.corr_list != []:
+            return self.corr_list
+        elif return_int and self.int_list != []:
+            return self.int_list
+        elif return_sigmas and self.sigma_list != []:
+            return self.sigma_list
+
+        if return_corr:
+            corr_min = self.corr_min
+            self.corr_min = 0.005
+
         roi_boolean, self.roi_locations = self.find_particles(return_corr)
 
         if return_corr:
-            self.corr_min = self.corr_min * 2
+            self.corr_min = corr_min
             return self.corr_list
 
         self.adjacent_or_boundary_rois(roi_boolean)

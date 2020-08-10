@@ -29,6 +29,7 @@ v0.3.0: ready for Peter review. MATLAB coordinate system output, bug fix and tex
 v0.3.1: different directory for output
 v0.3.2: no longer overwrites old data
 v0.4: drift correction v1: 31/07/2020
+v1.0: bugfixes and release: 07/08/2020
 
  """
 
@@ -47,6 +48,9 @@ import _code.roi_finding as roi_finding
 import _code.fitters as fitting
 import _code.tools as tools
 import _code.drift_correction as drift_correction
+import _code.figure_making as figuring
+import _code.output as outputting
+import _code.nd2_reading as nd2_reading
 import _code.hsm as hsm
 
 # %% Inputs
@@ -60,7 +64,9 @@ hsm_dir = ("C:/Users/s150127/Downloads/___MBx/datasets/_1nMimager_newGNRs_100mW_
 fit_options = ["Gaussian - Fit bg", "Gaussian - Estimate bg",
                "Phasor + Intensity", "Phasor + Sum", "Phasor"]
 
-METHOD = "Phasor"
+FIGURE_OPTION = "All" # "Few" "All"
+
+METHOD = "Gaussian - Estimate bg"
 DATASET = "YUYANG"  # "MATLAB_v2, "MATLAB_v3" OR "YUYANG"
 THRESHOLD_METHOD = "Loose"  # "Strict", "Loose", or "None"
 CORRECTION = "SN_objTIRF_PFS_510-800"  # "Matej_670-890"
@@ -68,7 +74,7 @@ CORRECTION = "SN_objTIRF_PFS_510-800"  # "Matej_670-890"
 # %% Main loop cell
 
 for name in filenames:
-    with tools.ND2ReaderSelf(name) as ND2:
+    with nd2_reading.ND2ReaderSelf(name) as ND2:
         # create folder for output
         path = name.split(".")[0]
         if DATASET == "MATLAB_v3" or DATASET == "MATLAB_v2":
@@ -106,7 +112,7 @@ for name in filenames:
             # parse ND2 info
             frames = ND2
             metadata = ND2.get_metadata()
-            frames = frames[0:100]
+            frames = frames[0:10]
             n_frames = len(frames)
 
         # %% Find ROIs (for standard NP2 file)
@@ -124,7 +130,7 @@ for name in filenames:
 
         ROI_locations = roi_finder.main(fitter)
 
-        tools.plot_rois(frames[0], ROI_locations, ROI_SIZE)
+        figuring.plot_rois(frames[0], ROI_locations, ROI_SIZE)
 
         # %% Fit Gaussians
         print('Starting to prepare fitting')
@@ -172,22 +178,41 @@ for name in filenames:
 
         print('Starting drift correction')
         drift_corrector = drift_correction.DriftCorrector(METHOD)
-        results_drift, drift = drift_corrector.main(results, ROI_locations, n_frames)
+        results_drift, drift, event_or_not = drift_corrector.main(results, ROI_locations, n_frames)
 
         # %% HSM
 
         print('Starting HSM')
 
-        hsm = hsm.HSM(hsm_dir, frames[0], ROI_locations, metadata, CORRECTION)
-        hsm_result, hsm_intensity = hsm.main()
+        #  hsm = hsm.HSM(hsm_dir, frames[0], ROI_locations, metadata, CORRECTION)
+        #  hsm_result, hsm_intensity = hsm.main()
 
         print('Starting saving')
 
-# %% save everything
-        tools.save_to_csv_mat_metadata('metadata', metadata, path)
-        tools.save_to_csv_mat_roi('ROI_locations', ROI_locations, frames[0].shape[0], path)
-        tools.save_to_csv_mat_drift('Drift_correction', drift, path)
-        tools.save_to_csv_mat_results('Localizations', results, METHOD, path)
-        tools.save_to_csv_mat_results('Localizations_drift', results_drift, METHOD, path)
+        # %% Figures
 
-        tools.text_output({}, METHOD, THRESHOLD_METHOD, "", total_fits, failed_fits, time_taken, path)
+        settings = {'roi_size': ROI_SIZE}
+
+        start = time.time()
+
+        figuring.save_graphs(frames, results, results_drift, ROI_locations, METHOD, "pixels", FIGURE_OPTION,
+                             path, event_or_not, settings)
+
+        time_taken = round(time.time() - start, 3)
+        print('Time taken plotting: ' + str(time_taken) + ' s. Fits done: ' + str(successful_fits))
+
+        # %% Convert coordinate system
+
+        results = tools.switch_results_to_matlab_coordinates(results, frames[0].shape[0], METHOD)
+        results_drift = tools.switch_results_to_matlab_coordinates(results_drift, frames[0].shape[0], METHOD)
+        roi_locations = tools.switch_axis_to_matlab_coordinates(roi_locations, frames[0].shape[0])
+        drift = tools.switch_axis(drift)
+
+        # %% save everything
+        outputting.save_to_csv_mat_metadata('metadata', metadata, path)
+        outputting.save_to_csv_mat_roi('ROI_locations', ROI_locations, frames[0].shape[0], path)
+        outputting.save_to_csv_mat_drift('Drift_correction', drift, path)
+        outputting.save_to_csv_mat_results('Localizations', results, METHOD, path)
+        outputting.save_to_csv_mat_results('Localizations_drift', results_drift, METHOD, path)
+
+        outputting.text_output({}, METHOD, THRESHOLD_METHOD, "", total_fits, failed_fits, time_taken, path)
