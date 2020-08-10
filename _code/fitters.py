@@ -72,7 +72,7 @@ class Gaussian:
     Gaussian fitter with estimated background, build upon Scipy Optimize Least-Squares
     """
 
-    def __init__(self, roi_size, thresholds, threshold_method, method, num_fit_params):
+    def __init__(self, roi_size, thresholds, threshold_method, method, num_fit_params, snr):
         """
 
         Parameters
@@ -108,6 +108,11 @@ class Gaussian:
 
         self.rel_step = EPS ** (1 / 3)
         self.comp = np.ones(num_fit_params)
+
+        if snr == "No":
+            self.max_its = 100
+        else:
+            self.max_its = 400
 
     def fun_find_max(self, roi):
         """
@@ -409,7 +414,7 @@ class Gaussian:
         else:
             params = self.phasor_guess(data)
             params[3:5] = self.params[peak_index, :]
-        p = self.least_squares(params, data, max_nfev=100)  # , ftol=1e-10, xtol=1e-10, gtol=1e-10)
+        p = self.least_squares(params, data, max_nfev=self.max_its)  # , ftol=1e-10, xtol=1e-10, gtol=1e-10)
 
         return [p.x, p.nfev, p.success]
 

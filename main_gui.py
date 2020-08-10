@@ -697,17 +697,25 @@ class FittingPage(tk.Frame):
                                             bg="white")
         self.figures_check.grid(row=24, column=33, columnspan=7, sticky='EW', padx=PAD_BIG)
 
+        low_snr_label = tk.Label(self, text="Low SNR?", font=FONT_LABEL, bg='white')
+        low_snr_label.grid(row=27, column=33, columnspan=7, sticky='EW', padx=PAD_BIG)
+
+        self.low_snr_var = tk.StringVar(self, value="No")
+        self.low_snr_check = tk.Checkbutton(self, variable=self.low_snr_var, onvalue="Yes", offvalue="No",
+                                            bg="white")
+        self.low_snr_check.grid(row=28, column=33, columnspan=7, sticky='EW', padx=PAD_BIG)
+
         frame_begin_label = tk.Label(self, text="Begin frame", font=FONT_LABEL, bg='white')
-        frame_begin_label.grid(row=27, column=0, columnspan=20, sticky='EW', padx=PAD_BIG)
+        frame_begin_label.grid(row=27, column=0, columnspan=16, sticky='EW', padx=PAD_BIG)
 
         self.frame_begin_input = EntryPlaceholder(self, "Leave empty for start", width=INPUT_BIG)
-        self.frame_begin_input.grid(row=28, column=0, columnspan=20)
+        self.frame_begin_input.grid(row=28, column=0, columnspan=16)
 
         frame_end_label = tk.Label(self, text="End frame", font=FONT_LABEL, bg='white')
-        frame_end_label.grid(row=27, column=20, columnspan=20, sticky='EW', padx=PAD_BIG)
+        frame_end_label.grid(row=27, column=16, columnspan=16, sticky='EW', padx=PAD_BIG)
 
         self.frame_end_input = EntryPlaceholder(self, "Leave empty for end", width=INPUT_BIG)
-        self.frame_end_input.grid(row=28, column=20, columnspan=20)
+        self.frame_end_input.grid(row=28, column=16, columnspan=16)
 
         self.button_fit = BigButton(self, text="FIT", height=int(GUI_HEIGHT / 8),
                                     width=int(GUI_WIDTH / 8), state='disabled',
@@ -829,7 +837,7 @@ class FittingPage(tk.Frame):
                                           start=defaults['sigma_max'])
             self.min_corr_slider.updater(from_=0, to=1, start=defaults['corr_min'])
         else:
-            self.roi_fitter = fitting.Gaussian(7, {}, "None", "Gaussian", 5)
+            self.roi_fitter = fitting.Gaussian(7, {}, "None", "Gaussian", 5, "Yes")
 
             self.roi_finder = roi_finding.RoiFinder(self.frames[0], self.roi_fitter)
 
@@ -912,7 +920,7 @@ class FittingPage(tk.Frame):
             tk.messagebox.showerror("ERROR", "Filter size should be odd")
             return False
 
-        self.roi_fitter = fitting.Gaussian(settings['roi_size'], {}, "None", "Gaussian", 5)
+        self.roi_fitter = fitting.Gaussian(settings['roi_size'], {}, "None", "Gaussian", 5, "Yes")
 
         self.roi_finder.change_settings(settings)
 
@@ -1080,6 +1088,7 @@ class FittingPage(tk.Frame):
         method = self.method_var.get()
         rejection_type = self.rejection_var.get()
         figures_option = self.figures_var.get()
+        low_snr = self.low_snr_var.get()
 
         if rejection_type == "Strict" and (method == "Phasor + Sum" or method == "Phasor" or
                                            method == "Phasor + Intensity"):
@@ -1122,9 +1131,9 @@ class FittingPage(tk.Frame):
             elif method == "Phasor":
                 fitter = fitting.PhasorDumb(roi_size, dataset_settings, rejection_type, method)
             elif method == "Gaussian - Fit bg":
-                fitter = fitting.GaussianBackground(roi_size, dataset_settings, rejection_type, method, 6)
+                fitter = fitting.GaussianBackground(roi_size, dataset_settings, rejection_type, method, 6, low_snr)
             elif method == "Gaussian - Estimate bg":
-                fitter = fitting.Gaussian(roi_size, dataset_settings, rejection_type, method, 5)
+                fitter = fitting.Gaussian(roi_size, dataset_settings, rejection_type, method, 5, low_snr)
             else:
                 fitter = fitting.PhasorSum(roi_size, dataset_settings, rejection_type, method)
 
