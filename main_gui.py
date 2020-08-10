@@ -31,8 +31,9 @@ v0.8.1: metadata v3
 v1.0: roll-out version one
 v1.0.1: instant bugfix open all .nd2s
 v1.1: Bugfixes and improved figures (WIP)
+v1.1.1: tiny bugfixes: 10/08/2020
 """
-__version__ = "1.1"
+__version__ = "1.1.1"
 
 # GENERAL IMPORTS
 from os import getcwd, mkdir, environ, listdir  # to get standard usage
@@ -1043,7 +1044,10 @@ class FittingPage(tk.Frame):
         if self.dataset_index in self.saved_settings:
             self.restore_saved_drop_var.set("Dataset " + str(self.dataset_index + 1))
             self.hsm_correct_var.set(self.saved_settings[self.dataset_index]['hsm_correction'])
-            hsm_folder_show = '/'.join(self.saved_settings[self.dataset_index]['hsm_directory'].split('/')[-2:])
+            if self.saved_settings[self.dataset_index]['hsm_directory'] is not None:
+                hsm_folder_show = '/'.join(self.saved_settings[self.dataset_index]['hsm_directory'].split('/')[-2:])
+            else:
+                hsm_folder_show = ""
             self.hsm_folder_disp['text'] = hsm_folder_show
         else:
             self.restore_saved_drop_var.set("")
@@ -1329,7 +1333,7 @@ class FittingPage(tk.Frame):
             time_taken = current_time - self.start_time
             time_done_estimate = time_taken * 100 / progress + self.start_time
             tr = time.localtime(time_done_estimate)
-            time_text = str(tr[3]) + ":" + str(tr[4]) + ":" + str(tr[5]) + " " + str(tr[2]) + "/" + str(tr[1])
+            time_text = "{:02d}:{:02d}:{:02d} {:02d}/{:02d}".format(tr[3], tr[4], tr[5], tr[2], tr[1])
 
             self.time_status_label.updater(text=time_text)
         self.progress_status_label.updater(text=progress_text)
