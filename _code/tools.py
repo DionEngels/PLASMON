@@ -28,7 +28,21 @@ v1.1: emptied out: 09/08/2020
 from numpy import zeros
 
 
-def change_to_pixels(results, metadata, method):
+def change_to_nm(results, metadata, method):
+    """
+    Change the pixels to nm
+
+    Parameters
+    -----------------
+    results: the results in pixels
+    metadata: metadata to get the pixelsize from
+    method: method, to check if sigmas also need to be changed
+
+    Returns
+    ------------------
+    results: the results in nm
+
+    """
     pixelsize_nm = metadata['pixel_microns'] * 1000
     results[:, 2] *= pixelsize_nm  # y position to nm
     results[:, 3] *= pixelsize_nm  # x position to nm
@@ -40,7 +54,18 @@ def change_to_pixels(results, metadata, method):
 
 
 def roi_to_matlab_coordinates(roi_locs, height):
+    """
+    Change from Python to MATLAB coordinates for ROI locations
 
+    Parameters
+    -----------------
+    roi_locs: ROI locations
+    height: Height of microscope view
+
+    Returns
+    ------------------
+    results: the roi locations switched to MATLAB coordinates
+    """
     roi_locs = switch_axis(roi_locs)
     roi_locs[:, 1] = height - roi_locs[:, 1]
 
@@ -48,7 +73,21 @@ def roi_to_matlab_coordinates(roi_locs, height):
 
 
 def switch_results_to_matlab_coordinates(results, height, method, nm_or_pixels, metadata):
+    """
+    Change from Python to MATLAB coordinates for results
 
+    Parameters
+    -----------------
+    results: the results in Python coordinates
+    height: Height of microscope view
+    method: to check whether or not sigmas also need to be changed
+    nm_or_pixels: whether or not the results are in pixels or nm
+    metadata: to get pixelsize
+
+    Returns
+    ------------------
+    results: the results switched to MATLAB coordinates
+    """
     results[:, 0] += 1  # add one to frame counting
     results[:, 1] += 1  # add one to ROI counting
 
@@ -61,7 +100,20 @@ def switch_results_to_matlab_coordinates(results, height, method, nm_or_pixels, 
 
 
 def switch_axis_to_matlab_coordinates(array, height, nm_or_pixels="pixels", metadata=None):
+    """
+    Change from Python to MATLAB coordinates for an x,y system
 
+    Parameters
+    -----------------
+    array: the array to be switched
+    height: Height of microscope view
+    nm_or_pixels: whether or not the results are in pixels or nm
+    metadata: to get pixelsize
+
+    Returns
+    ------------------
+    array: the array to MATLAB coordinates
+    """
     array = switch_axis(array)
     if nm_or_pixels == "nm":
         pixelsize_nm = metadata['pixel_microns'] * 1000

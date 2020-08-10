@@ -1206,7 +1206,7 @@ class FittingPage(tk.Frame):
 
             nm_or_pixels = self.dimension.get()
             if nm_or_pixels == "nm":
-                results = tools.change_to_pixels(results, self.metadata, method)
+                results = tools.change_to_nm(results, self.metadata, method)
 
             # drift correction
 
@@ -1473,5 +1473,5 @@ if __name__ == '__main__':
     ttk_style.configure("TSeparator", background="black")
     ttk_style.configure("TMenubutton", font=FONT_DROP, background="White")
 
-    #  tk.Tk.report_callback_exception = show_error
+    tk.Tk.report_callback_exception = show_error
     gui.mainloop()

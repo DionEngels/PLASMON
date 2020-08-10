@@ -134,6 +134,8 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
         for roi_index in range(roi_locations.shape[0]):
             if roi_index % int(roi_locations.shape[0] / 3) == 0:
                 roi_list.append(roi_index)
+        if len(roi_list) < 4:  # sometimes modulo does give four due to small mismatch. This adds a fourth ROI.
+            roi_list.append(range(roi_locations.shape[0])[-1])
     else:
         for i in range(4):
             value = i % roi_locations.shape[0]

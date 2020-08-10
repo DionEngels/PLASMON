@@ -98,7 +98,6 @@ def save_to_csv_mat_roi(name, rois, path):
     ----------
     name : name to save to
     rois : rois to save
-    height : height of video to switch y-axis
     path : path to save
 
     Returns

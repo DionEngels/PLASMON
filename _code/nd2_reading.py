@@ -12,6 +12,7 @@ Everything related to reading in the .nd2 files
 ----------------------------
 
 v1.0: split from tools and new version with only nd2reader and no longer nd2_reader (that is a different package)
+v1.1: None prevention: 10/08/2020
 
 """
 
@@ -21,7 +22,9 @@ from nd2reader.parser import Parser
 
 
 class ND2ReaderForMetadata(ND2Reader):
-
+    """
+    The ND2Reader based reader purely for metadata
+    """
     def __init__(self, filename):
         super(ND2Reader, self).__init__()
         self.filename = filename
@@ -43,7 +46,9 @@ class ND2ReaderForMetadata(ND2Reader):
         self._timesteps = None
 
     def get_metadata(self):
-
+        """
+        Get metadata. Reads out nd2 and returns the metadata
+        """
         metadata_dict = self.metadata
 
         metadata_dict.pop('rois', None)
@@ -74,11 +79,22 @@ class ND2ReaderForMetadata(ND2Reader):
             metadata_dict['Conversion_Gain'] = metadata_dict.pop('Conversion_Gain')
         except Exception:
             pass
+
+        for key, value in metadata_dict.items(): # prevent None values by making None string
+            if value is None:
+                metadata_dict[key] = str(value)
+
         metadata_dict['Others'] = metadata_dict_sequence
 
         return metadata_dict
 
     def recursive_add_to_dict(self, dictionary):
+        """
+        Function to parse dictionaries in metadata since many include dictionaries in dictionaries
+
+        :param dictionary: the dictionary to be parsed
+        :return: the result of the dictionary
+        """
         metadata_text_dict = {}
         for key_decoded, value_decoded in dictionary.items():
             if type(key_decoded) is bytes:
@@ -97,6 +113,12 @@ class ND2ReaderForMetadata(ND2Reader):
         return metadata_text_dict
 
     def parse_sequence_info(self, info_to_parse):
+        """
+        Parses the metadata info of the sequence
+
+        :param info_to_parse: the info to parse from nd2 file
+        :return: the parsed metadata
+        """
         main_part = info_to_parse[b'SLxPictureMetadata']
 
         metadata_text_dict = self.recursive_add_to_dict(main_part)
@@ -105,6 +127,12 @@ class ND2ReaderForMetadata(ND2Reader):
 
     @staticmethod
     def parse_text_info(info_to_parse):
+        """
+        Parses the metadata info of the image
+
+        :param info_to_parse: the info to parse from nd2 file
+        :return: the parsed metadata
+        """
         main_part = info_to_parse[b'SLxImageTextInfo']
         metadata_text_dict = {}
 
@@ -156,7 +184,9 @@ class ND2ReaderForMetadata(ND2Reader):
 
 
 class ND2ReaderSelf(ND2_Reader):
-
+    """
+    Self-made ND2 reader with improved metadata and less warnings
+    """
     def __init__(self, filename, series=0, channel=0):
         self._clear_axes()
         self._get_frame_dict = dict()
