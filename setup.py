@@ -27,7 +27,7 @@ from cx_Freeze import setup, Executable
 
 r'-b C:\Users\s150127\Downloads\___MBx\build'  # take this control location of build
 
-__version__ = '1.1'
+__version__ = '1.1.1'
 
 include_files = ['spectral_corrections/']
 PYTHON_INSTALL_DIR = os.path.dirname(os.path.dirname(os.__file__))

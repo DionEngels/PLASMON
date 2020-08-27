@@ -32,8 +32,9 @@ v1.0: roll-out version one
 v1.0.1: instant bugfix open all .nd2s
 v1.1: Bugfixes and improved figures (WIP)
 v1.1.1: tiny bugfixes: 10/08/2020
+v1.2: GUI and output improvement based on Sjoerd's feedback: 27/08/2020
 """
-__version__ = "1.1.1"
+__version__ = "1.2"
 
 # GENERAL IMPORTS
 from os import getcwd, mkdir, environ, listdir  # to get standard usage
@@ -225,10 +226,11 @@ class FigureFrame(tk.Frame):
         if roi_locations is not None and roi_size is not None:
             roi_locations_temp = roi_locations - roi_size
 
-            for roi in roi_locations_temp:
+            for roi_index, roi in enumerate(roi_locations_temp):
                 rect = patches.Rectangle((roi[1], roi[0]), roi_size * 2 + 1, roi_size * 2 + 1,
                                          linewidth=0.5, edgecolor='r', facecolor='none')
                 fig_sub.add_patch(rect)
+                fig_sub.text(roi[1], roi[0], str(roi_index+1), color='red', fontsize='small')
 
         self.canvas.draw()
         self.toolbar.update()
@@ -477,6 +479,7 @@ class FittingPage(tk.Frame):
         self.metadata = None
         self.temp_roi_locations = None
         self.filenames = None
+        self.filename_short = None
         self.start_time = None
         self.roi_locations = {}
         self.dataset_index = 0
@@ -618,34 +621,37 @@ class FittingPage(tk.Frame):
         line = ttk.Separator(self, orient='horizontal')
         line.grid(row=15, column=0, rowspan=1, columnspan=40, sticky='we')
 
-        self.button_left = NormalButton(self, text="<<", row=16, column=0, columnspan=5, sticky='EW',
+        self.button_left = NormalButton(self, text="<<", row=17, column=8, columnspan=5, sticky='EW',
                                         padx=PAD_SMALL)
         self.dataset_roi_status = NormalLabel(self, text="TBD",
-                                              row=16, column=5, columnspan=30, font=FONT_STATUS)
-        self.button_right = NormalButton(self, ">>", row=16, column=35, columnspan=5, sticky='EW',
+                                              row=17, column=13, columnspan=22, font=FONT_LABEL, sticky='EW')
+        self.button_right = NormalButton(self, ">>", row=17, column=35, columnspan=5, sticky='EW',
                                          padx=PAD_SMALL)
 
         button_find_rois = ttk.Button(self, text="Find ROIs", command=lambda: self.fit_rois())
-        button_find_rois.grid(row=17, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        button_find_rois.grid(row=16, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        self.number_of_rois = NormalLabel(self, text="TBD", row=17, column=0, columnspan=8, font=FONT_LABEL,
+                                          padx=PAD_SMALL, sticky='EW')
 
         button_restore = ttk.Button(self, text="Restore default",
                                     command=lambda: self.restore_default())
-        button_restore.grid(row=17, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        button_restore.grid(row=16, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         self.restore_saved_drop_var = tk.StringVar(self)
         self.restore_saved_drop = ttk.OptionMenu(self, self.restore_saved_drop_var, *self.saved_settings_list)
-        self.restore_saved_drop.grid(row=17, column=16, columnspan=8, sticky="ew")
+        self.restore_saved_drop.grid(row=16, column=16, columnspan=8, sticky="ew")
         self.restore_saved_drop['state'] = 'disabled'
 
         self.button_restore_saved = NormalButton(self, text="Restore saved",
                                                  state='disabled',
                                                  command=lambda: self.restore_saved(),
-                                                 row=17, column=24,
+                                                 row=16, column=24,
                                                  columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         button_save = ttk.Button(self, text="Save",
                                  command=lambda: self.save_roi_settings())
-        button_save.grid(row=17, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        button_save.grid(row=16, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         self.fig = FigureFrame(self, height=GUI_WIDTH * 0.4, width=GUI_WIDTH * 0.4, dpi=DPI)
         self.fig.grid(row=0, column=40, columnspan=10, rowspan=18, sticky='EW', padx=PAD_SMALL)
@@ -774,7 +780,10 @@ class FittingPage(tk.Frame):
         self.filenames = filenames
         self.dataset_index = 0
 
-        self.dataset_roi_status.updater(text="Dataset " + str(self.dataset_index + 1) + " of " + str(len(filenames)))
+        self.filename_short = filenames[self.dataset_index].split("/")[-1][:-4]
+
+        self.dataset_roi_status.updater(text=self.filename_short + " (" + str(self.dataset_index + 1) + " of " +
+                                             str(len(filenames)) + ")")
         self.roi_status.updater(text="0 of " + str(len(filenames)) + " have settings")
 
         self.nd2 = nd2_reading.ND2ReaderSelf(filenames[self.dataset_index])
@@ -928,6 +937,7 @@ class FittingPage(tk.Frame):
         self.temp_roi_locations = self.roi_finder.main(self.roi_fitter)
 
         self.fig.updater(self.frames[0], roi_locations=self.temp_roi_locations, roi_size=self.roi_finder.roi_size_1d)
+        self.number_of_rois.updater(text=str(len(self.temp_roi_locations)) + " ROIs found")
 
         return True
 
@@ -1029,8 +1039,10 @@ class FittingPage(tk.Frame):
         self.to_hist = None
 
         self.dataset_index += change
-        self.dataset_roi_status.updater(text="Dataset " + str(self.dataset_index + 1) + " of "
-                                             + str(len(self.filenames)))
+
+        self.filename_short = filenames[self.dataset_index].split("/")[-1][:-4]
+        self.dataset_roi_status.updater(text=self.filename_short + " (" + str(self.dataset_index + 1) + " of " +
+                                             str(len(filenames)) + ")")
 
         self.nd2.close()
         self.nd2 = nd2_reading.ND2ReaderSelf(self.filenames[self.dataset_index])
@@ -1255,7 +1267,7 @@ class FittingPage(tk.Frame):
             self.progress_status_label.updater(text="Plotting dataset " +
                                                     str(self.dataset_index + 1) + " of " + str(len(filenames)))
             figuring.save_graphs(self.frames, results, results_drift, roi_locations, method, nm_or_pixels,
-                                 figures_option, path, event_or_not, dataset_settings)
+                                 figures_option, path, event_or_not, dataset_settings, self.metadata['timesteps'])
 
             # Switch to MATLAB coordinates
 

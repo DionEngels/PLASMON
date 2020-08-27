@@ -13,6 +13,7 @@ Everything related to making figures
 
 v1.0: split from tools: 07/08/2020
 v1.1: individual ROI figures
+v1.2: minor improvement based on Sjoerd's feedback: 27/08/2020
 
 """
 
@@ -55,7 +56,7 @@ def plot_rois(frame, roi_locations, roi_size):
 
 
 def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pixels, figures_option, path,
-                event_or_not, settings):
+                event_or_not, settings, time_axis):
     """
     Input results and drift-corrected results, puts out some example graphs for quick checking
 
@@ -71,6 +72,7 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
     path: path in which to place graphs
     event_or_not: event or not boolean for each roi
     settings: settings used to fit with
+    time_axis: time axis of experiment
 
     Returns
     -------
@@ -78,6 +80,8 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
     """
     path += "/Graphs"
     mkdir(path)
+
+    time_axis /= 1000
 
     if "Gaussian" in method:
         fig = plt.figure(constrained_layout=True, figsize=(16, 40))
@@ -90,9 +94,9 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
 
         overall_intensity = results[:, 4]
         ax_int.hist(overall_intensity, bins=100)
-        ax_int.set_xlabel('Intensity (counts)')
+        ax_int.set_xlabel('Integrated intensity (counts)')
         ax_int.set_ylabel('Occurrence')
-        ax_int.set_title('Intensity occurrence')
+        ax_int.set_title('Integrated intensity occurrence')
 
         overall_sigma_x = results[:, 5]
         overall_sigma_y = results[:, 6]
@@ -120,10 +124,11 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
     roi_size_1d = int((roi_size - 1) / 2)
     roi_locations_temp = roi_locations - roi_size_1d
 
-    for roi in roi_locations_temp:
+    for roi_index, roi in enumerate(roi_locations_temp):
         rect = patches.Rectangle((roi[1], roi[0]), roi_size, roi_size,
                                  linewidth=0.5, edgecolor='r', facecolor='none')
         ax_overview.add_patch(rect)
+        ax_overview.text(roi[1], roi[0], str(roi_index + 1), color='red')
 
     ax_overview.set_xlabel('x (pixels)')
     ax_overview.set_ylabel('y (pixels)')
@@ -162,9 +167,9 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
         if "Gaussian" in method:
             ax_tt = fig.add_subplot(gs[row, column + 1])
             intensities = results[results[:, 1] == roi_index, 4]
-            ax_tt.plot(intensities)
-            ax_tt.set_xlabel('Frames')
-            ax_tt.set_ylabel('Intensity (counts)')
+            ax_tt.plot(time_axis, intensities)
+            ax_tt.set_xlabel('Time (s)')
+            ax_tt.set_ylabel('Integrated intensity (counts)')
             ax_tt.set_title('Time trace ROI ' + str(roi_index + 1))
 
         x_positions = results[results[:, 1] == roi_index, 2]
@@ -222,9 +227,9 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
             if "Gaussian" in method:
                 ax_tt = fig.add_subplot(2, 2, 2)
                 intensities = results[results[:, 1] == roi_index, 4]
-                ax_tt.plot(intensities)
-                ax_tt.set_xlabel('Frames')
-                ax_tt.set_ylabel('Intensity (counts)')
+                ax_tt.plot(time_axis, intensities)
+                ax_tt.set_xlabel('Time (s)')
+                ax_tt.set_ylabel('Integrated intensity (counts)')
                 ax_tt.set_title('Time trace ROI ' + str(roi_index + 1))
 
             x_positions = results[results[:, 1] == roi_index, 2]

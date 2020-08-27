@@ -12,6 +12,7 @@ Everything related to saving the results
 ----------------------------
 
 v1.0: split from tools: 07/08/2020
+v1.1: Integrated intensity instead of peak Gaussian intensity: 27/08/2020
 
 """
 
@@ -78,11 +79,11 @@ def save_to_csv_mat_results(name, results, method, path):
             header = "Frame index,ROI index,x position,y position,Sum of ROI pixel values"
             savetxt(path + "/" + name + '.csv', results, delimiter=',', header=header)
         elif method == "Gaussian - Fit bg":
-            header = "Frame index,ROI index,x position,y position,Intensity Gaussian,Sigma x,Sigma y,Background (" \
+            header = "Frame index,ROI index,x position,y position,Integrated intensity,Sigma x,Sigma y,Background (" \
                      "fitted),Iterations needed to converge"
             savetxt(path + "/" + name + '.csv', results, delimiter=',', header=header)
         else:
-            header = "Frame index,ROI index,x position,y position,Intensity Gaussian,Sigma x,Sigma y,Background (" \
+            header = "Frame index,ROI index,x position,y position,Integrated intensity,Sigma x,Sigma y,Background (" \
                      "estimate),Iterations needed to converge"
             savetxt(path + "/" + name + '.csv', results, delimiter=',', header=header)
 
@@ -188,8 +189,8 @@ def text_output(settings, method, threshold_method, nm_or_pixels, total_fits, fa
         elif method == "Phasor + Sum":
             text_file.write("Frame index | ROI index | x position | y position | Sum of ROI pixel values \n")
         elif method == "Gaussian - Fit bg":
-            text_file.write("Frame index | ROI index | x position | y position | Intensity Gaussian | "
+            text_file.write("Frame index | ROI index | x position | y position | Integrated intensity | "
                             "Sigma x | Sigma y | Background (fitted) | Iterations needed to converge \n")
         else:
-            text_file.write("Frame index | ROI index | x position | y position | Intensity Gaussian | "
+            text_file.write("Frame index | ROI index | x position | y position | Integrated intensity | "
                             "Sigma x | Sigma y | Background (estimate) | Iterations needed to converge \n")
