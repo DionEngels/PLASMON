@@ -70,6 +70,8 @@ METHOD = "Gaussian - Estimate bg"
 DATASET = "YUYANG"  # "MATLAB_v2, "MATLAB_v3" OR "YUYANG"
 THRESHOLD_METHOD = "Loose"  # "Strict", "Loose", or "None"
 CORRECTION = "SN_objTIRF_PFS_510-800"  # "Matej_670-890"
+NM_OR_PIXELS = "nm"
+LOW_SNR = "No"
 
 # %% Main loop cell
 
@@ -118,7 +120,7 @@ for name in filenames:
         # %% Find ROIs (for standard NP2 file)
         print('Starting to find ROIs')
 
-        fitter = fitting.Gaussian(ROI_SIZE, {}, "None", "Gaussian", 5)
+        fitter = fitting.Gaussian(ROI_SIZE, {}, "None", "Gaussian", 5, "No")
 
         roi_finder = roi_finding.RoiFinder(frames[0], fitter)
         roi_finder.roi_size = ROI_SIZE
@@ -146,9 +148,9 @@ for name in filenames:
         elif METHOD == "Phasor + Sum":
             fitter = fitting.PhasorSum(ROI_SIZE, thresholds, THRESHOLD_METHOD, METHOD)
         elif METHOD == "Gaussian - Estimate bg":
-            fitter = fitting.Gaussian(ROI_SIZE, thresholds, THRESHOLD_METHOD, METHOD, 5)
+            fitter = fitting.Gaussian(ROI_SIZE, thresholds, THRESHOLD_METHOD, METHOD, 5, LOW_SNR)
         elif METHOD == "Gaussian - Fit bg":
-            fitter = fitting.GaussianBackground(ROI_SIZE, thresholds, THRESHOLD_METHOD, METHOD, 6)
+            fitter = fitting.GaussianBackground(ROI_SIZE, thresholds, THRESHOLD_METHOD, METHOD, 6, LOW_SNR)
 
         results = fitter.main(frames, metadata, ROI_locations)
 
@@ -170,10 +172,6 @@ for name in filenames:
         #     plt.title("Frame number: " + str(index))
         #     plt.show()
 
-        if DATASET == "YUYANG":
-            # MATLAB works from bottom left as zero point, Python top left. Thus, y is switched
-            results[:, 3] = frames[0].shape[0] - results[:, 3]
-
         # %% drift correction
 
         print('Starting drift correction')
@@ -184,8 +182,8 @@ for name in filenames:
 
         print('Starting HSM')
 
-        #  hsm = hsm.HSM(hsm_dir, frames[0], ROI_locations, metadata, CORRECTION)
-        #  hsm_result, hsm_intensity = hsm.main()
+        hsm = hsm.HSM(hsm_dir, frames[0], ROI_locations, metadata, CORRECTION)
+        hsm_result, hsm_intensity = hsm.main()
 
         print('Starting saving')
 
@@ -203,10 +201,13 @@ for name in filenames:
 
         # %% Convert coordinate system
 
-        results = tools.switch_results_to_matlab_coordinates(results, frames[0].shape[0], METHOD)
-        results_drift = tools.switch_results_to_matlab_coordinates(results_drift, frames[0].shape[0], METHOD)
-        roi_locations = tools.switch_axis_to_matlab_coordinates(roi_locations, frames[0].shape[0])
-        drift = tools.switch_axis(drift)
+        if DATASET == "YUYANG":
+            results = tools.switch_results_to_matlab_coordinates(results, frames[0].shape[0], METHOD,
+                                                                 NM_OR_PIXELS, metadata)
+            results_drift = tools.switch_results_to_matlab_coordinates(results_drift, frames[0].shape[0], METHOD,
+                                                                       NM_OR_PIXELS, metadata)
+            roi_locations = tools.switch_axis_to_matlab_coordinates(roi_locations, frames[0].shape[0])
+            drift = tools.switch_axis(drift)
 
         # %% save everything
         outputting.save_to_csv_mat_metadata('metadata', metadata, path)

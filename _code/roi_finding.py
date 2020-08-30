@@ -24,7 +24,8 @@ v1.1: list creation bugfixes
 
 """
 import numpy as np  # for linear algebra
-from scipy.signal import medfilt, convolve2d
+from scipy.signal import convolve2d
+from scipy.ndimage import median_filter
 from scipy.ndimage.filters import maximum_filter
 
 # %% Python ROI finder
@@ -70,7 +71,7 @@ class RoiFinder:
             self.side_distance = 11
             self.roi_distance = 6
 
-            background = medfilt(frame, kernel_size=self.filter_size)
+            background = median_filter(frame, size=self.filter_size, mode='constant')
             background[background == 0] = np.min(background[background > 0])
             self.frame = frame.astype('float') - background
 
