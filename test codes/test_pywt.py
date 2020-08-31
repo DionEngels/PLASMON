@@ -1,6 +1,6 @@
 from pims import ND2Reader_SDK
 import pywt
-from scipy.ndimage import median_filter
+from scipy.ndimage import median_filter, minimum_filter
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -18,14 +18,14 @@ if __name__ == "__main__":
         Wavelets = ['bior3.3', 'bior3.5', 'bior3.7', 'bior3.9', 'bior4.4', 'bior5.5', 'bior6.8']
 
         for wavelet in Wavelets:
-            background_pywt = pywt.wavedec2(frame_zero, wavelet)
+            coeffs = pywt.wavedec2(frame_zero, wavelet, level=4)
             if wavelet == 'bior3.3':
-                background = pywt.waverec2(background_pywt, wavelet)
+                background = pywt.waverec2(coeffs, wavelet)
                 background = background
-            background += pywt.waverec2(background_pywt, wavelet)
+            background += pywt.waverec2(coeffs, wavelet)
 
-        background /= len(Wavelets)
-        background2 = median_filter(frame_zero, size=9, mode='constant')
+        background /= len(Wavelets)+1
+        background2 = median_filter(frame_zero, size=9, mode='nearest')
 
         fig_base, ax_base = plt.subplots(1)
         ax_base.imshow(frame_zero, extent=[0, frame_zero.shape[1], frame_zero.shape[0], 0], aspect='auto')
@@ -39,4 +39,13 @@ if __name__ == "__main__":
         result2 = frame_zero - background2
         fig2, ax2 = plt.subplots(1)
         ax2.imshow(result2, extent=[0, background2.shape[1], background2.shape[0], 0], aspect='auto')
+        plt.show()
+
+        # %% others
+
+        background_min = minimum_filter(frame_zero, size=5, mode='nearest')
+        result_min = frame_zero - background_min
+
+        fig_min, ax_min = plt.subplots(1)
+        ax_min.imshow(result_min, extent=[0, background2.shape[1], background2.shape[0], 0], aspect='auto')
         plt.show()

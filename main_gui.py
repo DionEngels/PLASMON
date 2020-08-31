@@ -1160,18 +1160,22 @@ class FittingPage(tk.Frame):
                 end_frame = self.metadata['num_frames']
                 start_frame = 0
                 to_fit = self.frames
+                time_axis = self.metadata['timesteps']
             elif start_frame == "Leave empty for start" and end_frame != "Leave empty for end":
                 start_frame = 0
                 end_frame = int(end_frame)
                 to_fit = self.frames[:end_frame]
+                time_axis = self.metadata['timesteps'][:end_frame]
             elif start_frame != "Leave empty for start" and end_frame == "Leave empty for end":
                 start_frame = int(start_frame)
                 end_frame = self.metadata['num_frames']
                 to_fit = self.frames[start_frame:]
+                time_axis = self.metadata['timesteps'][start_frame:]
             else:  # start_frame != "Leave empty for start" and end_frame != "Leave empty for end":
                 start_frame = int(start_frame)
                 end_frame = int(end_frame)
                 to_fit = self.frames[start_frame:end_frame]
+                time_axis = self.metadata['timesteps'][start_frame:end_frame]
 
             num_frames = end_frame - start_frame
 
@@ -1267,7 +1271,7 @@ class FittingPage(tk.Frame):
             self.progress_status_label.updater(text="Plotting dataset " +
                                                     str(self.dataset_index + 1) + " of " + str(len(filenames)))
             figuring.save_graphs(self.frames, results, results_drift, roi_locations, method, nm_or_pixels,
-                                 figures_option, path, event_or_not, dataset_settings, self.metadata['timesteps'])
+                                 figures_option, path, event_or_not, dataset_settings, time_axis)
 
             # Switch to MATLAB coordinates
 

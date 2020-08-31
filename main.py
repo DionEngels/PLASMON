@@ -64,7 +64,7 @@ hsm_dir = ("C:/Users/s150127/Downloads/___MBx/datasets/_1nMimager_newGNRs_100mW_
 fit_options = ["Gaussian - Fit bg", "Gaussian - Estimate bg",
                "Phasor + Intensity", "Phasor + Sum", "Phasor"]
 
-FIGURE_OPTION = "All" # "Few" "All"
+FIGURE_OPTION = "Overview" # "Overview" "All"
 
 METHOD = "Gaussian - Estimate bg"
 DATASET = "YUYANG"  # "MATLAB_v2, "MATLAB_v3" OR "YUYANG"
@@ -72,6 +72,7 @@ THRESHOLD_METHOD = "Loose"  # "Strict", "Loose", or "None"
 CORRECTION = "SN_objTIRF_PFS_510-800"  # "Matej_670-890"
 NM_OR_PIXELS = "nm"
 LOW_SNR = "No"
+SLICE = slice(0, 10)
 
 # %% Main loop cell
 
@@ -108,13 +109,13 @@ for name in filenames:
             frames = np.swapaxes(frames, 0, 1)
             metadata = {'NA': 1, 'calibration_um': 0.120, 'sequence_count': frames.shape[0], 'time_start': 3,
                         'time_start_utc': 3}
-            #  frames = frames[0:100, :, :]
+            #  frames = frames[SLICE, :, :]
             n_frames = frames.shape[0]
         elif DATASET == "YUYANG":
             # parse ND2 info
             frames = ND2
             metadata = ND2.get_metadata()
-            frames = frames[0:10]
+            frames = frames[SLICE]
             n_frames = len(frames)
 
         # %% Find ROIs (for standard NP2 file)
@@ -182,7 +183,7 @@ for name in filenames:
 
         print('Starting HSM')
 
-        hsm = hsm.HSM(hsm_dir, frames[0], ROI_locations, metadata, CORRECTION)
+        hsm = hsm.HSM(hsm_dir, np.asarray(frames[0], dtype=frames[0].dtype), ROI_locations, metadata, CORRECTION)
         hsm_result, hsm_intensity = hsm.main()
 
         print('Starting saving')
@@ -194,7 +195,7 @@ for name in filenames:
         start = time.time()
 
         figuring.save_graphs(frames, results, results_drift, ROI_locations, METHOD, "pixels", FIGURE_OPTION,
-                             path, event_or_not, settings, metadata['timesteps'])
+                             path, event_or_not, settings, metadata['timesteps'][SLICE])
 
         time_taken = round(time.time() - start, 3)
         print('Time taken plotting: ' + str(time_taken) + ' s. Fits done: ' + str(successful_fits))
@@ -206,7 +207,7 @@ for name in filenames:
                                                                  NM_OR_PIXELS, metadata)
             results_drift = tools.switch_results_to_matlab_coordinates(results_drift, frames[0].shape[0], METHOD,
                                                                        NM_OR_PIXELS, metadata)
-            roi_locations = tools.switch_axis_to_matlab_coordinates(roi_locations, frames[0].shape[0])
+            ROI_locations = tools.switch_axis_to_matlab_coordinates(ROI_locations, frames[0].shape[0])
             drift = tools.switch_axis(drift)
 
         # %% save everything
