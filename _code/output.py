@@ -25,7 +25,8 @@ from datetime import datetime
 TRANSLATOR_DICT = {'int_max': 'Maximum Intensity', 'int_min': 'Minimum Intensity', 'sigma_min': "Minimum Sigma",
                    'sigma_max': "Maximum Sigma", 'corr_min': "Minimum Correlation",
                    'roi_size': "ROI size", 'filter_size': "Filter size",
-                   'roi_side': "Side spacing", 'inter_roi': "ROI spacing"}
+                   'roi_side': "Side spacing", 'inter_roi': "ROI spacing",
+                   'max_its': "Maximum number of iterations for fitter"}
 
 
 def save_to_csv_mat_metadata(name, values, path):

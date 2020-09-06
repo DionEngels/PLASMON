@@ -71,7 +71,6 @@ DATASET = "YUYANG"  # "MATLAB_v2, "MATLAB_v3" OR "YUYANG"
 THRESHOLD_METHOD = "Loose"  # "Strict", "Loose", or "None"
 CORRECTION = "SN_objTIRF_PFS_510-800"  # "Matej_670-890"
 NM_OR_PIXELS = "nm"
-LOW_SNR = "No"
 SLICE = slice(0, 10)
 
 # %% Main loop cell
@@ -121,7 +120,7 @@ for name in filenames:
         # %% Find ROIs (for standard NP2 file)
         print('Starting to find ROIs')
 
-        fitter = fitting.Gaussian(ROI_SIZE, {}, "None", "Gaussian", 5, "No")
+        fitter = fitting.Gaussian(ROI_SIZE, {}, "None", "Gaussian", 5, 300)
 
         roi_finder = roi_finding.RoiFinder(frames[0], fitter)
         roi_finder.roi_size = ROI_SIZE
@@ -132,6 +131,7 @@ for name in filenames:
             roi_finder.corr_min = 0.001
 
         ROI_locations = roi_finder.main(fitter)
+        max_its = roi_finder.find_snr(fitter)
 
         figuring.plot_rois(frames[0], ROI_locations, ROI_SIZE)
 
@@ -149,9 +149,9 @@ for name in filenames:
         elif METHOD == "Phasor + Sum":
             fitter = fitting.PhasorSum(ROI_SIZE, thresholds, THRESHOLD_METHOD, METHOD)
         elif METHOD == "Gaussian - Estimate bg":
-            fitter = fitting.Gaussian(ROI_SIZE, thresholds, THRESHOLD_METHOD, METHOD, 5, LOW_SNR)
+            fitter = fitting.Gaussian(ROI_SIZE, thresholds, THRESHOLD_METHOD, METHOD, 5, max_its)
         elif METHOD == "Gaussian - Fit bg":
-            fitter = fitting.GaussianBackground(ROI_SIZE, thresholds, THRESHOLD_METHOD, METHOD, 6, LOW_SNR)
+            fitter = fitting.GaussianBackground(ROI_SIZE, thresholds, THRESHOLD_METHOD, METHOD, 6, max_its)
 
         results = fitter.main(frames, metadata, ROI_locations)
 

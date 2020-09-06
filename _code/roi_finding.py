@@ -21,12 +21,17 @@ v0.4.2: changed "change_settings"
 v0.5: removed pixel min
 v1.0: bugfixes
 v1.1: list creation bugfixes
+v1.2: find max_its
 
 """
 import numpy as np  # for linear algebra
 from scipy.signal import convolve2d
 from scipy.ndimage import median_filter
 from scipy.ndimage.filters import maximum_filter
+from math import ceil
+
+from scipy.stats import norm
+import matplotlib.pyplot as plt
 
 # %% Python ROI finder
 
@@ -141,11 +146,12 @@ class RoiFinder:
 
         if settings['filter_size'] != self.filter_size:
             self.filter_size = settings['filter_size']
-            background = medfilt(self.base_frame, kernel_size=self.filter_size)
+            background = median_filter(self.base_frame, kernel_size=self.filter_size)
             background[background == 0] = np.min(background[background > 0])
             self.frame = self.base_frame.astype('float') - background
 
-    def make_gaussian(self, size, fwhm=3, center=None):
+    @staticmethod
+    def make_gaussian(size, fwhm=3, center=None):
         """
         Makes a 2D Gaussian
 
@@ -335,3 +341,19 @@ class RoiFinder:
             return self.int_list
         else:
             return self.roi_locations
+
+    def find_snr(self, fitter):
+        intensity_list = self.main(fitter, return_int=True)
+
+        mu, std = norm.fit(intensity_list)
+        intensity_list2 = np.asarray(intensity_list)[intensity_list < mu]
+        mu, std = norm.fit(intensity_list2)
+
+        if mu >= 2000:
+            max_its = 100
+        else:
+            int_under_which_more_its_are_needed = 2000
+            max_its = ceil((int_under_which_more_its_are_needed - mu) / 1000) * 100 + 100
+
+        return max_its
+

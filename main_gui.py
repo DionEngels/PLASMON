@@ -32,7 +32,7 @@ v1.0: roll-out version one
 v1.0.1: instant bugfix open all .nd2s
 v1.1: Bugfixes and improved figures (WIP)
 v1.1.1: tiny bugfixes: 10/08/2020
-v1.2: GUI and output improvement based on Sjoerd's feedback: 27/08/2020
+v1.2: GUI and output improvement based on Sjoerd's feedback: 27/08/2020 - 06/09/2020
 """
 __version__ = "1.2"
 
@@ -704,14 +704,6 @@ class FittingPage(tk.Frame):
                                             bg="white")
         self.figures_check.grid(row=24, column=33, columnspan=7, sticky='EW', padx=PAD_BIG)
 
-        low_snr_label = tk.Label(self, text="Low SNR?", font=FONT_LABEL, bg='white')
-        low_snr_label.grid(row=27, column=33, columnspan=7, sticky='EW', padx=PAD_BIG)
-
-        self.low_snr_var = tk.StringVar(self, value="No")
-        self.low_snr_check = tk.Checkbutton(self, variable=self.low_snr_var, onvalue="Yes", offvalue="No",
-                                            bg="white")
-        self.low_snr_check.grid(row=28, column=33, columnspan=7, sticky='EW', padx=PAD_BIG)
-
         frame_begin_label = tk.Label(self, text="Begin frame", font=FONT_LABEL, bg='white')
         frame_begin_label.grid(row=27, column=0, columnspan=16, sticky='EW', padx=PAD_BIG)
 
@@ -847,7 +839,7 @@ class FittingPage(tk.Frame):
                                           start=defaults['sigma_max'])
             self.min_corr_slider.updater(from_=0, to=1, start=defaults['corr_min'])
         else:
-            self.roi_fitter = fitting.Gaussian(7, {}, "None", "Gaussian", 5, "Yes")
+            self.roi_fitter = fitting.Gaussian(7, {}, "None", "Gaussian", 5, 300)
 
             self.roi_finder = roi_finding.RoiFinder(self.frames[0], self.roi_fitter)
 
@@ -930,7 +922,7 @@ class FittingPage(tk.Frame):
             tk.messagebox.showerror("ERROR", "Filter size should be odd")
             return False
 
-        self.roi_fitter = fitting.Gaussian(settings['roi_size'], {}, "None", "Gaussian", 5, "Yes")
+        self.roi_fitter = fitting.Gaussian(settings['roi_size'], {}, "None", "Gaussian", 5, 300)
 
         self.roi_finder.change_settings(settings)
 
@@ -940,6 +932,8 @@ class FittingPage(tk.Frame):
         self.number_of_rois.updater(text=str(len(self.temp_roi_locations)) + " ROIs found")
 
         return True
+
+    # %% find signal_to_noise of dataset
 
     # %% Fitting page, save ROI settings
 
@@ -959,7 +953,10 @@ class FittingPage(tk.Frame):
 
         self.roi_locations[self.dataset_index] = self.temp_roi_locations.copy()
 
+        max_its = self.roi_finder.find_snr(self.roi_fitter)
+
         settings = self.read_out_settings()
+        settings['max_its'] = max_its
 
         self.saved_settings[self.dataset_index] = settings
 
@@ -1104,7 +1101,6 @@ class FittingPage(tk.Frame):
         method = self.method_var.get()
         rejection_type = self.rejection_var.get()
         figures_option = self.figures_var.get()
-        low_snr = self.low_snr_var.get()
 
         if rejection_type == "Strict" and (method == "Phasor + Sum" or method == "Phasor" or
                                            method == "Phasor + Intensity"):
@@ -1139,6 +1135,9 @@ class FittingPage(tk.Frame):
             dataset_settings = self.saved_settings[self.dataset_index]
 
             roi_size = dataset_settings['roi_size']
+            max_its = dataset_settings['max_its']
+
+            print(max_its)
 
             roi_locations = self.roi_locations[self.dataset_index]
 
@@ -1147,9 +1146,9 @@ class FittingPage(tk.Frame):
             elif method == "Phasor":
                 fitter = fitting.PhasorDumb(roi_size, dataset_settings, rejection_type, method)
             elif method == "Gaussian - Fit bg":
-                fitter = fitting.GaussianBackground(roi_size, dataset_settings, rejection_type, method, 6, low_snr)
+                fitter = fitting.GaussianBackground(roi_size, dataset_settings, rejection_type, method, 6, max_its)
             elif method == "Gaussian - Estimate bg":
-                fitter = fitting.Gaussian(roi_size, dataset_settings, rejection_type, method, 5, low_snr)
+                fitter = fitting.Gaussian(roi_size, dataset_settings, rejection_type, method, 5, max_its)
             else:
                 fitter = fitting.PhasorSum(roi_size, dataset_settings, rejection_type, method)
 

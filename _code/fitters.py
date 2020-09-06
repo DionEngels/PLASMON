@@ -73,7 +73,7 @@ class Gaussian:
     Gaussian fitter with estimated background, build upon Scipy Optimize Least-Squares
     """
 
-    def __init__(self, roi_size, thresholds, threshold_method, method, num_fit_params, snr):
+    def __init__(self, roi_size, thresholds, threshold_method, method, num_fit_params, max_its):
         """
 
         Parameters
@@ -81,6 +81,7 @@ class Gaussian:
         roi_size : ROI size
         thresholds : minimum and maximum of fits
         threshold_method: way to apply threshold
+        max_its: number of iterations limit
 
         Returns
         -------
@@ -110,10 +111,7 @@ class Gaussian:
         self.rel_step = EPS ** (1 / 3)
         self.comp = np.ones(num_fit_params)
 
-        if snr == "No":
-            self.max_its = 100
-        else:
-            self.max_its = 400
+        self.max_its = max_its
 
     def fun_find_max(self, roi):
         """

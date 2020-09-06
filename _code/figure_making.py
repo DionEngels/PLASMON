@@ -14,16 +14,19 @@ Everything related to making figures
 v1.0: split from tools: 07/08/2020
 v1.1: individual ROI figures
 v1.2: minor improvement based on Sjoerd's feedback: 27/08/2020
+v1.3: feedback of Peter meeting: 06/09/2020
 
 """
 
 from os import mkdir
-from numpy import asarray, invert, concatenate
+from numpy import asarray, invert, concatenate, mean
+from numpy import max as np_max
+from numpy import min as np_min
+from math import ceil
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.gridspec import GridSpec
-from concurrent.futures import ThreadPoolExecutor as Executor
 
 
 def plot_rois(frame, roi_locations, roi_size):
@@ -53,6 +56,44 @@ def plot_rois(frame, roi_locations, roi_size):
 
     plt.title("ROI locations")
     plt.show()
+
+
+def find_range(results, results_drift, roi_locations):
+
+    max_range = 0
+
+    try:
+        numerate_length = roi_locations.shape[0]
+    except:
+        numerate_length = len(roi_locations)
+
+    for roi_index in range(numerate_length):
+        x_positions = results[results[:, 1] == roi_index, 2]
+        y_positions = results[results[:, 1] == roi_index, 3]
+
+        if np_max(x_positions) - np_min(x_positions) > max_range:
+            max_range = np_max(x_positions) - np_min(x_positions)
+        if np_max(y_positions) - np_min(y_positions) > max_range:
+            max_range = np_max(y_positions) - np_min(y_positions)
+
+        x_positions = results_drift[results_drift[:, 1] == roi_index, 2]
+        y_positions = results_drift[results_drift[:, 1] == roi_index, 3]
+
+        if np_max(x_positions) - np_min(x_positions) > max_range:
+            max_range = np_max(x_positions) - np_min(x_positions)
+        if np_max(y_positions) - np_min(y_positions) > max_range:
+            max_range = np_max(y_positions) - np_min(y_positions)
+
+    if max_range > 1999:
+        max_range = ceil(max_range / 100) * 100
+    elif max_range > 499:
+        max_range = ceil(max_range / 50) * 50
+    elif max_range > 199:
+        max_range = ceil(max_range / 20) * 20
+    else:
+        max_range = ceil(max_range / 10) * 10
+
+    return max_range
 
 
 def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pixels, figures_option, path,
@@ -128,7 +169,7 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
         rect = patches.Rectangle((roi[1], roi[0]), roi_size, roi_size,
                                  linewidth=0.5, edgecolor='r', facecolor='none')
         ax_overview.add_patch(rect)
-        ax_overview.text(roi[1], roi[0], str(roi_index + 1), color='red')
+        ax_overview.text(roi[1], roi[0], str(roi_index + 1), color='red', fontsize='large')
 
     ax_overview.set_xlabel('x (pixels)')
     ax_overview.set_ylabel('y (pixels)')
@@ -145,6 +186,8 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
         for i in range(4):
             value = i % roi_locations.shape[0]
             roi_list.append(value)
+
+    max_range = find_range(results, results_drift, roi_list)
 
     for roi_list_index, roi_index in enumerate(roi_list):
         row = start_row + int(int(roi_list_index / 2)*2)
@@ -188,6 +231,13 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
         ax_loc.axis('equal')
         ax_loc.legend()
 
+        ylim = ax_loc.get_ylim()
+        xlim = ax_loc.get_xlim()
+        x_center = mean(xlim)
+        y_center = mean(ylim)
+        ax_loc.set_xlim(x_center - max_range / 2, x_center + max_range / 2)
+        ax_loc.set_ylim(y_center - max_range / 2, y_center + max_range / 2)
+
         x_positions = results_drift[results_drift[:, 1] == roi_index, 2]
         y_positions = results_drift[results_drift[:, 1] == roi_index, 3]
 
@@ -203,11 +253,23 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
             ax_loc_drift.set_ylabel('y-position (pixels)')
         ax_loc_drift.set_title('Scatter ROI ' + str(roi_index + 1) + " post drift")
         ax_loc_drift.axis('equal')
+        ax_loc_drift.legend()
+
+        ylim = ax_loc_drift.get_ylim()
+        xlim = ax_loc_drift.get_xlim()
+        x_center = mean(xlim)
+        y_center = mean(ylim)
+        ax_loc_drift.set_xlim(x_center - max_range / 2, x_center + max_range / 2)
+        ax_loc_drift.set_ylim(y_center - max_range / 2, y_center + max_range / 2)
 
     name = path + "/" + "_Overview.png"
+    plt.tight_layout()
     fig.savefig(name, bbox_inches='tight')
 
     if figures_option == "All":
+
+        max_range = find_range(results, results_drift, roi_locations)
+
         for roi_index in range(roi_locations.shape[0]):
             fig = plt.figure(figsize=(8, 8))
 
@@ -249,6 +311,13 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
             ax_loc.axis('equal')
             ax_loc.legend()
 
+            ylim = ax_loc.get_ylim()
+            xlim = ax_loc.get_xlim()
+            x_center = mean(xlim)
+            y_center = mean(ylim)
+            ax_loc.set_xlim(x_center - max_range / 2, x_center + max_range / 2)
+            ax_loc.set_ylim(y_center - max_range / 2, y_center + max_range / 2)
+
             x_positions = results_drift[results_drift[:, 1] == roi_index, 2]
             y_positions = results_drift[results_drift[:, 1] == roi_index, 3]
 
@@ -264,6 +333,15 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
                 ax_loc_drift.set_ylabel('y-position (pixels)')
             ax_loc_drift.set_title('Scatter ROI ' + str(roi_index + 1) + " post drift")
             ax_loc_drift.axis('equal')
+            ax_loc_drift.legend()
+
+            ylim = ax_loc_drift.get_ylim()
+            xlim = ax_loc_drift.get_xlim()
+            x_center = mean(xlim)
+            y_center = mean(ylim)
+            ax_loc_drift.set_xlim(x_center - max_range / 2, x_center + max_range / 2)
+            ax_loc_drift.set_ylim(y_center - max_range / 2, y_center + max_range / 2)
 
             name = path + "/" + "ROI" + str(roi_index+1)+".png"
+            plt.tight_layout()
             fig.savefig(name, bbox_inches='tight')
