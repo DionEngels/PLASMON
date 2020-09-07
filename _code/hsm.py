@@ -14,6 +14,7 @@ This package is for the HSM part of MBx Python.
 v0.0.1: Loading in multiple nd2, finding .mats
 v0.0.2: complete but not working
 v0.0.3: continued development 31/08/2020
+v0.0.4: correlations working: 07/09/2020
 
 """
 # General
@@ -33,6 +34,9 @@ from scipy.signal import fftconvolve
 # Own code
 from _code.nd2_reading import ND2ReaderSelf
 import _code.fitters as fitting
+import _code.figure_making as figuring
+
+import matplotlib.pyplot as plt
 
 
 class HSM:
@@ -40,6 +44,17 @@ class HSM:
     Class for HSM of MBx Python
     """
     def __init__(self, directory, frame_zero, roi_locations, metadata, correction):
+
+        def only_ints(list_to_check):
+            new_list = []
+            for string in list_to_check:
+                try:
+                    int(string[:-4])
+                    new_list.append(string)
+                except ValueError:
+                    pass
+
+            return new_list
 
         self.roi_locations = roi_locations
         self.hsm_result = np.zeros((roi_locations.shape[0], 4))
@@ -61,6 +76,7 @@ class HSM:
             self.frames = np.asarray(nd2, dtype=np.uint16).copy()
             nd2.close()
         else:
+            self.nd2_files = only_ints(self.nd2_files)
             for nd2_index, nd2_name in enumerate(self.nd2_files):
                 nd2 = ND2ReaderSelf(self.nd2_dir + "/" + nd2_name)
                 frame = np.asarray(nd2, dtype=np.uint16).copy()
@@ -84,7 +100,7 @@ class HSM:
             self.spec_shape = correction['SpectralCorrection']['SpecShape']
 
     # %% Main
-    def main(self):
+    def main(self, verbose=False):
 
         def find_nearest(match_array, value_array, match_index):
             idx = (np.abs(match_array - match_index)).argmin()
@@ -109,18 +125,41 @@ class HSM:
 
         # correct frames for drift
 
-        self.frames, self.frame_merge = self.hsm_drift()
+        self.frames, self.frame_merge = self.hsm_drift(verbose=False)
 
         # correct ROI locations for drift in HSM images
 
-        #  corr_norm = self.normxcorr2_large(self.frame_merge, self.frame_zero)
-        #  corr_norm_2 = self.normxcorr2_large(self.frame_zero, self.frame_merge)
-        #  corr_norm2 = correlate2d(self.frame_zero, self.frame_merge)
-        corr = fftconvolve(self.frame_zero, self.frame_merge)
+        size_hsm_frame = np.asarray(self.frame_merge.shape, dtype=int)
+        size_laser_frame = np.asarray(self.frame_zero.shape, dtype=int)
 
+        corr = self.normxcorr2_large(self.frame_zero, self.frame_merge)
         maxima = np.transpose(np.asarray(np.where(corr == np.amax(corr))))[0]
-        offset = maxima - np.asarray(self.frame_zero.shape)
+        offset = maxima - np.asarray(self.frame_zero.shape) + np.asarray([1, 1])
         self.roi_locations += offset
+
+        if verbose:
+            fig, ax = plt.subplots(1)
+            ax.imshow(self.frame_merge, extent=[0, self.frame_merge.shape[1], self.frame_merge.shape[0], 0],
+                      aspect='auto')
+            plt.title("Merged frame")
+            plt.show()
+
+            fig, ax = plt.subplots(1)
+            ax.imshow(self.frame_zero, extent=[0, self.frame_zero.shape[1], self.frame_zero.shape[0], 0],
+                      aspect='auto')
+            plt.title("Frame zero")
+            plt.show()
+
+            fig, ax = plt.subplots(1)
+            frame_670 = np.where(wavelength == 670)[0][0]
+            cutout_670 = self.frames[frame_670, offset[0]:offset[0] + size_laser_frame[0], offset[1]:offset[1] + size_laser_frame[1]]
+            ax.imshow(cutout_670, extent=[0, cutout_670.shape[1], cutout_670.shape[0], 0], aspect='auto')
+            plt.title("Frame 670 nm")
+            plt.show()
+
+            figuring.plot_rois(self.frame_merge, self.roi_locations, 9)
+
+            figuring.plot_rois(self.frames[frame_670, :, :], self.roi_locations, 9)
 
         # prep for fitting
 
@@ -128,7 +167,7 @@ class HSM:
         intensity = np.zeros((self.roi_locations.shape[0], self.frames.shape[0]))
         roi_size = 9
         roi_size_1d = int((roi_size - 1) / 2)
-        fitter = fitting.Gaussian(roi_size, {}, "None", "Gaussian", 5, "Yes")
+        fitter = fitting.Gaussian(roi_size, {}, "None", "Gaussian", 5, 300)
 
         def lorentzian(x, a, x0):
             return a / ((x - x0) ** 2 + a ** 2) / np.pi
@@ -166,7 +205,7 @@ class HSM:
         return self.hsm_result, intensity_result
 
     # %% Correct for drift between frames
-    def hsm_drift(self):
+    def hsm_drift(self, verbose=False):
 
         frame = self.frames[0, :, :]
         data_output = np.zeros(self.frames.shape, dtype=frame.dtype)
@@ -187,11 +226,25 @@ class HSM:
                                             0).astype(np.int16)
             img_corrected[frame_index, :, :] = img_corrected_single
 
+            if verbose:
+                fig, ax = plt.subplots(1)
+                ax.imshow(img_corrected_single, extent=[0, img_corrected_single.shape[1], img_corrected_single.shape[0], 0], aspect='auto')
+                plt.title("Frame {}".format(frame_index))
+                plt.show()
+
             if frame_index > 0:
-                frame_convolution = self.normxcorr2(img_corrected[frame_index - 1, :, :],
-                                                    img_corrected[frame_index, :, :])
+                frame_convolution = self.normxcorr2(img_corrected[frame_index, :, :],
+                                                    img_corrected[frame_index - 1, :, :])
                 maxima = np.transpose(np.asarray(np.where(frame_convolution == np.amax(frame_convolution))))[0]
-                offset[frame_index, :] = maxima - np.asarray(img_corrected_single.shape)
+                offset[frame_index, :] = maxima - np.asarray(img_corrected_single.shape) + np.asarray([1, 1])
+
+                if verbose:
+                    shift_dist = tuple(offset[frame_index, :].tolist())
+                    shifted_frame = shift(img_corrected[frame_index, :, :], shift_dist, cval=np.mean(img_corrected[frame_index, :, :]))
+                    fig, ax = plt.subplots(1)
+                    ax.imshow(shifted_frame, extent=[0, shifted_frame.shape[1], shifted_frame.shape[0], 0], aspect='auto')
+                    plt.title("Frame {} shifted".format(frame_index))
+                    plt.show()
 
         for index in range(self.frames.shape[0]):
             if index == 0:
@@ -200,13 +253,34 @@ class HSM:
                 offset_from_zero[index, :] = offset_from_zero[index - 1, :] + offset[index, :]
 
         offset_from_center = offset_from_zero[int(round(self.frames.shape[0] / 2, 0)), :] - offset_from_zero
+        max_offset = int(np.max(abs(offset_from_center)))
+        size_frame = np.asarray(frame.shape, dtype=int)
+        helper_size = tuple(size_frame + max_offset * 2)
 
         for frame_index, frame in enumerate(self.frames):
-            shift_dist = tuple(offset_from_center[frame_index, :].tolist())
             bg = np.mean(frame)
-            shifted_frame = shift(frame, shift_dist, cval=bg)
-            data_output[frame_index, :, :] = shifted_frame
-            data_merged += np.asarray(np.round(np.abs(shifted_frame - bg), 0), dtype=frame.dtype)
+            helper_image = np.ones(helper_size) * bg
+
+            shift_dist = offset_from_center[frame_index, :].astype(int)
+            helper_image[max_offset - shift_dist[-2]:size_frame[-2] + max_offset - shift_dist[-2],
+                         max_offset - shift_dist[-1]:size_frame[-1] + max_offset - shift_dist[-1]] = frame
+
+            data_output[frame_index, :, :] = helper_image[max_offset:size_frame[-2] + max_offset,
+                                                          max_offset:size_frame[-1] + max_offset]
+
+            if verbose:
+                fig, ax = plt.subplots(1)
+                ax.imshow(data_output[frame_index, :, :], extent=[0, data_output[frame_index, :, :].shape[1], data_output[frame_index, :, :].shape[0], 0], aspect='auto')
+                plt.title("Frame {} shifted final".format(frame_index))
+                plt.show()
+
+            data_merged += np.asarray(np.round(np.abs(data_output[frame_index, :, :] - bg), 0), dtype=frame.dtype)
+
+        if verbose:
+            fig, ax = plt.subplots(1)
+            ax.imshow(data_merged, extent=[0, data_merged.shape[1], data_merged.shape[0], 0], aspect='auto')
+            plt.title("Result")
+            plt.show()
 
         return data_output, data_merged
 

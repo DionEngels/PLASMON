@@ -184,7 +184,7 @@ for name in filenames:
         print('Starting HSM')
 
         hsm = hsm.HSM(hsm_dir, np.asarray(frames[0], dtype=frames[0].dtype), ROI_locations, metadata, CORRECTION)
-        hsm_result, hsm_intensity = hsm.main()
+        hsm_result, hsm_intensity = hsm.main(verbose=True)
 
         print('Starting saving')
 

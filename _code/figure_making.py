@@ -214,6 +214,13 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
             ax_tt.set_xlabel('Time (s)')
             ax_tt.set_ylabel('Integrated intensity (counts)')
             ax_tt.set_title('Time trace ROI ' + str(roi_index + 1))
+        elif "Sum" in method:
+            ax_tt = fig.add_subplot(gs[row, column + 1])
+            intensities = results[results[:, 1] == roi_index, 4]
+            ax_tt.plot(time_axis, intensities)
+            ax_tt.set_xlabel('Time (s)')
+            ax_tt.set_ylabel('Summed intensity (counts)')
+            ax_tt.set_title('Time trace ROI ' + str(roi_index + 1))
 
         x_positions = results[results[:, 1] == roi_index, 2]
         y_positions = results[results[:, 1] == roi_index, 3]
