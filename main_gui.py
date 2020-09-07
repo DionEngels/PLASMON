@@ -52,6 +52,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
 import matplotlib.patches as patches
+from scipy.io import loadmat
 
 # GUI
 import tkinter as tk  # for GUI
@@ -76,6 +77,7 @@ mpl.use("TkAgg")  # set back end to TK
 # %% Initializations. Defining filetypes, fonts, paddings, input sizes, and GUI sizes.
 
 FILETYPES = [("ND2", ".nd2")]
+FILETYPES_LOAD_FROM_OTHER = [(".npy and .mat", ".npy"), (".npy and .mat", ".mat")]
 
 FONT_HEADER = "Verdana 14 bold"
 FONT_SUBHEADER = "Verdana 11 bold"
@@ -638,10 +640,9 @@ class FittingPage(tk.Frame):
                                     command=lambda: self.restore_default())
         button_restore.grid(row=16, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
-        self.restore_saved_drop_var = tk.StringVar(self)
-        self.restore_saved_drop = ttk.OptionMenu(self, self.restore_saved_drop_var, *self.saved_settings_list)
-        self.restore_saved_drop.grid(row=16, column=16, columnspan=8, sticky="ew")
-        self.restore_saved_drop['state'] = 'disabled'
+        self.button_load_other_video = NormalButton(self, text="Load from other",
+                                                    command=lambda: self.load_from_other(),
+                                                    row=16, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         self.button_restore_saved = NormalButton(self, text="Restore saved",
                                                  state='disabled',
@@ -964,17 +965,6 @@ class FittingPage(tk.Frame):
             self.filenames)) + " have settings")
         self.button_restore_saved.updater(command=lambda: self.restore_saved())
 
-        self.restore_saved_drop['state'] = 'enabled'
-        self.restore_saved_drop['menu'].delete(0, 'end')
-
-        # Insert list of new options (tk._setit hooks them up to var)
-        for key in self.saved_settings.keys():
-            self.restore_saved_drop['menu'].add_command(label="Dataset " + str(key + 1),
-                                                        command=tk._setit(self.restore_saved_drop_var,
-                                                                          "Dataset " + str(key + 1)))
-
-        self.restore_saved_drop_var.set("Dataset " + str(self.dataset_index + 1))
-
         if len(self.roi_locations) == len(self.filenames):
             self.button_fit.updater(state='enabled')
 
@@ -989,11 +979,7 @@ class FittingPage(tk.Frame):
         None, updates GUI
 
         """
-        selected_set = self.restore_saved_drop_var.get()  # take selected set
-
-        selected_set = int(selected_set.split()[-1]) - 1  # get number out to convert to correct dataset index
-
-        settings = self.saved_settings[selected_set]
+        settings = self.saved_settings[self.dataset_index]
 
         self.min_int_slider.updater(from_=0, to=self.roi_finder.int_max / 4,
                                     start=settings['int_min'])
@@ -1015,6 +1001,30 @@ class FittingPage(tk.Frame):
         self.inter_roi_input.updater(settings['inter_roi'])
 
         self.fit_rois()
+
+    # %% Load from previously processed dataset
+
+    def load_from_other(self):
+
+        tk.Tk().withdraw()
+        while True:
+            filenames = askopenfilenames(filetypes=FILETYPES_LOAD_FROM_OTHER,
+                                         title="Select both frame_zero and ROI locations that you want to use",
+                                         initialdir=getcwd())
+            if len(filenames) == 2:
+                break
+            else:
+                check = tk.messagebox.askokcancel("ERROR",
+                                                  "Select one ROI locations file and one frame_zero. Try again?")
+                if not check:
+                    return
+
+        frame_zero = np.load([file for file in filenames if file.endswith('.npy')][0])
+        roi_locations = loadmat([file for file in filenames if file.endswith('.mat')][0])
+        roi_locations = [roi_locations[key] for key in roi_locations.keys() if not key.startswith('_')][0]
+
+        frame_zero = frame_zero
+
 
     # %% Fitting page, switch between datasets
 
@@ -1051,7 +1061,8 @@ class FittingPage(tk.Frame):
         self.restore_default()
 
         if self.dataset_index in self.saved_settings:
-            self.restore_saved_drop_var.set("Dataset " + str(self.dataset_index + 1))
+            self.button_restore_saved.updater(command=lambda: self.restore_saved())
+            self.restore_saved()
             self.hsm_correct_var.set(self.saved_settings[self.dataset_index]['hsm_correction'])
             if self.saved_settings[self.dataset_index]['hsm_directory'] is not None:
                 hsm_folder_show = '/'.join(self.saved_settings[self.dataset_index]['hsm_directory'].split('/')[-2:])
@@ -1059,7 +1070,7 @@ class FittingPage(tk.Frame):
                 hsm_folder_show = ""
             self.hsm_folder_disp['text'] = hsm_folder_show
         else:
-            self.restore_saved_drop_var.set("")
+            self.button_restore_saved.updater(state='disabled')
             self.clear_hsm()
 
         if self.dataset_index == len(self.filenames) - 1:
@@ -1071,11 +1082,6 @@ class FittingPage(tk.Frame):
             self.button_left.updater(state='disabled')
         else:
             self.button_left.updater(command=lambda: self.change_dataset(-1))
-
-        if len(self.saved_settings) > 0:
-            self.button_restore_saved.updater(command=lambda: self.restore_saved())
-        else:
-            self.button_restore_saved.updater(state='disabled')
 
     # %% Fitting page, start fitting
 
@@ -1136,8 +1142,6 @@ class FittingPage(tk.Frame):
 
             roi_size = dataset_settings['roi_size']
             max_its = dataset_settings['max_its']
-
-            print(max_its)
 
             roi_locations = self.roi_locations[self.dataset_index]
 
@@ -1287,6 +1291,7 @@ class FittingPage(tk.Frame):
                                                     str(self.dataset_index + 1) + " of " + str(len(filenames)))
             self.update()
 
+            outputting.save_first_frame(self.frames[0], path)
             outputting.save_to_csv_mat_metadata('metadata', self.metadata, path)
             outputting.save_to_csv_mat_roi('ROI_locations', roi_locations, path)
             outputting.save_to_csv_mat_drift('Drift_correction', drift, path)

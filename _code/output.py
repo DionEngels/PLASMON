@@ -18,7 +18,7 @@ v1.1: Integrated intensity instead of peak Gaussian intensity: 27/08/2020
 
 from csv import writer  # to save to csv
 from scipy.io import savemat  # to export for MATLAB
-from numpy import savetxt
+from numpy import savetxt, save
 from datetime import datetime
 
 # translates the raw dictionary keys to user readable input
@@ -195,3 +195,7 @@ def text_output(settings, method, threshold_method, nm_or_pixels, total_fits, fa
         else:
             text_file.write("Frame index | ROI index | x position | y position | Integrated intensity | "
                             "Sigma x | Sigma y | Background (estimate) | Iterations needed to converge \n")
+
+
+def save_first_frame(frame_zero, path):
+    save(path, frame_zero)
