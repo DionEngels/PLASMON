@@ -198,4 +198,4 @@ def text_output(settings, method, threshold_method, nm_or_pixels, total_fits, fa
 
 
 def save_first_frame(frame_zero, path):
-    save(path, frame_zero)
+    save(path + '/frame_zero.npy', frame_zero)

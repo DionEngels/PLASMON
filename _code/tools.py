@@ -72,6 +72,25 @@ def roi_to_matlab_coordinates(roi_locs, height):
     return roi_locs
 
 
+def roi_to_python_coordinates(roi_locs, height):
+    """
+    Change from MATLAB to Python coordinates for ROI locations
+
+    Parameters
+    -----------------
+    roi_locs: ROI locations
+    height: Height of microscope view
+
+    Returns
+    ------------------
+    results: the roi locations switched to MATLAB coordinates
+    """
+    roi_locs[:, 1] = height - roi_locs[:, 1]
+    roi_locs = switch_axis(roi_locs)
+
+    return roi_locs
+
+
 def switch_results_to_matlab_coordinates(results, height, method, nm_or_pixels, metadata):
     """
     Change from Python to MATLAB coordinates for results

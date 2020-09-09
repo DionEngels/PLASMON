@@ -68,6 +68,7 @@ import _code.drift_correction as drift_correction
 import _code.figure_making as figuring
 import _code.output as outputting
 import _code.nd2_reading as nd2_reading
+from _code.hsm import normxcorr2, normxcorr2_large
 
 # Multiprocessing
 import multiprocessing as mp
@@ -934,8 +935,6 @@ class FittingPage(tk.Frame):
 
         return True
 
-    # %% find signal_to_noise of dataset
-
     # %% Fitting page, save ROI settings
 
     def save_roi_settings(self):
@@ -1019,12 +1018,38 @@ class FittingPage(tk.Frame):
                 if not check:
                     return
 
-        frame_zero = np.load([file for file in filenames if file.endswith('.npy')][0])
+        frame_zero_old = np.load([file for file in filenames if file.endswith('.npy')][0])
         roi_locations = loadmat([file for file in filenames if file.endswith('.mat')][0])
         roi_locations = [roi_locations[key] for key in roi_locations.keys() if not key.startswith('_')][0]
+        roi_locations = tools.roi_to_python_coordinates(roi_locations, frame_zero_old.shape[0])
 
-        frame_zero = frame_zero
+        frame_zero = np.asarray(self.frames[0])
 
+        if frame_zero_old.shape == frame_zero.shape:
+            corr = normxcorr2(frame_zero_old, frame_zero)
+            maxima = np.transpose(np.asarray(np.where(corr == np.amax(corr))))[0]
+            offset = maxima - np.asarray(frame_zero_old.shape) + np.asarray([1, 1])
+        else:
+            corr = normxcorr2_large(frame_zero_old, frame_zero)
+            maxima = np.transpose(np.asarray(np.where(corr == np.amax(corr))))[0]
+            offset = maxima - np.asarray(frame_zero_old.shape) + np.asarray([1, 1])
+
+        try:
+            roi_locations += offset
+        except:
+            tk.messagebox.askokcancel("ERROR", "You did not select a proper ROI locations file. Try again.")
+            return
+
+        self.temp_roi_locations = roi_locations
+
+        self.fig.updater(self.frames[0], roi_locations=self.temp_roi_locations, roi_size=self.roi_finder.roi_size_1d)
+        self.number_of_rois.updater(text=str(len(self.temp_roi_locations)) + " ROIs found")
+
+        message = "ROIs loaded in. Be careful, the set variables for ROI finding and the used ROIs now no longer " \
+                  "match. Therefore, using 'Strict' rejection rules is not advised. " \
+                  "The loaded ROIs are automatically saved."
+
+        tk.messagebox.showinfo("Done!", message)
 
     # %% Fitting page, switch between datasets
 
