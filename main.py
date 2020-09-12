@@ -130,6 +130,9 @@ for name in filenames:
             roi_finder.int_min = 100
             roi_finder.corr_min = 0.001
 
+        roi_finder.corr_min = 0.2
+        roi_finder.int_min = 4000
+
         ROI_locations = roi_finder.main(fitter)
         max_its = roi_finder.find_snr(fitter)
 

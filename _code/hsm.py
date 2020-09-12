@@ -26,7 +26,7 @@ from scipy.io import loadmat
 import mat73
 
 # A lot of scipy for signal processing
-from scipy.ndimage import median_filter, shift, correlate
+from scipy.ndimage import median_filter, shift
 from scipy.optimize import curve_fit
 import scipy.fft as fft
 from scipy.signal import fftconvolve
@@ -125,14 +125,14 @@ class HSM:
 
         # correct frames for drift
 
-        self.frames, self.frame_merge = self.hsm_drift(verbose=False)
+        self.frames, self.frame_merge = self.hsm_drift(verbose=True)
 
         # correct ROI locations for drift in HSM images
 
         size_hsm_frame = np.asarray(self.frame_merge.shape, dtype=int)
         size_laser_frame = np.asarray(self.frame_zero.shape, dtype=int)
 
-        corr = self.normxcorr2_large(self.frame_zero, self.frame_merge)
+        corr = normxcorr2_large(self.frame_zero, self.frame_merge)
         maxima = np.transpose(np.asarray(np.where(corr == np.amax(corr))))[0]
         offset = maxima - np.asarray(self.frame_zero.shape) + np.asarray([1, 1])
         self.roi_locations += offset
@@ -167,7 +167,7 @@ class HSM:
         intensity = np.zeros((self.roi_locations.shape[0], self.frames.shape[0]))
         roi_size = 9
         roi_size_1d = int((roi_size - 1) / 2)
-        fitter = fitting.Gaussian(roi_size, {}, "None", "Gaussian", 5, 300)
+        fitter = fitting.Gaussian(roi_size, {}, "None", "Gaussian", 5, 500)
 
         def lorentzian(x, a, x0):
             return a / ((x - x0) ** 2 + a ** 2) / np.pi
@@ -185,6 +185,13 @@ class HSM:
 
                 for frame_index, frame in enumerate(self.frames):
                     my_roi = frame[y - roi_size_1d:y + roi_size_1d + 1, x - roi_size_1d:x + roi_size_1d + 1]
+                    if verbose:
+                        fig, ax = plt.subplots(1)
+                        ax.imshow(my_roi, extent=[0, my_roi.shape[1], my_roi.shape[0], 0], aspect='auto')
+                        ax.set_xlabel('x (pixels)')
+                        ax.set_ylabel('y (pixels)')
+                        ax.set_title('Zoom-in ROI #{}, frame #{}'.format(roi_index, frame_index))
+                        plt.show()
                     result, _, success = fitter.fit_gaussian(my_roi, roi_index)
                     raw_intensity[roi_index, frame_index] = 2 * np.pi * result[0] * result[3] * result[4]
                     intensity[roi_index, frame_index] = raw_intensity[roi_index, frame_index] / shape[frame_index]
@@ -207,44 +214,33 @@ class HSM:
     # %% Correct for drift between frames
     def hsm_drift(self, verbose=False):
 
-        frame = self.frames[0, :, :]
-        data_output = np.zeros(self.frames.shape, dtype=frame.dtype)
-        data_merged = np.zeros(frame.shape, dtype=frame.dtype)
-
         offset = np.zeros((self.frames.shape[0], 2))
         offset_from_zero = np.zeros((self.frames.shape[0], 2))
 
-        img_corrected = np.zeros((self.frames.shape[0], int(frame.shape[0] * 0.5 + 1), int(frame.shape[1] * 0.5 + 1)),
-                                 dtype=np.int16)
+        frame = self.frames[0, :, :]
+        data_output = np.zeros(self.frames.shape, dtype=frame.dtype)
+        data_merged = np.zeros(frame.shape, dtype=frame.dtype)
+        img_corrected_previous = 0
 
         for frame_index, frame in enumerate(self.frames):
             data_output[frame_index, :, :] = frame.copy()
             background = median_filter(frame, size=9, mode='constant')
             frame = frame.astype(np.int16) - background
-            img_corrected_single = np.round((frame[int(frame.shape[0] * 0.25 - 1):int(frame.shape[0] * 0.75),
+            img_corrected = np.round((frame[int(frame.shape[0] * 0.25 - 1):int(frame.shape[0] * 0.75),
                                              int(frame.shape[1] * 0.25 - 1):int(frame.shape[1] * 0.75)]),
                                             0).astype(np.int16)
-            img_corrected[frame_index, :, :] = img_corrected_single
-
             if verbose:
                 fig, ax = plt.subplots(1)
-                ax.imshow(img_corrected_single, extent=[0, img_corrected_single.shape[1], img_corrected_single.shape[0], 0], aspect='auto')
+                ax.imshow(img_corrected, extent=[0, img_corrected.shape[1], img_corrected.shape[0], 0], aspect='auto')
                 plt.title("Frame {}".format(frame_index))
                 plt.show()
 
             if frame_index > 0:
-                frame_convolution = self.normxcorr2(img_corrected[frame_index, :, :],
-                                                    img_corrected[frame_index - 1, :, :])
+                frame_convolution = normxcorr2(img_corrected, img_corrected_previous)
                 maxima = np.transpose(np.asarray(np.where(frame_convolution == np.amax(frame_convolution))))[0]
-                offset[frame_index, :] = maxima - np.asarray(img_corrected_single.shape) + np.asarray([1, 1])
+                offset[frame_index, :] = maxima - np.asarray(img_corrected.shape) + np.asarray([1, 1])
 
-                if verbose:
-                    shift_dist = tuple(offset[frame_index, :].tolist())
-                    shifted_frame = shift(img_corrected[frame_index, :, :], shift_dist, cval=np.mean(img_corrected[frame_index, :, :]))
-                    fig, ax = plt.subplots(1)
-                    ax.imshow(shifted_frame, extent=[0, shifted_frame.shape[1], shifted_frame.shape[0], 0], aspect='auto')
-                    plt.title("Frame {} shifted".format(frame_index))
-                    plt.show()
+            img_corrected_previous = img_corrected
 
         for index in range(self.frames.shape[0]):
             if index == 0:
@@ -263,14 +259,16 @@ class HSM:
 
             shift_dist = offset_from_center[frame_index, :].astype(int)
             helper_image[max_offset - shift_dist[-2]:size_frame[-2] + max_offset - shift_dist[-2],
-                         max_offset - shift_dist[-1]:size_frame[-1] + max_offset - shift_dist[-1]] = frame
+            max_offset - shift_dist[-1]:size_frame[-1] + max_offset - shift_dist[-1]] = frame
 
             data_output[frame_index, :, :] = helper_image[max_offset:size_frame[-2] + max_offset,
-                                                          max_offset:size_frame[-1] + max_offset]
+                                             max_offset:size_frame[-1] + max_offset]
 
             if verbose:
                 fig, ax = plt.subplots(1)
-                ax.imshow(data_output[frame_index, :, :], extent=[0, data_output[frame_index, :, :].shape[1], data_output[frame_index, :, :].shape[0], 0], aspect='auto')
+                ax.imshow(data_output[frame_index, :, :],
+                          extent=[0, data_output[frame_index, :, :].shape[1], data_output[frame_index, :, :].shape[0],
+                                  0], aspect='auto')
                 plt.title("Frame {} shifted final".format(frame_index))
                 plt.show()
 
@@ -284,59 +282,202 @@ class HSM:
 
         return data_output, data_merged
 
-    @staticmethod
-    def normxcorr2(b, a):
-        def conv2(a, b):
-            ma, na = a.shape
-            mb, nb = b.shape
-            return fft.ifft2(fft.fft2(a, [2 * ma - 1, 2 * na - 1]) * fft.fft2(b, [2 * mb - 1, 2 * nb - 1]))
 
-        c = conv2(a, np.flipud(np.fliplr(b)))
-        a = conv2(a ** 2, np.ones(b.shape))
-        b = sum(b.flatten() ** 2)
-        c = c / np.sqrt(a * b)
-        return c
+    def hsm_drift_new(self, verbose=False):
 
-    @staticmethod
-    def normxcorr2_large(template, image, mode="full"):
-        """
-        Input arrays should be floating point numbers.
-        :param template: N-D array, of template or filter you are using for cross-correlation.
-        Must be less or equal dimensions to image.
-        Length of each dimension must be less than length of image.
-        :param image: N-D array
-        :param mode: Options, "full", "valid", "same"
-        full (Default): The output of fftconvolve is the full discrete linear convolution of the inputs.
-        Output size will be image size + 1/2 template size in each dimension.
-        valid: The output consists only of those elements that do not rely on the zero-padding.
-        same: The output is the same size as image, centered with respect to the ‘full’ output.
-        :return: N-D array of same dimensions as image. Size depends on mode parameter.
-        """
+        test = "new"
 
-        # If this happens, it is probably a mistake
-        if np.ndim(template) > np.ndim(image) or \
-                len([i for i in range(np.ndim(template)) if template.shape[i] > image.shape[i]]) > 0:
-            print("normxcorr2: TEMPLATE larger than IMG. Arguments may be swapped.")
+        offset = np.zeros((self.frames.shape[0], 2))
+        offset_from_zero = np.zeros((self.frames.shape[0], 2))
 
-        template = template - np.mean(template)
-        image = image - np.mean(image)
+        if test == "full":
+            frame = self.frames[0, :, :]
+            data_output = np.zeros(self.frames.shape, dtype=np.int32)
+            data_merged = np.zeros(frame.shape, dtype=np.int32)
+            img_corrected_small = np.zeros((self.frames.shape[0], int(frame.shape[0] * 0.5 + 1),
+                                            int(frame.shape[1] * 0.5 + 1)), dtype=np.int32)
+            img_corrected = np.zeros(self.frames.shape, dtype=np.int32)
 
-        a1 = np.ones(template.shape)
-        # Faster to flip up down and left right then use fftconvolve instead of scipy's correlate
-        ar = np.flipud(np.fliplr(template))
-        out = fftconvolve(image, ar.conj(), mode=mode)
+            for frame_index, frame in enumerate(self.frames):
+                background = median_filter(frame, size=9, mode='constant')
+                frame = frame.astype(np.int32) - background
+                img_corrected[frame_index, :, :] = frame.copy()
+                img_corrected_single = np.round((frame[int(frame.shape[0] * 0.25 - 1):int(frame.shape[0] * 0.75),
+                                                 int(frame.shape[1] * 0.25 - 1):int(frame.shape[1] * 0.75)]),
+                                                0).astype(np.int32)
+                img_corrected_small[frame_index, :, :] = img_corrected_single
 
-        image = fftconvolve(np.square(image), a1, mode=mode) - \
-                np.square(fftconvolve(image, a1, mode=mode)) / (np.prod(template.shape))
+                if verbose:
+                    fig, ax = plt.subplots(1)
+                    ax.imshow(img_corrected_single,
+                              extent=[0, img_corrected_single.shape[1], img_corrected_single.shape[0], 0], aspect='auto')
+                    plt.title("Frame {}".format(frame_index))
+                    plt.show()
 
-        # Remove small machine precision errors after subtraction
-        image[np.where(image < 0)] = 0
+                if frame_index > 0:
+                    frame_convolution = normxcorr2(img_corrected_small[frame_index, :, :],
+                                                   img_corrected_small[frame_index - 1, :, :])
+                    maxima = np.transpose(np.asarray(np.where(frame_convolution == np.amax(frame_convolution))))[0]
+                    offset[frame_index, :] = maxima - np.asarray(img_corrected_single.shape) + np.asarray([1, 1])
+        elif test == "new":
+            frame = self.frames[0, :, :]
+            data_output = np.zeros(self.frames.shape, dtype=np.int16)
+            data_merged = np.zeros(frame.shape, dtype=np.int32)
+            img_corrected_small = np.zeros((self.frames.shape[0], int(frame.shape[0] * 0.5 + 1),
+                                            int(frame.shape[1] * 0.5 + 1)), dtype=np.int16)
+            img_corrected = np.zeros(self.frames.shape, dtype=np.int16)
 
-        template = np.sum(np.square(template))
-        out = out / np.sqrt(image * template)
+            for frame_index, frame in enumerate(self.frames):
+                background = median_filter(frame, size=9, mode='constant')
+                frame = frame.astype(np.int16) - background
+                img_corrected[frame_index, :, :] = frame.copy()
+                img_corrected_single = np.round((frame[int(frame.shape[0] * 0.25 - 1):int(frame.shape[0] * 0.75),
+                                                 int(frame.shape[1] * 0.25 - 1):int(frame.shape[1] * 0.75)]),
+                                                0).astype(np.int32)
+                img_corrected_small[frame_index, :, :] = img_corrected_single
 
-        # Remove any divisions by 0 or very close to 0
-        out[np.where(np.logical_not(np.isfinite(out)))] = 0
+                if verbose:
+                    fig, ax = plt.subplots(1)
+                    ax.imshow(img_corrected_single,
+                              extent=[0, img_corrected_single.shape[1], img_corrected_single.shape[0], 0],
+                              aspect='auto')
+                    plt.title("Frame {}".format(frame_index))
+                    plt.show()
 
-        return out
+                if frame_index > 0:
+                    frame_convolution = normxcorr2(img_corrected_small[frame_index, :, :],
+                                                   img_corrected_small[frame_index - 1, :, :])
+                    maxima = np.transpose(np.asarray(np.where(frame_convolution == np.amax(frame_convolution))))[0]
+                    offset[frame_index, :] = maxima - np.asarray(img_corrected_single.shape) + np.asarray([1, 1])
 
+        else:
+            frame = self.frames[0, :, :]
+            data_output = np.zeros(self.frames.shape, dtype=frame.dtype)
+            data_merged = np.zeros(frame.shape, dtype=frame.dtype)
+
+
+            img_corrected = np.zeros((self.frames.shape[0], int(frame.shape[0] * 0.5 + 1), int(frame.shape[1] * 0.5 + 1)),
+                                     dtype=np.int16)
+
+
+            for frame_index, frame in enumerate(self.frames):
+                data_output[frame_index, :, :] = frame.copy()
+                background = median_filter(frame, size=9, mode='constant')
+                frame = frame.astype(np.int16) - background
+                img_corrected_single = np.round((frame[int(frame.shape[0] * 0.25 - 1):int(frame.shape[0] * 0.75),
+                                                 int(frame.shape[1] * 0.25 - 1):int(frame.shape[1] * 0.75)]),
+                                                0).astype(np.int16)
+                img_corrected[frame_index, :, :] = img_corrected_single
+
+                if verbose:
+                    fig, ax = plt.subplots(1)
+                    ax.imshow(img_corrected_single,
+                              extent=[0, img_corrected_single.shape[1], img_corrected_single.shape[0], 0], aspect='auto')
+                    plt.title("Frame {}".format(frame_index))
+                    plt.show()
+
+                if frame_index > 0:
+                    frame_convolution = normxcorr2(img_corrected[frame_index, :, :],
+                                                        img_corrected[frame_index - 1, :, :])
+                    maxima = np.transpose(np.asarray(np.where(frame_convolution == np.amax(frame_convolution))))[0]
+                    offset[frame_index, :] = maxima - np.asarray(img_corrected_single.shape) + np.asarray([1, 1])
+
+        for index in range(self.frames.shape[0]):
+            if index == 0:
+                offset_from_zero[index, :] = offset[index, :].copy()
+            else:
+                offset_from_zero[index, :] = offset_from_zero[index - 1, :] + offset[index, :]
+
+        offset_from_center = offset_from_zero[int(round(self.frames.shape[0] / 2, 0)), :] - offset_from_zero
+        max_offset = int(np.max(abs(offset_from_center)))
+        size_frame = np.asarray(frame.shape, dtype=int)
+        helper_size = tuple(size_frame + max_offset * 2)
+
+        # for frame_index, frame in enumerate(img_corrected):
+        for frame_index, frame in enumerate(self.frames):
+            bg = np.mean(frame)
+            helper_image = np.ones(helper_size, dtype=img_corrected.dtype) * bg
+
+            shift_dist = offset_from_center[frame_index, :].astype(int)
+            helper_image[max_offset - shift_dist[-2]:size_frame[-2] + max_offset - shift_dist[-2],
+                         max_offset - shift_dist[-1]:size_frame[-1] + max_offset - shift_dist[-1]] = frame
+
+            data_output[frame_index, :, :] = helper_image[max_offset:size_frame[-2] + max_offset,
+                                                          max_offset:size_frame[-1] + max_offset]
+
+            data_merged += np.asarray(frame, dtype=frame.dtype)
+
+            if verbose:
+                fig, ax = plt.subplots(1)
+                ax.imshow(frame, extent=[0, frame.shape[1], frame.shape[0], 0], aspect='auto')
+                plt.title("Frame {} to be added".format(frame_index))
+                plt.show()
+
+                # fig, ax = plt.subplots(1)
+                # ax.imshow(data_merged, extent=[0, data_merged.shape[1], data_merged.shape[0], 0], aspect='auto')
+                # plt.title("Data merged after frame {}".format(frame_index))
+                # plt.show()
+
+        if not verbose:
+            fig, ax = plt.subplots(1)
+            ax.imshow(data_merged, extent=[0, data_merged.shape[1], data_merged.shape[0], 0], aspect='auto')
+            plt.title("Result")
+            plt.show()
+
+        return data_output, data_merged
+
+
+def normxcorr2(b, a):
+    def conv2(a, b):
+        ma, na = a.shape
+        mb, nb = b.shape
+        return fft.ifft2(fft.fft2(a, [2 * ma - 1, 2 * na - 1]) * fft.fft2(b, [2 * mb - 1, 2 * nb - 1]))
+
+    c = conv2(a, np.flipud(np.fliplr(b)))
+    a = conv2(a ** 2, np.ones(b.shape))
+    b = sum(b.flatten() ** 2)
+    c = c / np.sqrt(a * b)
+    return c
+
+
+def normxcorr2_large(template, image, mode="full"):
+    """
+    Input arrays should be floating point numbers.
+    :param template: N-D array, of template or filter you are using for cross-correlation.
+    Must be less or equal dimensions to image.
+    Length of each dimension must be less than length of image.
+    :param image: N-D array
+    :param mode: Options, "full", "valid", "same"
+    full (Default): The output of fftconvolve is the full discrete linear convolution of the inputs.
+    Output size will be image size + 1/2 template size in each dimension.
+    valid: The output consists only of those elements that do not rely on the zero-padding.
+    same: The output is the same size as image, centered with respect to the ‘full’ output.
+    :return: N-D array of same dimensions as image. Size depends on mode parameter.
+    """
+
+    # If this happens, it is probably a mistake
+    if np.ndim(template) > np.ndim(image) or \
+            len([i for i in range(np.ndim(template)) if template.shape[i] > image.shape[i]]) > 0:
+        print("normxcorr2: TEMPLATE larger than IMG. Arguments may be swapped.")
+
+    template = template - np.mean(template)
+    image = image - np.mean(image)
+
+    a1 = np.ones(template.shape)
+    # Faster to flip up down and left right then use fftconvolve instead of scipy's correlate
+    ar = np.flipud(np.fliplr(template))
+    out = fftconvolve(image, ar.conj(), mode=mode)
+
+    image = fftconvolve(np.square(image), a1, mode=mode) - \
+            np.square(fftconvolve(image, a1, mode=mode)) / (np.prod(template.shape))
+
+    # Remove small machine precision errors after subtraction
+    image[np.where(image < 0)] = 0
+
+    template = np.sum(np.square(template))
+    out = out / np.sqrt(image * template)
+
+    # Remove any divisions by 0 or very close to 0
+    out[np.where(np.logical_not(np.isfinite(out)))] = 0
+
+    return out
