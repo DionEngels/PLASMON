@@ -28,6 +28,7 @@ import mat73
 # A lot of scipy for signal processing
 from scipy.ndimage import median_filter, shift
 from scipy.optimize import curve_fit
+from scipy.optimize import leastsq
 import scipy.fft as fft
 from scipy.signal import fftconvolve
 
@@ -43,6 +44,7 @@ class HSM:
     """
     Class for HSM of MBx Python
     """
+
     def __init__(self, directory, frame_zero, roi_locations, metadata, correction):
 
         def only_ints(list_to_check):
@@ -125,7 +127,7 @@ class HSM:
 
         # correct frames for drift
 
-        self.frames, self.frame_merge = self.hsm_drift(verbose=True)
+        self.frames, self.frame_merge = self.hsm_drift(verbose=False)
 
         # correct ROI locations for drift in HSM images
 
@@ -152,7 +154,8 @@ class HSM:
 
             fig, ax = plt.subplots(1)
             frame_670 = np.where(wavelength == 670)[0][0]
-            cutout_670 = self.frames[frame_670, offset[0]:offset[0] + size_laser_frame[0], offset[1]:offset[1] + size_laser_frame[1]]
+            cutout_670 = self.frames[frame_670, offset[0]:offset[0] + size_laser_frame[0],
+                         offset[1]:offset[1] + size_laser_frame[1]]
             ax.imshow(cutout_670, extent=[0, cutout_670.shape[1], cutout_670.shape[0], 0], aspect='auto')
             plt.title("Frame 670 nm")
             plt.show()
@@ -168,6 +171,11 @@ class HSM:
         roi_size = 9
         roi_size_1d = int((roi_size - 1) / 2)
         fitter = fitting.Gaussian(roi_size, {}, "None", "Gaussian", 5, 500)
+
+        pos_max = roi_size
+        pos_min = 0
+        sig_min = 0
+        sig_max = roi_size_1d + 1
 
         def lorentzian(x, a, x0):
             return a / ((x - x0) ** 2 + a ** 2) / np.pi
@@ -193,12 +201,25 @@ class HSM:
                         ax.set_title('Zoom-in ROI #{}, frame #{}'.format(roi_index, frame_index))
                         plt.show()
                     result, _, success = fitter.fit_gaussian(my_roi, roi_index)
-                    raw_intensity[roi_index, frame_index] = 2 * np.pi * result[0] * result[3] * result[4]
-                    intensity[roi_index, frame_index] = raw_intensity[roi_index, frame_index] / shape[frame_index]
+                    if success == 0 or \
+                            result[2] < pos_min or result[2] > pos_max or result[1] < pos_min or result[1] > pos_max or \
+                            result[3] < sig_min or result[3] > sig_max or result[4] < sig_min or result[4] > sig_max:
+                        raw_intensity[roi_index, frame_index] = np.nan
+                        intensity[roi_index, frame_index] = np.nan
+                    else:
+                        raw_intensity[roi_index, frame_index] = 2 * np.pi * result[0] * result[3] * result[4]
+                        intensity[roi_index, frame_index] = raw_intensity[roi_index, frame_index] / shape[frame_index]
 
                 # %% Fit the total intensity of a single ROI over all frames with Lorentzian
 
-                res, cov = curve_fit(lorentzian, wavelength, intensity[roi_index, :])
+                if verbose:
+                    fig, ax = plt.subplots(1)
+                    ax.plot(wavelength, raw_intensity[roi_index, :])
+                    ax.set_title('Result ROI #{}'.format(roi_index))
+                    plt.show()
+
+                #res, cov = curve_fit(lorentzian, wavelength, intensity[roi_index, :])
+                result, fit, r_squared = self.fit_lorentzian(intensity[roi_index, :], wavelength)
                 #  perr = np.sqrt(np.diag(cov))  # NOT WORKING
 
                 self.hsm_result[roi_index, 0] = roi_index
@@ -219,22 +240,17 @@ class HSM:
 
         frame = self.frames[0, :, :]
         data_output = np.zeros(self.frames.shape, dtype=frame.dtype)
-        data_merged = np.zeros(frame.shape, dtype=frame.dtype)
+        data_merged_helper = np.zeros(self.frames.shape, dtype=np.int32)
+        data_merged = np.zeros(frame.shape, dtype=np.int32)
         img_corrected_previous = 0
 
         for frame_index, frame in enumerate(self.frames):
-            data_output[frame_index, :, :] = frame.copy()
             background = median_filter(frame, size=9, mode='constant')
             frame = frame.astype(np.int16) - background
             img_corrected = np.round((frame[int(frame.shape[0] * 0.25 - 1):int(frame.shape[0] * 0.75),
-                                             int(frame.shape[1] * 0.25 - 1):int(frame.shape[1] * 0.75)]),
-                                            0).astype(np.int16)
-            if verbose:
-                fig, ax = plt.subplots(1)
-                ax.imshow(img_corrected, extent=[0, img_corrected.shape[1], img_corrected.shape[0], 0], aspect='auto')
-                plt.title("Frame {}".format(frame_index))
-                plt.show()
-
+                                      int(frame.shape[1] * 0.25 - 1):int(frame.shape[1] * 0.75)]),
+                                     0).astype(np.int16)
+            data_merged_helper[frame_index, :, :] = frame.astype(np.int32)
             if frame_index > 0:
                 frame_convolution = normxcorr2(img_corrected, img_corrected_previous)
                 maxima = np.transpose(np.asarray(np.where(frame_convolution == np.amax(frame_convolution))))[0]
@@ -264,6 +280,13 @@ class HSM:
             data_output[frame_index, :, :] = helper_image[max_offset:size_frame[-2] + max_offset,
                                              max_offset:size_frame[-1] + max_offset]
 
+            helper_image = np.zeros(helper_size, dtype=np.int32)
+            helper_image[max_offset - shift_dist[-2]:size_frame[-2] + max_offset - shift_dist[-2],
+                         max_offset - shift_dist[-1]:size_frame[-1] + max_offset - shift_dist[-1]] = \
+                data_merged_helper[frame_index, :, :]
+            data_merged += helper_image[max_offset:size_frame[-2] + max_offset,
+                                        max_offset:size_frame[-1] + max_offset]
+
             if verbose:
                 fig, ax = plt.subplots(1)
                 ax.imshow(data_output[frame_index, :, :],
@@ -271,8 +294,6 @@ class HSM:
                                   0], aspect='auto')
                 plt.title("Frame {} shifted final".format(frame_index))
                 plt.show()
-
-            data_merged += np.asarray(np.round(np.abs(data_output[frame_index, :, :] - bg), 0), dtype=frame.dtype)
 
         if verbose:
             fig, ax = plt.subplots(1)
@@ -282,149 +303,71 @@ class HSM:
 
         return data_output, data_merged
 
+    @staticmethod
+    def fit_lorentzian(scattering, wavelength):
+        def lorentzian(p, x):
+            return p[0] + p[1] / ((x - p[2])**2 + (0.5 * p[3])**2)
 
-    def hsm_drift_new(self, verbose=False):
+        def find_r_squared(f, p, x, y):
+            res = y - f(p, x)
+            ss_res = np.sum(res**2)
+            ss_tot = np.sum((y - np.mean(y))**2)
+            return 1 - ss_res / ss_tot
 
-        test = "new"
+        # remove nans
 
-        offset = np.zeros((self.frames.shape[0], 2))
-        offset_from_zero = np.zeros((self.frames.shape[0], 2))
+        bool = ~np.isnan(scattering)
+        scattering = scattering[bool]
+        wavelength = wavelength[bool]
 
-        if test == "full":
-            frame = self.frames[0, :, :]
-            data_output = np.zeros(self.frames.shape, dtype=np.int32)
-            data_merged = np.zeros(frame.shape, dtype=np.int32)
-            img_corrected_small = np.zeros((self.frames.shape[0], int(frame.shape[0] * 0.5 + 1),
-                                            int(frame.shape[1] * 0.5 + 1)), dtype=np.int32)
-            img_corrected = np.zeros(self.frames.shape, dtype=np.int32)
+        # prep
 
-            for frame_index, frame in enumerate(self.frames):
-                background = median_filter(frame, size=9, mode='constant')
-                frame = frame.astype(np.int32) - background
-                img_corrected[frame_index, :, :] = frame.copy()
-                img_corrected_single = np.round((frame[int(frame.shape[0] * 0.25 - 1):int(frame.shape[0] * 0.75),
-                                                 int(frame.shape[1] * 0.25 - 1):int(frame.shape[1] * 0.75)]),
-                                                0).astype(np.int32)
-                img_corrected_small[frame_index, :, :] = img_corrected_single
+        wavelength_ev = 1248 / wavelength
+        lorentz_ev = np.arange(1248 / np.min(wavelength), 1248 / np.max(wavelength),
+                               (1248 / np.min(wavelength - 1248/np.max(wavelength))) / (len(wavelength) * 7))
+        lorentz_ev = np.append(lorentz_ev, 1248 / np.max(wavelength))
+        lorentz_w1 = 1248 / lorentz_ev
+        fit = np.zeros((len(lorentz_w1), 2))
 
-                if verbose:
-                    fig, ax = plt.subplots(1)
-                    ax.imshow(img_corrected_single,
-                              extent=[0, img_corrected_single.shape[1], img_corrected_single.shape[0], 0], aspect='auto')
-                    plt.title("Frame {}".format(frame_index))
-                    plt.show()
+        # find max and min
 
-                if frame_index > 0:
-                    frame_convolution = normxcorr2(img_corrected_small[frame_index, :, :],
-                                                   img_corrected_small[frame_index - 1, :, :])
-                    maxima = np.transpose(np.asarray(np.where(frame_convolution == np.amax(frame_convolution))))[0]
-                    offset[frame_index, :] = maxima - np.asarray(img_corrected_single.shape) + np.asarray([1, 1])
-        elif test == "new":
-            frame = self.frames[0, :, :]
-            data_output = np.zeros(self.frames.shape, dtype=np.int16)
-            data_merged = np.zeros(frame.shape, dtype=np.int32)
-            img_corrected_small = np.zeros((self.frames.shape[0], int(frame.shape[0] * 0.5 + 1),
-                                            int(frame.shape[1] * 0.5 + 1)), dtype=np.int16)
-            img_corrected = np.zeros(self.frames.shape, dtype=np.int16)
+        max_sca = np.max(scattering[scattering < np.max(scattering)])
+        idx_max = np.argmax(scattering[scattering < np.max(scattering)])
+        min_sca = np.min(scattering)
 
-            for frame_index, frame in enumerate(self.frames):
-                background = median_filter(frame, size=9, mode='constant')
-                frame = frame.astype(np.int16) - background
-                img_corrected[frame_index, :, :] = frame.copy()
-                img_corrected_single = np.round((frame[int(frame.shape[0] * 0.25 - 1):int(frame.shape[0] * 0.75),
-                                                 int(frame.shape[1] * 0.25 - 1):int(frame.shape[1] * 0.75)]),
-                                                0).astype(np.int32)
-                img_corrected_small[frame_index, :, :] = img_corrected_single
+        # init guess and first fit
 
-                if verbose:
-                    fig, ax = plt.subplots(1)
-                    ax.imshow(img_corrected_single,
-                              extent=[0, img_corrected_single.shape[1], img_corrected_single.shape[0], 0],
-                              aspect='auto')
-                    plt.title("Frame {}".format(frame_index))
-                    plt.show()
+        init_1w = abs(2 / (np.pi * max_sca) * np.trapz(scattering, wavelength_ev))
+        init_guess = [min_sca, min_sca * init_1w / (2 * np.pi), wavelength_ev[idx_max], init_1w]
+        result, cov_x, dict, mesg, ier = leastsq(lorentzian, init_guess, args=(wavelength_ev, scattering))
+        result[3] = abs(result[3])
 
-                if frame_index > 0:
-                    frame_convolution = normxcorr2(img_corrected_small[frame_index, :, :],
-                                                   img_corrected_small[frame_index - 1, :, :])
-                    maxima = np.transpose(np.asarray(np.where(frame_convolution == np.amax(frame_convolution))))[0]
-                    offset[frame_index, :] = maxima - np.asarray(img_corrected_single.shape) + np.asarray([1, 1])
+        # if fit is bad, retry
 
-        else:
-            frame = self.frames[0, :, :]
-            data_output = np.zeros(self.frames.shape, dtype=frame.dtype)
-            data_merged = np.zeros(frame.shape, dtype=frame.dtype)
+        if result[3] < 0.02:
+            lb = abs(idx_max - round(len(scattering)/4, 0)) - 1  # -1 for MATLAB
+            hb = abs(round(3*len(scattering) /4, 0)) - 1  # -1 for MATLAB
+            init_guess = [min_sca, min_sca * init_1w / (2 * np.pi), wavelength_ev[idx_max], init_1w]
+            result, cov_x, dict, mesg, ier = leastsq(lorentzian, init_guess,
+                                                     args=(wavelength_ev[lb:hb], scattering[lb:hb]))
+            result[4] = abs(result[4])
 
+        # calc r-sqaured. If bad, retry
 
-            img_corrected = np.zeros((self.frames.shape[0], int(frame.shape[0] * 0.5 + 1), int(frame.shape[1] * 0.5 + 1)),
-                                     dtype=np.int16)
+        r_squared = find_r_squared(lambda p, x: lorentzian(p, x), result, wavelength, scattering)
 
+        if r_squared < 0.9:
+            result, cov_x, dict, mesg, ier = leastsq(lorentzian, [-10, 100, 1248 / wavelength[idx_max], 0.15],
+                                                     args=(wavelength_ev, scattering))
+            result[4] = abs(result[4])
+            r_squared = find_r_squared(lambda p, x: lorentzian(p, x), result, wavelength, scattering)
 
-            for frame_index, frame in enumerate(self.frames):
-                data_output[frame_index, :, :] = frame.copy()
-                background = median_filter(frame, size=9, mode='constant')
-                frame = frame.astype(np.int16) - background
-                img_corrected_single = np.round((frame[int(frame.shape[0] * 0.25 - 1):int(frame.shape[0] * 0.75),
-                                                 int(frame.shape[1] * 0.25 - 1):int(frame.shape[1] * 0.75)]),
-                                                0).astype(np.int16)
-                img_corrected[frame_index, :, :] = img_corrected_single
+        # return
 
-                if verbose:
-                    fig, ax = plt.subplots(1)
-                    ax.imshow(img_corrected_single,
-                              extent=[0, img_corrected_single.shape[1], img_corrected_single.shape[0], 0], aspect='auto')
-                    plt.title("Frame {}".format(frame_index))
-                    plt.show()
+        fit[:, 0] = lorentz_w1
+        fit[:, 1] = lorentzian(result, lorentz_ev)
 
-                if frame_index > 0:
-                    frame_convolution = normxcorr2(img_corrected[frame_index, :, :],
-                                                        img_corrected[frame_index - 1, :, :])
-                    maxima = np.transpose(np.asarray(np.where(frame_convolution == np.amax(frame_convolution))))[0]
-                    offset[frame_index, :] = maxima - np.asarray(img_corrected_single.shape) + np.asarray([1, 1])
-
-        for index in range(self.frames.shape[0]):
-            if index == 0:
-                offset_from_zero[index, :] = offset[index, :].copy()
-            else:
-                offset_from_zero[index, :] = offset_from_zero[index - 1, :] + offset[index, :]
-
-        offset_from_center = offset_from_zero[int(round(self.frames.shape[0] / 2, 0)), :] - offset_from_zero
-        max_offset = int(np.max(abs(offset_from_center)))
-        size_frame = np.asarray(frame.shape, dtype=int)
-        helper_size = tuple(size_frame + max_offset * 2)
-
-        # for frame_index, frame in enumerate(img_corrected):
-        for frame_index, frame in enumerate(self.frames):
-            bg = np.mean(frame)
-            helper_image = np.ones(helper_size, dtype=img_corrected.dtype) * bg
-
-            shift_dist = offset_from_center[frame_index, :].astype(int)
-            helper_image[max_offset - shift_dist[-2]:size_frame[-2] + max_offset - shift_dist[-2],
-                         max_offset - shift_dist[-1]:size_frame[-1] + max_offset - shift_dist[-1]] = frame
-
-            data_output[frame_index, :, :] = helper_image[max_offset:size_frame[-2] + max_offset,
-                                                          max_offset:size_frame[-1] + max_offset]
-
-            data_merged += np.asarray(frame, dtype=frame.dtype)
-
-            if verbose:
-                fig, ax = plt.subplots(1)
-                ax.imshow(frame, extent=[0, frame.shape[1], frame.shape[0], 0], aspect='auto')
-                plt.title("Frame {} to be added".format(frame_index))
-                plt.show()
-
-                # fig, ax = plt.subplots(1)
-                # ax.imshow(data_merged, extent=[0, data_merged.shape[1], data_merged.shape[0], 0], aspect='auto')
-                # plt.title("Data merged after frame {}".format(frame_index))
-                # plt.show()
-
-        if not verbose:
-            fig, ax = plt.subplots(1)
-            ax.imshow(data_merged, extent=[0, data_merged.shape[1], data_merged.shape[0], 0], aspect='auto')
-            plt.title("Result")
-            plt.show()
-
-        return data_output, data_merged
+        return result, fit, r_squared
 
 
 def normxcorr2(b, a):
