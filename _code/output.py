@@ -179,6 +179,8 @@ def text_output(settings, method, threshold_method, nm_or_pixels, total_fits, fa
         text_file.write("Time taken: " + str(time_taken) + "\n\n")
 
         text_file.write("\nHSM \n------------\n")
+        text_file.write("Meaning of variables in HSM output: \n")
+        text_file.write("Frame index | width | peak wavelength | peak height | R^2 \n")
         text_file.write("Directory: " + str(hsm_directory) + "\n")
         text_file.write("Correction file: " + str(hsm_correction) + "\n")
 
@@ -198,11 +200,22 @@ def text_output(settings, method, threshold_method, nm_or_pixels, total_fits, fa
 
 
 def save_first_frame(frame_zero, path):
+    """
+    Saves the first frame of laser video for future reference
+
+    :param frame_zero: first frame of video
+    :param path: path to save to
+    """
     save(path + '/frame_zero.npy', frame_zero)
 
 
 def save_hsm(hsm_result, hsm_intensity, path):
-
+    """
+    Saves all the HSM results
+    :param hsm_result: HSM results to save
+    :param hsm_intensity: HSM intensities to save
+    :param path: path to save to
+    """
     name = 'hsm_result'
 
     with open(path + "/" + name + '.csv', mode='w') as _:

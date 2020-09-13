@@ -47,7 +47,16 @@ class HSM:
     """
 
     def __init__(self, directory, frame_zero, roi_locations, metadata, correction):
+        """
+        Initializer of HSM. Takes directory, frame_zero, roi locations, metadata and correction file and prepares
+        Saves wavelengths and nd2 files that are to be loaded in
 
+        :param directory: directory to load HSM frame in from
+        :param frame_zero: first frame of laser video
+        :param roi_locations: ROI locations
+        :param metadata: metadata for reference
+        :param correction: HSM correction file to be used
+        """
         def only_ints(list_to_check):
             new_list = []
             for string in list_to_check:
@@ -104,12 +113,25 @@ class HSM:
 
     # %% Main
     def main(self, verbose=False):
+        """
+        Main of HSM. Does all the work.
 
+        :param verbose: True if you want figures
+        :return: self.hsm_result: the actual result. An array with ROI index, Lorentzian results and r-squared
+        :return: intensity_result: All the intensities per ROI used to fit the lorentzian
+        """
         def find_nearest(match_array, value_array, match_index):
+            """
+            Finds and returns the nearest match in another array
+            """
             idx = (np.abs(match_array - match_index)).argmin()
             return value_array[idx]
 
         def to_int(list_to_int):
+            """
+            Converts a list of strings of nd2 filenames to a list of integers.
+            Example: 740.nd2 -> 740
+            """
             new_list = []
             for string in list_to_int:
                 try:
@@ -230,7 +252,13 @@ class HSM:
 
     # %% Correct for drift between frames
     def hsm_drift(self, verbose=False):
+        """
+        Corrects the drift between the HSM frames and adds them up for a merged frame to compare to the laser frame.
 
+        :param verbose: If true, you get figures
+        :return: data_output: all the frames aligned (without background correction)
+        :return: data_merged: all the frames aligned and added up (with background correction)
+        """
         offset = np.zeros((self.frames.shape[0], 2))
         offset_from_zero = np.zeros((self.frames.shape[0], 2))
 
@@ -300,7 +328,16 @@ class HSM:
         return data_output, data_merged
 
     def fit_lorentzian(self, scattering, wavelength, split=False, verbose=False):
+        """
+        Function to fit a lorentzian to the found intensities
 
+        :param scattering: the scattering intensities found
+        :param wavelength: the wavelengths of the found intensities
+        :param split: if True, this function has been called recursively with only a part of the original array
+        :param verbose: if True, you get a lot of images
+        :return: result: resulting Lorentzian parameters
+        :return r_squared: the r-squared of this fit
+        """
         def lorentzian(width, central, height, x):
             return height * width / (2 * np.pi) / ((x - central) ** 2 + width ** 2 / 4)
 
@@ -369,6 +406,9 @@ class HSM:
 
 
 def normxcorr2(b, a):
+    """
+    Correlation of similar size frames
+    """
     def conv2(a, b):
         ma, na = a.shape
         mb, nb = b.shape
@@ -383,6 +423,8 @@ def normxcorr2(b, a):
 
 def normxcorr2_large(template, image, mode="full"):
     """
+    Correlation of frames with different sizes
+
     Input arrays should be floating point numbers.
     :param template: N-D array, of template or filter you are using for cross-correlation.
     Must be less or equal dimensions to image.
@@ -395,7 +437,6 @@ def normxcorr2_large(template, image, mode="full"):
     same: The output is the same size as image, centered with respect to the ‘full’ output.
     :return: N-D array of same dimensions as image. Size depends on mode parameter.
     """
-
     # If this happens, it is probably a mistake
     if np.ndim(template) > np.ndim(image) or \
             len([i for i in range(np.ndim(template)) if template.shape[i] > image.shape[i]]) > 0:

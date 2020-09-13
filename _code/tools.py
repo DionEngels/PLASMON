@@ -163,6 +163,9 @@ def switch_axis(array):
 
 
 def switch_to_matlab_hsm(hsm_result, hsm_intensity):
+    """
+    Adds on to some axis of HSM for MATLAB counting
+    """
     hsm_result[:, 0] += 1  # +1 for MATLAB
     hsm_intensity[:, 0] = hsm_intensity[:, 0] + 1  # +1 for MATLAB
 
