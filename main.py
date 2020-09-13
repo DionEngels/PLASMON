@@ -130,8 +130,8 @@ for name in filenames:
             roi_finder.int_min = 100
             roi_finder.corr_min = 0.001
 
-        roi_finder.corr_min = 0.2
-        roi_finder.int_min = 4000
+        # roi_finder.corr_min = 0.2
+        # roi_finder.int_min = 4000
 
         ROI_locations = roi_finder.main(fitter)
         max_its = roi_finder.find_snr(fitter)
@@ -187,7 +187,7 @@ for name in filenames:
         print('Starting HSM')
 
         hsm = hsm.HSM(hsm_dir, np.asarray(frames[0], dtype=frames[0].dtype), ROI_locations, metadata, CORRECTION)
-        hsm_result, hsm_intensity = hsm.main(verbose=True)
+        hsm_result, hsm_intensity = hsm.main(verbose=False)
 
         print('Starting saving')
 
@@ -213,11 +213,14 @@ for name in filenames:
             ROI_locations = tools.switch_axis_to_matlab_coordinates(ROI_locations, frames[0].shape[0])
             drift = tools.switch_axis(drift)
 
+            hsm_result, hsm_intensity = tools.switch_to_matlab_hsm(hsm_result, hsm_intensity)
+
         # %% save everything
         outputting.save_to_csv_mat_metadata('metadata', metadata, path)
-        outputting.save_to_csv_mat_roi('ROI_locations', ROI_locations, frames[0].shape[0], path)
+        outputting.save_to_csv_mat_roi('ROI_locations', ROI_locations, path)
         outputting.save_to_csv_mat_drift('Drift_correction', drift, path)
         outputting.save_to_csv_mat_results('Localizations', results, METHOD, path)
         outputting.save_to_csv_mat_results('Localizations_drift', results_drift, METHOD, path)
+        outputting.save_hsm(hsm_result, hsm_intensity, path)
 
         outputting.text_output({}, METHOD, THRESHOLD_METHOD, "", total_fits, failed_fits, time_taken, path)

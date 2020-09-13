@@ -15,6 +15,7 @@ v0.0.1: Loading in multiple nd2, finding .mats
 v0.0.2: complete but not working
 v0.0.3: continued development 31/08/2020
 v0.0.4: correlations working: 07/09/2020
+v0.1: working: 13/09/2020
 
 """
 # General
@@ -26,8 +27,7 @@ from scipy.io import loadmat
 import mat73
 
 # A lot of scipy for signal processing
-from scipy.ndimage import median_filter, shift
-from scipy.optimize import curve_fit
+from scipy.ndimage import median_filter
 from scipy.optimize import leastsq
 import scipy.fft as fft
 from scipy.signal import fftconvolve
@@ -59,7 +59,7 @@ class HSM:
             return new_list
 
         self.roi_locations = roi_locations
-        self.hsm_result = np.zeros((roi_locations.shape[0], 4))
+        self.hsm_result = np.zeros((roi_locations.shape[0], 5))
         self.metadata = metadata
         self.frame_zero = frame_zero
         self.frame_merge = None
@@ -131,7 +131,6 @@ class HSM:
 
         # correct ROI locations for drift in HSM images
 
-        size_hsm_frame = np.asarray(self.frame_merge.shape, dtype=int)
         size_laser_frame = np.asarray(self.frame_zero.shape, dtype=int)
 
         corr = normxcorr2_large(self.frame_zero, self.frame_merge)
@@ -155,7 +154,7 @@ class HSM:
             fig, ax = plt.subplots(1)
             frame_670 = np.where(wavelength == 670)[0][0]
             cutout_670 = self.frames[frame_670, offset[0]:offset[0] + size_laser_frame[0],
-                         offset[1]:offset[1] + size_laser_frame[1]]
+                                     offset[1]:offset[1] + size_laser_frame[1]]
             ax.imshow(cutout_670, extent=[0, cutout_670.shape[1], cutout_670.shape[0], 0], aspect='auto')
             plt.title("Frame 670 nm")
             plt.show()
@@ -170,15 +169,12 @@ class HSM:
         intensity = np.zeros((self.roi_locations.shape[0], self.frames.shape[0]))
         roi_size = 9
         roi_size_1d = int((roi_size - 1) / 2)
-        fitter = fitting.Gaussian(roi_size, {}, "None", "Gaussian", 5, 500)
+        fitter = fitting.GaussianBackground(roi_size, {}, "None", "GaussianBackground", 6, 500)
 
         pos_max = roi_size
         pos_min = 0
         sig_min = 0
         sig_max = roi_size_1d + 1
-
-        def lorentzian(x, a, x0):
-            return a / ((x - x0) ** 2 + a ** 2) / np.pi
 
         # %% Fit every ROI for every frame
 
@@ -202,8 +198,8 @@ class HSM:
                         plt.show()
                     result, _, success = fitter.fit_gaussian(my_roi, roi_index)
                     if success == 0 or \
-                            result[2] < pos_min or result[2] > pos_max or result[1] < pos_min or result[1] > pos_max or \
-                            result[3] < sig_min or result[3] > sig_max or result[4] < sig_min or result[4] > sig_max:
+                            result[2] < pos_min or result[2] > pos_max or result[1] < pos_min or result[1] > pos_max \
+                            or result[3] < sig_min or result[3] > sig_max or result[4] < sig_min or result[4] > sig_max:
                         raw_intensity[roi_index, frame_index] = np.nan
                         intensity[roi_index, frame_index] = np.nan
                     else:
@@ -214,18 +210,17 @@ class HSM:
 
                 if verbose:
                     fig, ax = plt.subplots(1)
-                    ax.plot(wavelength, raw_intensity[roi_index, :])
+                    ax.plot(wavelength, intensity[roi_index, :])
                     ax.set_title('Result ROI #{}'.format(roi_index))
                     plt.show()
 
-                #res, cov = curve_fit(lorentzian, wavelength, intensity[roi_index, :])
-                result, fit, r_squared = self.fit_lorentzian(intensity[roi_index, :], wavelength)
-                #  perr = np.sqrt(np.diag(cov))  # NOT WORKING
+                result, r_squared = self.fit_lorentzian(intensity[roi_index, :], wavelength, verbose=verbose)
 
                 self.hsm_result[roi_index, 0] = roi_index
-                self.hsm_result[roi_index, 1] = res[1]
-                self.hsm_result[roi_index, 2] = res[0]
-                #  self.hsm_result[roi_index, 3] = perr ** 2
+                self.hsm_result[roi_index, 1] = result[0]
+                self.hsm_result[roi_index, 2] = result[1]
+                self.hsm_result[roi_index, 3] = result[2]
+                self.hsm_result[roi_index, 4] = r_squared
 
         intensity_result = np.concatenate((np.array(range(self.roi_locations.shape[0]))[:, np.newaxis], intensity),
                                           axis=1)
@@ -275,10 +270,10 @@ class HSM:
 
             shift_dist = offset_from_center[frame_index, :].astype(int)
             helper_image[max_offset - shift_dist[-2]:size_frame[-2] + max_offset - shift_dist[-2],
-            max_offset - shift_dist[-1]:size_frame[-1] + max_offset - shift_dist[-1]] = frame
+                         max_offset - shift_dist[-1]:size_frame[-1] + max_offset - shift_dist[-1]] = frame
 
             data_output[frame_index, :, :] = helper_image[max_offset:size_frame[-2] + max_offset,
-                                             max_offset:size_frame[-1] + max_offset]
+                                                          max_offset:size_frame[-1] + max_offset]
 
             helper_image = np.zeros(helper_size, dtype=np.int32)
             helper_image[max_offset - shift_dist[-2]:size_frame[-2] + max_offset - shift_dist[-2],
@@ -303,71 +298,73 @@ class HSM:
 
         return data_output, data_merged
 
-    @staticmethod
-    def fit_lorentzian(scattering, wavelength):
-        def lorentzian(p, x):
-            return p[0] + p[1] / ((x - p[2])**2 + (0.5 * p[3])**2)
+    def fit_lorentzian(self, scattering, wavelength, split=False, verbose=False):
+
+        def lorentzian(width, central, height, x):
+            return height * width / (2 * np.pi) / ((x - central) ** 2 + width ** 2 / 4)
+
+        def error_func(p, x, y):
+            return lorentzian(*p, x) - y
 
         def find_r_squared(f, p, x, y):
-            res = y - f(p, x)
-            ss_res = np.sum(res**2)
-            ss_tot = np.sum((y - np.mean(y))**2)
+            res = y - f(*p, x)
+            ss_res = np.sum(res ** 2)
+            ss_tot = np.sum((y - np.mean(y)) ** 2)
             return 1 - ss_res / ss_tot
+
+        def compare_plot(x, y, p):
+            fy = lorentzian(*p, x)
+            fig, ax = plt.subplots(1)
+            ax.plot(x, y)
+            ax.plot(x, fy)
+            plt.show()
 
         # remove nans
 
-        bool = ~np.isnan(scattering)
-        scattering = scattering[bool]
-        wavelength = wavelength[bool]
+        to_del = ~np.isnan(scattering)
+        scattering = scattering[to_del]
+        wavelength = wavelength[to_del]
 
-        # prep
+        # return if not enough points
 
-        wavelength_ev = 1248 / wavelength
-        lorentz_ev = np.arange(1248 / np.min(wavelength), 1248 / np.max(wavelength),
-                               (1248 / np.min(wavelength - 1248/np.max(wavelength))) / (len(wavelength) * 7))
-        lorentz_ev = np.append(lorentz_ev, 1248 / np.max(wavelength))
-        lorentz_w1 = 1248 / lorentz_ev
-        fit = np.zeros((len(lorentz_w1), 2))
+        if len(scattering) < 5:
+            return [np.nan, np.nan, np.nan, np.nan], 0
 
         # find max and min
 
-        max_sca = np.max(scattering[scattering < np.max(scattering)])
-        idx_max = np.argmax(scattering[scattering < np.max(scattering)])
-        min_sca = np.min(scattering)
+        max_sca = np.max(scattering)
+        idx_max = np.argmax(scattering)
+        idx_min = np.argmin(scattering)
 
         # init guess and first fit
 
-        init_1w = abs(2 / (np.pi * max_sca) * np.trapz(scattering, wavelength_ev))
-        init_guess = [min_sca, min_sca * init_1w / (2 * np.pi), wavelength_ev[idx_max], init_1w]
-        result, cov_x, dict, mesg, ier = leastsq(lorentzian, init_guess, args=(wavelength_ev, scattering))
-        result[3] = abs(result[3])
+        init_guess = [100, wavelength[idx_max], max_sca]
+        result, cov_x, res_dict, mesg, ier = leastsq(error_func, init_guess, args=(wavelength, scattering),
+                                                     full_output=True)
+        result[0] = abs(result[0])
+        r_squared = find_r_squared(lorentzian, result, wavelength, scattering)
 
-        # if fit is bad, retry
+        # if r_squared is too low, split
 
-        if result[3] < 0.02:
-            lb = abs(idx_max - round(len(scattering)/4, 0)) - 1  # -1 for MATLAB
-            hb = abs(round(3*len(scattering) /4, 0)) - 1  # -1 for MATLAB
-            init_guess = [min_sca, min_sca * init_1w / (2 * np.pi), wavelength_ev[idx_max], init_1w]
-            result, cov_x, dict, mesg, ier = leastsq(lorentzian, init_guess,
-                                                     args=(wavelength_ev[lb:hb], scattering[lb:hb]))
-            result[4] = abs(result[4])
+        if r_squared < 0.9 and split is False:
+            wavelength_low = wavelength[:idx_min]
+            wavelength_high = wavelength[idx_min:]
+            scattering_low = scattering[:idx_min]
+            scattering_high = scattering[idx_min:]
+            result_low, r_squared_low = self.fit_lorentzian(scattering_low, wavelength_low, split=True)
+            result_high, r_squared_high = self.fit_lorentzian(scattering_high, wavelength_high, split=True)
 
-        # calc r-sqaured. If bad, retry
+            if r_squared_high > r_squared and ~np.isnan(np.sum(result_high)):
+                result = result_high
+                r_squared = r_squared_high
+            if r_squared_low > r_squared and ~np.isnan(np.sum(result_low)):
+                result = result_low
+            r_squared = find_r_squared(lorentzian, result, wavelength, scattering)
 
-        r_squared = find_r_squared(lambda p, x: lorentzian(p, x), result, wavelength, scattering)
+        if verbose:
+            compare_plot(wavelength, scattering, result)
 
-        if r_squared < 0.9:
-            result, cov_x, dict, mesg, ier = leastsq(lorentzian, [-10, 100, 1248 / wavelength[idx_max], 0.15],
-                                                     args=(wavelength_ev, scattering))
-            result[4] = abs(result[4])
-            r_squared = find_r_squared(lambda p, x: lorentzian(p, x), result, wavelength, scattering)
-
-        # return
-
-        fit[:, 0] = lorentz_w1
-        fit[:, 1] = lorentzian(result, lorentz_ev)
-
-        return result, fit, r_squared
+        return result, r_squared
 
 
 def normxcorr2(b, a):
