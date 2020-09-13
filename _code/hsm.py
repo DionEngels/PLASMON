@@ -16,6 +16,7 @@ v0.0.2: complete but not working
 v0.0.3: continued development 31/08/2020
 v0.0.4: correlations working: 07/09/2020
 v0.1: working: 13/09/2020
+v0.1.1: in GUI
 
 """
 # General

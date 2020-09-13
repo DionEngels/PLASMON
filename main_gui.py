@@ -32,7 +32,7 @@ v1.0: roll-out version one
 v1.0.1: instant bugfix open all .nd2s
 v1.1: Bugfixes and improved figures (WIP)
 v1.1.1: tiny bugfixes: 10/08/2020
-v1.2: GUI and output improvement based on Sjoerd's feedback: 27/08/2020 - 06/09/2020
+v1.2: GUI and output improvement based on Sjoerd's feedback, HSM: 27/08/2020 - 13/09/2020
 """
 __version__ = "1.2"
 
@@ -69,6 +69,7 @@ import _code.figure_making as figuring
 import _code.output as outputting
 import _code.nd2_reading as nd2_reading
 from _code.hsm import normxcorr2, normxcorr2_large
+import _code.hsm as hsm
 
 # Multiprocessing
 import multiprocessing as mp
@@ -594,7 +595,7 @@ class FittingPage(tk.Frame):
         line = ttk.Separator(self, orient='horizontal')
         line.grid(row=10, column=0, rowspan=1, columnspan=40, sticky='we')
 
-        hsm_label = tk.Label(self, text="HSM (not yet implemented)", font=FONT_HEADER, bg='white')
+        hsm_label = tk.Label(self, text="HSM", font=FONT_HEADER, bg='white')
         hsm_label.grid(row=11, column=0, columnspan=40, sticky='EW', padx=PAD_SMALL)
 
         self.hsm_load = NormalButton(self, text="Load HSM data", row=12, column=0, columnspan=8, sticky='EW',
@@ -1267,15 +1268,22 @@ class FittingPage(tk.Frame):
 
             # HSM
 
-            hsm_dir = dataset_settings['hsm_directory']
+            hsm_dir = (dataset_settings['hsm_directory'],)
             hsm_corr = dataset_settings['hsm_correction']
+            hsm_result = []  # just to make Python shut up about potential reference before assignment
+            hsm_intensity = []
 
             if hsm_dir is not None and hsm_corr != []:
                 self.progress_status_label.updater(text="HSM dataset " +
                                                         str(self.dataset_index + 1) + " of " + str(len(filenames)))
+
                 self.update()
 
-                # ADD HSM stuff here
+                hsm_object = hsm.HSM(hsm_dir, np.asarray(self.frames[0], dtype=self.frames[0].dtype), roi_locations,
+                                     self.metadata, hsm_corr)
+                hsm_result, hsm_intensity = hsm_object.main(verbose=False)
+
+                hsm_result, hsm_intensity = tools.switch_to_matlab_hsm(hsm_result, hsm_intensity)
 
             # create folder for output
 
@@ -1322,6 +1330,8 @@ class FittingPage(tk.Frame):
             outputting.save_to_csv_mat_drift('Drift_correction', drift, path)
             outputting.save_to_csv_mat_results('Localizations', results, method, path)
             outputting.save_to_csv_mat_results('Localizations_drift', results_drift, method, path)
+            if hsm_dir is not None and hsm_corr != []:
+                outputting.save_hsm(hsm_result, hsm_intensity, path)
 
             total_fits = results.shape[0]
             failed_fits = results[np.isnan(results[:, 3]), :].shape[0]
