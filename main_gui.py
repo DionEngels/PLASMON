@@ -1279,8 +1279,8 @@ class FittingPage(tk.Frame):
 
                 self.update()
 
-                hsm_object = hsm.HSM(hsm_dir, np.asarray(self.frames[0], dtype=self.frames[0].dtype), roi_locations,
-                                     self.metadata, hsm_corr)
+                hsm_object = hsm.HSM(hsm_dir, np.asarray(self.frames[0], dtype=self.frames[0].dtype),
+                                     roi_locations.copy(), self.metadata, hsm_corr)
                 hsm_result, hsm_intensity = hsm_object.main(verbose=False)
 
                 hsm_result, hsm_intensity = tools.switch_to_matlab_hsm(hsm_result, hsm_intensity)
@@ -1306,6 +1306,7 @@ class FittingPage(tk.Frame):
 
             self.progress_status_label.updater(text="Plotting dataset " +
                                                     str(self.dataset_index + 1) + " of " + str(len(filenames)))
+            self.update()
             figuring.save_graphs(self.frames, results, results_drift, roi_locations, method, nm_or_pixels,
                                  figures_option, path, event_or_not, dataset_settings, time_axis)
 
@@ -1524,6 +1525,7 @@ if __name__ == '__main__':
     mp.freeze_support()
     gui = MbxPython()
     gui.geometry(str(GUI_WIDTH) + "x" + str(GUI_HEIGHT) + "+" + str(GUI_WIDTH_START) + "+" + str(GUI_HEIGHT_START))
+    gui.iconbitmap(getcwd() + "\ico.ico")
 
     ttk_style = ttk.Style(gui)
     ttk_style.configure("Big.TButton", font=FONT_BUTTON_BIG)
