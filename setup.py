@@ -54,7 +54,7 @@ setup(
     name='MbxPython',
     description='MbxPython',
     version=__version__,
-    executables=[Executable('main_gui.py', targetName="MbxPython.exe", base=base)],
+    executables=[Executable('main_gui.py', targetName="MbxPython.exe", base=base, icon='ico.ico')],
     options={'build_exe': {
         'packages': packages,
         'includes': includes,
