@@ -17,6 +17,7 @@ v0.2.1: trying to get lower file size, no progress
 v0.3: adding in dependencies to ensure working
 v0.4: also copy spectral corrections
 v1.0: initial release done
+v1.2: icon
 
 """
 
@@ -27,9 +28,9 @@ from cx_Freeze import setup, Executable
 
 r'-b C:\Users\s150127\Downloads\___MBx\build'  # take this control location of build
 
-__version__ = '1.1.1'
+__version__ = '1.2.0'
 
-include_files = ['spectral_corrections/']
+include_files = ['spectral_corrections/', 'ico.ico']
 PYTHON_INSTALL_DIR = os.path.dirname(os.path.dirname(os.__file__))
 os.environ['TCL_LIBRARY'] = os.path.join(PYTHON_INSTALL_DIR, 'tcl', 'tcl8.6')
 os.environ['TK_LIBRARY'] = os.path.join(PYTHON_INSTALL_DIR, 'tcl', 'tk8.6')
