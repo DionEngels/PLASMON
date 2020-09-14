@@ -33,8 +33,9 @@ v1.0.1: instant bugfix open all .nd2s
 v1.1: Bugfixes and improved figures (WIP)
 v1.1.1: tiny bugfixes: 10/08/2020
 v1.2: GUI and output improvement based on Sjoerd's feedback, HSM: 27/08/2020 - 13/09/2020
+v1.2.0.1: small bugfix
 """
-__version__ = "1.2"
+__version__ = "1.2.0.1"
 
 # GENERAL IMPORTS
 from os import getcwd, mkdir, environ, listdir  # to get standard usage
@@ -1273,7 +1274,7 @@ class FittingPage(tk.Frame):
             hsm_result = []  # just to make Python shut up about potential reference before assignment
             hsm_intensity = []
 
-            if hsm_dir is not None and hsm_corr != []:
+            if hsm_dir[0] is not None and hsm_corr != '':
                 self.progress_status_label.updater(text="HSM dataset " +
                                                         str(self.dataset_index + 1) + " of " + str(len(filenames)))
 
