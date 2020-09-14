@@ -12,19 +12,21 @@ Everything related to saving the results
 ----------------------------
 
 v1.0: split from tools: 07/08/2020
+v1.1: Integrated intensity instead of peak Gaussian intensity: 27/08/2020
 
 """
 
 from csv import writer  # to save to csv
 from scipy.io import savemat  # to export for MATLAB
-from numpy import savetxt
+from numpy import savetxt, save
 from datetime import datetime
 
 # translates the raw dictionary keys to user readable input
 TRANSLATOR_DICT = {'int_max': 'Maximum Intensity', 'int_min': 'Minimum Intensity', 'sigma_min': "Minimum Sigma",
                    'sigma_max': "Maximum Sigma", 'corr_min': "Minimum Correlation",
                    'roi_size': "ROI size", 'filter_size': "Filter size",
-                   'roi_side': "Side spacing", 'inter_roi': "ROI spacing"}
+                   'roi_side': "Side spacing", 'inter_roi': "ROI spacing",
+                   'max_its': "Maximum number of iterations for fitter"}
 
 
 def save_to_csv_mat_metadata(name, values, path):
@@ -78,11 +80,11 @@ def save_to_csv_mat_results(name, results, method, path):
             header = "Frame index,ROI index,x position,y position,Sum of ROI pixel values"
             savetxt(path + "/" + name + '.csv', results, delimiter=',', header=header)
         elif method == "Gaussian - Fit bg":
-            header = "Frame index,ROI index,x position,y position,Intensity Gaussian,Sigma x,Sigma y,Background (" \
+            header = "Frame index,ROI index,x position,y position,Integrated intensity,Sigma x,Sigma y,Background (" \
                      "fitted),Iterations needed to converge"
             savetxt(path + "/" + name + '.csv', results, delimiter=',', header=header)
         else:
-            header = "Frame index,ROI index,x position,y position,Intensity Gaussian,Sigma x,Sigma y,Background (" \
+            header = "Frame index,ROI index,x position,y position,Integrated intensity,Sigma x,Sigma y,Background (" \
                      "estimate),Iterations needed to converge"
             savetxt(path + "/" + name + '.csv', results, delimiter=',', header=header)
 
@@ -177,6 +179,8 @@ def text_output(settings, method, threshold_method, nm_or_pixels, total_fits, fa
         text_file.write("Time taken: " + str(time_taken) + "\n\n")
 
         text_file.write("\nHSM \n------------\n")
+        text_file.write("Meaning of variables in HSM output: \n")
+        text_file.write("Frame index | width | peak wavelength | peak height | R^2 \n")
         text_file.write("Directory: " + str(hsm_directory) + "\n")
         text_file.write("Correction file: " + str(hsm_correction) + "\n")
 
@@ -188,8 +192,44 @@ def text_output(settings, method, threshold_method, nm_or_pixels, total_fits, fa
         elif method == "Phasor + Sum":
             text_file.write("Frame index | ROI index | x position | y position | Sum of ROI pixel values \n")
         elif method == "Gaussian - Fit bg":
-            text_file.write("Frame index | ROI index | x position | y position | Intensity Gaussian | "
+            text_file.write("Frame index | ROI index | x position | y position | Integrated intensity | "
                             "Sigma x | Sigma y | Background (fitted) | Iterations needed to converge \n")
         else:
-            text_file.write("Frame index | ROI index | x position | y position | Intensity Gaussian | "
+            text_file.write("Frame index | ROI index | x position | y position | Integrated intensity | "
                             "Sigma x | Sigma y | Background (estimate) | Iterations needed to converge \n")
+
+
+def save_first_frame(frame_zero, path):
+    """
+    Saves the first frame of laser video for future reference
+
+    :param frame_zero: first frame of video
+    :param path: path to save to
+    """
+    save(path + '/frame_zero.npy', frame_zero)
+
+
+def save_hsm(hsm_result, hsm_intensity, path):
+    """
+    Saves all the HSM results
+    :param hsm_result: HSM results to save
+    :param hsm_intensity: HSM intensities to save
+    :param path: path to save to
+    """
+    name = 'hsm_result'
+
+    with open(path + "/" + name + '.csv', mode='w') as _:
+        header = "Frame index,width,central wavelength,height,r-squared"
+        savetxt(path + "/" + name + '.csv', hsm_result, delimiter=',', header=header)
+
+    hsm_result_dict = {name: hsm_result}
+    savemat(path + "/" + name + '.mat', hsm_result_dict)
+
+    name = 'hsm_intensity'
+
+    with open(path + "/" + name + '.csv', mode='w') as _:
+        header = "Frame index,intensity at each wavelength"
+        savetxt(path + "/" + name + '.csv', hsm_intensity, delimiter=',', header=header)
+
+    hsm_intensity_dict = {name: hsm_intensity}
+    savemat(path + "/" + name + '.mat', hsm_intensity_dict)

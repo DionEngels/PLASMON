@@ -24,6 +24,7 @@ v0.8: PhasorSum, remove LastFit, rename, and clean up
 v0.9: Gaussian fitting (with or without background) and three Phasor fitters: 24/07/2020
 v0.9.1: NaN output instead of leaving out, MATLAB ready output
 v0.9.2: removed minimum pixel requirement
+v1.0: Integrated intensity output for Gaussians: 27/08/2020
 
 """
 # %% Imports
@@ -72,7 +73,7 @@ class Gaussian:
     Gaussian fitter with estimated background, build upon Scipy Optimize Least-Squares
     """
 
-    def __init__(self, roi_size, thresholds, threshold_method, method, num_fit_params, snr):
+    def __init__(self, roi_size, thresholds, threshold_method, method, num_fit_params, max_its):
         """
 
         Parameters
@@ -80,6 +81,7 @@ class Gaussian:
         roi_size : ROI size
         thresholds : minimum and maximum of fits
         threshold_method: way to apply threshold
+        max_its: number of iterations limit
 
         Returns
         -------
@@ -109,10 +111,7 @@ class Gaussian:
         self.rel_step = EPS ** (1 / 3)
         self.comp = np.ones(num_fit_params)
 
-        if snr == "No":
-            self.max_its = 100
-        else:
-            self.max_its = 400
+        self.max_its = max_its
 
     def fun_find_max(self, roi):
         """
@@ -290,7 +289,7 @@ class Gaussian:
     def least_squares(self, x0, data, ftol=1e-8, xtol=1e-8, gtol=1e-8,
                       max_nfev=None):
         """
-        The least-squares iterator. Does preperation before minpack iterator is called
+        The least-squares iterator. Does preparation before minpack iterator is called
 
         Parameters
         ----------
@@ -498,7 +497,7 @@ class Gaussian:
                 # start position plus from center in ROI + half for indexing of pixels
                 frame_result[peak_index, 2] = result[1] + y - self.roi_size_1D + 0.5  # y
                 frame_result[peak_index, 3] = result[2] + x - self.roi_size_1D + 0.5  # x
-                frame_result[peak_index, 4] = result[0]  # intensity
+                frame_result[peak_index, 4] = result[0]*result[3]*result[4]*2*pi  # Integrated intensity
                 frame_result[peak_index, 5] = result[3]  # sigma y
                 frame_result[peak_index, 6] = result[4]  # sigma x
                 frame_result[peak_index, 7] = my_roi_bg
@@ -647,7 +646,7 @@ class GaussianBackground(Gaussian):
                 # start position plus from center in ROI + half for indexing of pixels
                 frame_result[peak_index, 2] = result[1] + y - self.roi_size_1D + 0.5  # y
                 frame_result[peak_index, 3] = result[2] + x - self.roi_size_1D + 0.5  # x
-                frame_result[peak_index, 4] = result[0]  # intensity
+                frame_result[peak_index, 4] = result[0]*result[3]*result[4]*2*pi  # Integrated intensity
                 frame_result[peak_index, 5] = result[3]  # sigma y
                 frame_result[peak_index, 6] = result[4]  # sigma x
                 frame_result[peak_index, 7] = result[5]  # background

@@ -72,6 +72,25 @@ def roi_to_matlab_coordinates(roi_locs, height):
     return roi_locs
 
 
+def roi_to_python_coordinates(roi_locs, height):
+    """
+    Change from MATLAB to Python coordinates for ROI locations
+
+    Parameters
+    -----------------
+    roi_locs: ROI locations
+    height: Height of microscope view
+
+    Returns
+    ------------------
+    results: the roi locations switched to MATLAB coordinates
+    """
+    roi_locs[:, 1] = height - roi_locs[:, 1]
+    roi_locs = switch_axis(roi_locs)
+
+    return roi_locs
+
+
 def switch_results_to_matlab_coordinates(results, height, method, nm_or_pixels, metadata):
     """
     Change from Python to MATLAB coordinates for results
@@ -141,3 +160,13 @@ def switch_axis(array):
     new[:, 1] = array[:, 0]
     new[:, 0] = array[:, 1]
     return new
+
+
+def switch_to_matlab_hsm(hsm_result, hsm_intensity):
+    """
+    Adds on to some axis of HSM for MATLAB counting
+    """
+    hsm_result[:, 0] += 1  # +1 for MATLAB
+    hsm_intensity[:, 0] = hsm_intensity[:, 0] + 1  # +1 for MATLAB
+
+    return hsm_result, hsm_intensity

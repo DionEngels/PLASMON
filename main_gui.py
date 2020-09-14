@@ -32,8 +32,9 @@ v1.0: roll-out version one
 v1.0.1: instant bugfix open all .nd2s
 v1.1: Bugfixes and improved figures (WIP)
 v1.1.1: tiny bugfixes: 10/08/2020
+v1.2: GUI and output improvement based on Sjoerd's feedback, HSM: 27/08/2020 - 13/09/2020
 """
-__version__ = "1.1.1"
+__version__ = "1.2"
 
 # GENERAL IMPORTS
 from os import getcwd, mkdir, environ, listdir  # to get standard usage
@@ -51,6 +52,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
 import matplotlib.patches as patches
+from scipy.io import loadmat
 
 # GUI
 import tkinter as tk  # for GUI
@@ -66,6 +68,8 @@ import _code.drift_correction as drift_correction
 import _code.figure_making as figuring
 import _code.output as outputting
 import _code.nd2_reading as nd2_reading
+from _code.hsm import normxcorr2, normxcorr2_large
+import _code.hsm as hsm
 
 # Multiprocessing
 import multiprocessing as mp
@@ -75,6 +79,7 @@ mpl.use("TkAgg")  # set back end to TK
 # %% Initializations. Defining filetypes, fonts, paddings, input sizes, and GUI sizes.
 
 FILETYPES = [("ND2", ".nd2")]
+FILETYPES_LOAD_FROM_OTHER = [(".npy and .mat", ".npy"), (".npy and .mat", ".mat")]
 
 FONT_HEADER = "Verdana 14 bold"
 FONT_SUBHEADER = "Verdana 11 bold"
@@ -225,10 +230,11 @@ class FigureFrame(tk.Frame):
         if roi_locations is not None and roi_size is not None:
             roi_locations_temp = roi_locations - roi_size
 
-            for roi in roi_locations_temp:
+            for roi_index, roi in enumerate(roi_locations_temp):
                 rect = patches.Rectangle((roi[1], roi[0]), roi_size * 2 + 1, roi_size * 2 + 1,
                                          linewidth=0.5, edgecolor='r', facecolor='none')
                 fig_sub.add_patch(rect)
+                fig_sub.text(roi[1], roi[0], str(roi_index+1), color='red', fontsize='small')
 
         self.canvas.draw()
         self.toolbar.update()
@@ -477,6 +483,7 @@ class FittingPage(tk.Frame):
         self.metadata = None
         self.temp_roi_locations = None
         self.filenames = None
+        self.filename_short = None
         self.start_time = None
         self.roi_locations = {}
         self.dataset_index = 0
@@ -588,7 +595,7 @@ class FittingPage(tk.Frame):
         line = ttk.Separator(self, orient='horizontal')
         line.grid(row=10, column=0, rowspan=1, columnspan=40, sticky='we')
 
-        hsm_label = tk.Label(self, text="HSM (not yet implemented)", font=FONT_HEADER, bg='white')
+        hsm_label = tk.Label(self, text="HSM", font=FONT_HEADER, bg='white')
         hsm_label.grid(row=11, column=0, columnspan=40, sticky='EW', padx=PAD_SMALL)
 
         self.hsm_load = NormalButton(self, text="Load HSM data", row=12, column=0, columnspan=8, sticky='EW',
@@ -618,34 +625,36 @@ class FittingPage(tk.Frame):
         line = ttk.Separator(self, orient='horizontal')
         line.grid(row=15, column=0, rowspan=1, columnspan=40, sticky='we')
 
-        self.button_left = NormalButton(self, text="<<", row=16, column=0, columnspan=5, sticky='EW',
+        self.button_left = NormalButton(self, text="<<", row=17, column=8, columnspan=5, sticky='EW',
                                         padx=PAD_SMALL)
         self.dataset_roi_status = NormalLabel(self, text="TBD",
-                                              row=16, column=5, columnspan=30, font=FONT_STATUS)
-        self.button_right = NormalButton(self, ">>", row=16, column=35, columnspan=5, sticky='EW',
+                                              row=17, column=13, columnspan=22, font=FONT_LABEL, sticky='EW')
+        self.button_right = NormalButton(self, ">>", row=17, column=35, columnspan=5, sticky='EW',
                                          padx=PAD_SMALL)
 
         button_find_rois = ttk.Button(self, text="Find ROIs", command=lambda: self.fit_rois())
-        button_find_rois.grid(row=17, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        button_find_rois.grid(row=16, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        self.number_of_rois = NormalLabel(self, text="TBD", row=17, column=0, columnspan=8, font=FONT_LABEL,
+                                          padx=PAD_SMALL, sticky='EW')
 
         button_restore = ttk.Button(self, text="Restore default",
                                     command=lambda: self.restore_default())
-        button_restore.grid(row=17, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        button_restore.grid(row=16, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
-        self.restore_saved_drop_var = tk.StringVar(self)
-        self.restore_saved_drop = ttk.OptionMenu(self, self.restore_saved_drop_var, *self.saved_settings_list)
-        self.restore_saved_drop.grid(row=17, column=16, columnspan=8, sticky="ew")
-        self.restore_saved_drop['state'] = 'disabled'
+        self.button_load_other_video = NormalButton(self, text="Load from other",
+                                                    command=lambda: self.load_from_other(),
+                                                    row=16, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         self.button_restore_saved = NormalButton(self, text="Restore saved",
                                                  state='disabled',
                                                  command=lambda: self.restore_saved(),
-                                                 row=17, column=24,
+                                                 row=16, column=24,
                                                  columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         button_save = ttk.Button(self, text="Save",
                                  command=lambda: self.save_roi_settings())
-        button_save.grid(row=17, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        button_save.grid(row=16, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         self.fig = FigureFrame(self, height=GUI_WIDTH * 0.4, width=GUI_WIDTH * 0.4, dpi=DPI)
         self.fig.grid(row=0, column=40, columnspan=10, rowspan=18, sticky='EW', padx=PAD_SMALL)
@@ -697,14 +706,6 @@ class FittingPage(tk.Frame):
         self.figures_check = tk.Checkbutton(self, variable=self.figures_var, onvalue="All", offvalue="Overview",
                                             bg="white")
         self.figures_check.grid(row=24, column=33, columnspan=7, sticky='EW', padx=PAD_BIG)
-
-        low_snr_label = tk.Label(self, text="Low SNR?", font=FONT_LABEL, bg='white')
-        low_snr_label.grid(row=27, column=33, columnspan=7, sticky='EW', padx=PAD_BIG)
-
-        self.low_snr_var = tk.StringVar(self, value="No")
-        self.low_snr_check = tk.Checkbutton(self, variable=self.low_snr_var, onvalue="Yes", offvalue="No",
-                                            bg="white")
-        self.low_snr_check.grid(row=28, column=33, columnspan=7, sticky='EW', padx=PAD_BIG)
 
         frame_begin_label = tk.Label(self, text="Begin frame", font=FONT_LABEL, bg='white')
         frame_begin_label.grid(row=27, column=0, columnspan=16, sticky='EW', padx=PAD_BIG)
@@ -774,7 +775,10 @@ class FittingPage(tk.Frame):
         self.filenames = filenames
         self.dataset_index = 0
 
-        self.dataset_roi_status.updater(text="Dataset " + str(self.dataset_index + 1) + " of " + str(len(filenames)))
+        self.filename_short = filenames[self.dataset_index].split("/")[-1][:-4]
+
+        self.dataset_roi_status.updater(text=self.filename_short + " (" + str(self.dataset_index + 1) + " of " +
+                                             str(len(filenames)) + ")")
         self.roi_status.updater(text="0 of " + str(len(filenames)) + " have settings")
 
         self.nd2 = nd2_reading.ND2ReaderSelf(filenames[self.dataset_index])
@@ -838,7 +842,7 @@ class FittingPage(tk.Frame):
                                           start=defaults['sigma_max'])
             self.min_corr_slider.updater(from_=0, to=1, start=defaults['corr_min'])
         else:
-            self.roi_fitter = fitting.Gaussian(7, {}, "None", "Gaussian", 5, "Yes")
+            self.roi_fitter = fitting.Gaussian(7, {}, "None", "Gaussian", 5, 300)
 
             self.roi_finder = roi_finding.RoiFinder(self.frames[0], self.roi_fitter)
 
@@ -921,13 +925,14 @@ class FittingPage(tk.Frame):
             tk.messagebox.showerror("ERROR", "Filter size should be odd")
             return False
 
-        self.roi_fitter = fitting.Gaussian(settings['roi_size'], {}, "None", "Gaussian", 5, "Yes")
+        self.roi_fitter = fitting.Gaussian(settings['roi_size'], {}, "None", "Gaussian", 5, 300)
 
         self.roi_finder.change_settings(settings)
 
         self.temp_roi_locations = self.roi_finder.main(self.roi_fitter)
 
         self.fig.updater(self.frames[0], roi_locations=self.temp_roi_locations, roi_size=self.roi_finder.roi_size_1d)
+        self.number_of_rois.updater(text=str(len(self.temp_roi_locations)) + " ROIs found")
 
         return True
 
@@ -949,24 +954,16 @@ class FittingPage(tk.Frame):
 
         self.roi_locations[self.dataset_index] = self.temp_roi_locations.copy()
 
+        max_its = self.roi_finder.find_snr(self.roi_fitter)
+
         settings = self.read_out_settings()
+        settings['max_its'] = max_its
 
         self.saved_settings[self.dataset_index] = settings
 
         self.roi_status.updater(text=str(len(self.roi_locations)) + " of " + str(len(
             self.filenames)) + " have settings")
         self.button_restore_saved.updater(command=lambda: self.restore_saved())
-
-        self.restore_saved_drop['state'] = 'enabled'
-        self.restore_saved_drop['menu'].delete(0, 'end')
-
-        # Insert list of new options (tk._setit hooks them up to var)
-        for key in self.saved_settings.keys():
-            self.restore_saved_drop['menu'].add_command(label="Dataset " + str(key + 1),
-                                                        command=tk._setit(self.restore_saved_drop_var,
-                                                                          "Dataset " + str(key + 1)))
-
-        self.restore_saved_drop_var.set("Dataset " + str(self.dataset_index + 1))
 
         if len(self.roi_locations) == len(self.filenames):
             self.button_fit.updater(state='enabled')
@@ -982,11 +979,7 @@ class FittingPage(tk.Frame):
         None, updates GUI
 
         """
-        selected_set = self.restore_saved_drop_var.get()  # take selected set
-
-        selected_set = int(selected_set.split()[-1]) - 1  # get number out to convert to correct dataset index
-
-        settings = self.saved_settings[selected_set]
+        settings = self.saved_settings[self.dataset_index]
 
         self.min_int_slider.updater(from_=0, to=self.roi_finder.int_max / 4,
                                     start=settings['int_min'])
@@ -1009,6 +1002,56 @@ class FittingPage(tk.Frame):
 
         self.fit_rois()
 
+    # %% Load from previously processed dataset
+
+    def load_from_other(self):
+
+        tk.Tk().withdraw()
+        while True:
+            filenames = askopenfilenames(filetypes=FILETYPES_LOAD_FROM_OTHER,
+                                         title="Select both frame_zero and ROI locations that you want to use",
+                                         initialdir=getcwd())
+            if len(filenames) == 2:
+                break
+            else:
+                check = tk.messagebox.askokcancel("ERROR",
+                                                  "Select one ROI locations file and one frame_zero. Try again?")
+                if not check:
+                    return
+
+        frame_zero_old = np.load([file for file in filenames if file.endswith('.npy')][0])
+        roi_locations = loadmat([file for file in filenames if file.endswith('.mat')][0])
+        roi_locations = [roi_locations[key] for key in roi_locations.keys() if not key.startswith('_')][0]
+        roi_locations = tools.roi_to_python_coordinates(roi_locations, frame_zero_old.shape[0])
+
+        frame_zero = np.asarray(self.frames[0])
+
+        if frame_zero_old.shape == frame_zero.shape:
+            corr = normxcorr2(frame_zero_old, frame_zero)
+            maxima = np.transpose(np.asarray(np.where(corr == np.amax(corr))))[0]
+            offset = maxima - np.asarray(frame_zero_old.shape) + np.asarray([1, 1])
+        else:
+            corr = normxcorr2_large(frame_zero_old, frame_zero)
+            maxima = np.transpose(np.asarray(np.where(corr == np.amax(corr))))[0]
+            offset = maxima - np.asarray(frame_zero_old.shape) + np.asarray([1, 1])
+
+        try:
+            roi_locations += offset
+        except:
+            tk.messagebox.askokcancel("ERROR", "You did not select a proper ROI locations file. Try again.")
+            return
+
+        self.temp_roi_locations = roi_locations
+
+        self.fig.updater(self.frames[0], roi_locations=self.temp_roi_locations, roi_size=self.roi_finder.roi_size_1d)
+        self.number_of_rois.updater(text=str(len(self.temp_roi_locations)) + " ROIs found")
+
+        message = "ROIs loaded in. Be careful, the set variables for ROI finding and the used ROIs now no longer " \
+                  "match. Therefore, using 'Strict' rejection rules is not advised. " \
+                  "The loaded ROIs are automatically saved."
+
+        tk.messagebox.showinfo("Done!", message)
+
     # %% Fitting page, switch between datasets
 
     def change_dataset(self, change):
@@ -1029,8 +1072,10 @@ class FittingPage(tk.Frame):
         self.to_hist = None
 
         self.dataset_index += change
-        self.dataset_roi_status.updater(text="Dataset " + str(self.dataset_index + 1) + " of "
-                                             + str(len(self.filenames)))
+
+        self.filename_short = filenames[self.dataset_index].split("/")[-1][:-4]
+        self.dataset_roi_status.updater(text=self.filename_short + " (" + str(self.dataset_index + 1) + " of " +
+                                             str(len(filenames)) + ")")
 
         self.nd2.close()
         self.nd2 = nd2_reading.ND2ReaderSelf(self.filenames[self.dataset_index])
@@ -1042,7 +1087,8 @@ class FittingPage(tk.Frame):
         self.restore_default()
 
         if self.dataset_index in self.saved_settings:
-            self.restore_saved_drop_var.set("Dataset " + str(self.dataset_index + 1))
+            self.button_restore_saved.updater(command=lambda: self.restore_saved())
+            self.restore_saved()
             self.hsm_correct_var.set(self.saved_settings[self.dataset_index]['hsm_correction'])
             if self.saved_settings[self.dataset_index]['hsm_directory'] is not None:
                 hsm_folder_show = '/'.join(self.saved_settings[self.dataset_index]['hsm_directory'].split('/')[-2:])
@@ -1050,7 +1096,7 @@ class FittingPage(tk.Frame):
                 hsm_folder_show = ""
             self.hsm_folder_disp['text'] = hsm_folder_show
         else:
-            self.restore_saved_drop_var.set("")
+            self.button_restore_saved.updater(state='disabled')
             self.clear_hsm()
 
         if self.dataset_index == len(self.filenames) - 1:
@@ -1062,11 +1108,6 @@ class FittingPage(tk.Frame):
             self.button_left.updater(state='disabled')
         else:
             self.button_left.updater(command=lambda: self.change_dataset(-1))
-
-        if len(self.saved_settings) > 0:
-            self.button_restore_saved.updater(command=lambda: self.restore_saved())
-        else:
-            self.button_restore_saved.updater(state='disabled')
 
     # %% Fitting page, start fitting
 
@@ -1092,7 +1133,6 @@ class FittingPage(tk.Frame):
         method = self.method_var.get()
         rejection_type = self.rejection_var.get()
         figures_option = self.figures_var.get()
-        low_snr = self.low_snr_var.get()
 
         if rejection_type == "Strict" and (method == "Phasor + Sum" or method == "Phasor" or
                                            method == "Phasor + Intensity"):
@@ -1127,6 +1167,7 @@ class FittingPage(tk.Frame):
             dataset_settings = self.saved_settings[self.dataset_index]
 
             roi_size = dataset_settings['roi_size']
+            max_its = dataset_settings['max_its']
 
             roi_locations = self.roi_locations[self.dataset_index]
 
@@ -1135,9 +1176,9 @@ class FittingPage(tk.Frame):
             elif method == "Phasor":
                 fitter = fitting.PhasorDumb(roi_size, dataset_settings, rejection_type, method)
             elif method == "Gaussian - Fit bg":
-                fitter = fitting.GaussianBackground(roi_size, dataset_settings, rejection_type, method, 6, low_snr)
+                fitter = fitting.GaussianBackground(roi_size, dataset_settings, rejection_type, method, 6, max_its)
             elif method == "Gaussian - Estimate bg":
-                fitter = fitting.Gaussian(roi_size, dataset_settings, rejection_type, method, 5, low_snr)
+                fitter = fitting.Gaussian(roi_size, dataset_settings, rejection_type, method, 5, max_its)
             else:
                 fitter = fitting.PhasorSum(roi_size, dataset_settings, rejection_type, method)
 
@@ -1148,18 +1189,22 @@ class FittingPage(tk.Frame):
                 end_frame = self.metadata['num_frames']
                 start_frame = 0
                 to_fit = self.frames
+                time_axis = self.metadata['timesteps']
             elif start_frame == "Leave empty for start" and end_frame != "Leave empty for end":
                 start_frame = 0
                 end_frame = int(end_frame)
                 to_fit = self.frames[:end_frame]
+                time_axis = self.metadata['timesteps'][:end_frame]
             elif start_frame != "Leave empty for start" and end_frame == "Leave empty for end":
                 start_frame = int(start_frame)
                 end_frame = self.metadata['num_frames']
                 to_fit = self.frames[start_frame:]
+                time_axis = self.metadata['timesteps'][start_frame:]
             else:  # start_frame != "Leave empty for start" and end_frame != "Leave empty for end":
                 start_frame = int(start_frame)
                 end_frame = int(end_frame)
                 to_fit = self.frames[start_frame:end_frame]
+                time_axis = self.metadata['timesteps'][start_frame:end_frame]
 
             num_frames = end_frame - start_frame
 
@@ -1223,15 +1268,22 @@ class FittingPage(tk.Frame):
 
             # HSM
 
-            hsm_dir = dataset_settings['hsm_directory']
+            hsm_dir = (dataset_settings['hsm_directory'],)
             hsm_corr = dataset_settings['hsm_correction']
+            hsm_result = []  # just to make Python shut up about potential reference before assignment
+            hsm_intensity = []
 
             if hsm_dir is not None and hsm_corr != []:
                 self.progress_status_label.updater(text="HSM dataset " +
                                                         str(self.dataset_index + 1) + " of " + str(len(filenames)))
+
                 self.update()
 
-                # ADD HSM stuff here
+                hsm_object = hsm.HSM(hsm_dir, np.asarray(self.frames[0], dtype=self.frames[0].dtype),
+                                     roi_locations.copy(), self.metadata, hsm_corr)
+                hsm_result, hsm_intensity = hsm_object.main(verbose=False)
+
+                hsm_result, hsm_intensity = tools.switch_to_matlab_hsm(hsm_result, hsm_intensity)
 
             # create folder for output
 
@@ -1254,8 +1306,9 @@ class FittingPage(tk.Frame):
 
             self.progress_status_label.updater(text="Plotting dataset " +
                                                     str(self.dataset_index + 1) + " of " + str(len(filenames)))
+            self.update()
             figuring.save_graphs(self.frames, results, results_drift, roi_locations, method, nm_or_pixels,
-                                 figures_option, path, event_or_not, dataset_settings)
+                                 figures_option, path, event_or_not, dataset_settings, time_axis)
 
             # Switch to MATLAB coordinates
 
@@ -1272,11 +1325,14 @@ class FittingPage(tk.Frame):
                                                     str(self.dataset_index + 1) + " of " + str(len(filenames)))
             self.update()
 
+            outputting.save_first_frame(self.frames[0], path)
             outputting.save_to_csv_mat_metadata('metadata', self.metadata, path)
             outputting.save_to_csv_mat_roi('ROI_locations', roi_locations, path)
             outputting.save_to_csv_mat_drift('Drift_correction', drift, path)
             outputting.save_to_csv_mat_results('Localizations', results, method, path)
             outputting.save_to_csv_mat_results('Localizations_drift', results_drift, method, path)
+            if hsm_dir is not None and hsm_corr != []:
+                outputting.save_hsm(hsm_result, hsm_intensity, path)
 
             total_fits = results.shape[0]
             failed_fits = results[np.isnan(results[:, 3]), :].shape[0]
@@ -1469,6 +1525,7 @@ if __name__ == '__main__':
     mp.freeze_support()
     gui = MbxPython()
     gui.geometry(str(GUI_WIDTH) + "x" + str(GUI_HEIGHT) + "+" + str(GUI_WIDTH_START) + "+" + str(GUI_HEIGHT_START))
+    gui.iconbitmap(getcwd() + "\ico.ico")
 
     ttk_style = ttk.Style(gui)
     ttk_style.configure("Big.TButton", font=FONT_BUTTON_BIG)
