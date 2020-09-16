@@ -34,8 +34,9 @@ v1.1: Bugfixes and improved figures (WIP)
 v1.1.1: tiny bugfixes: 10/08/2020
 v1.2: GUI and output improvement based on Sjoerd's feedback, HSM: 27/08/2020 - 13/09/2020
 v1.2.0.1: small bugfix
+v1.2.1: HSM checks, bugfixes
 """
-__version__ = "1.2.0.1"
+__version__ = "1.2.1"
 
 # GENERAL IMPORTS
 from os import getcwd, mkdir, environ, listdir  # to get standard usage
@@ -211,7 +212,7 @@ class FigureFrame(tk.Frame):
 
     def updater(self, frame, roi_locations=None, roi_size=None):
         """
-        Updater. Takes exsisting frame with figure and places new figure in it
+        Updater. Takes existing frame with figure and places new figure in it
 
         Parameters
         ----------
@@ -779,7 +780,7 @@ class FittingPage(tk.Frame):
         self.filename_short = filenames[self.dataset_index].split("/")[-1][:-4]
 
         self.dataset_roi_status.updater(text=self.filename_short + " (" + str(self.dataset_index + 1) + " of " +
-                                             str(len(filenames)) + ")")
+                                        str(len(filenames)) + ")")
         self.roi_status.updater(text="0 of " + str(len(filenames)) + " have settings")
 
         self.nd2 = nd2_reading.ND2ReaderSelf(filenames[self.dataset_index])
@@ -1043,6 +1044,7 @@ class FittingPage(tk.Frame):
             return
 
         self.temp_roi_locations = roi_locations
+        self.roi_locations[self.dataset_index] = self.temp_roi_locations.copy()
 
         self.fig.updater(self.frames[0], roi_locations=self.temp_roi_locations, roi_size=self.roi_finder.roi_size_1d)
         self.number_of_rois.updater(text=str(len(self.temp_roi_locations)) + " ROIs found")
@@ -1076,7 +1078,7 @@ class FittingPage(tk.Frame):
 
         self.filename_short = filenames[self.dataset_index].split("/")[-1][:-4]
         self.dataset_roi_status.updater(text=self.filename_short + " (" + str(self.dataset_index + 1) + " of " +
-                                             str(len(filenames)) + ")")
+                                        str(len(filenames)) + ")")
 
         self.nd2.close()
         self.nd2 = nd2_reading.ND2ReaderSelf(self.filenames[self.dataset_index])
@@ -1271,8 +1273,9 @@ class FittingPage(tk.Frame):
 
             hsm_dir = (dataset_settings['hsm_directory'],)
             hsm_corr = dataset_settings['hsm_correction']
-            hsm_result = []  # just to make Python shut up about potential reference before assignment
-            hsm_intensity = []
+            hsm_result = None  # just to make Python shut up about potential reference before assignment
+            hsm_intensity = None
+            hsm_wavelengths = None
 
             if hsm_dir[0] is not None and hsm_corr != '':
                 self.progress_status_label.updater(text="HSM dataset " +
@@ -1284,7 +1287,7 @@ class FittingPage(tk.Frame):
                                      roi_locations.copy(), self.metadata, hsm_corr)
                 hsm_result, hsm_intensity = hsm_object.main(verbose=False)
 
-                hsm_result, hsm_intensity = tools.switch_to_matlab_hsm(hsm_result, hsm_intensity)
+                hsm_wavelengths = hsm_object.wavelength
 
             # create folder for output
 
@@ -1309,7 +1312,8 @@ class FittingPage(tk.Frame):
                                                     str(self.dataset_index + 1) + " of " + str(len(filenames)))
             self.update()
             figuring.save_graphs(self.frames, results, results_drift, roi_locations, method, nm_or_pixels,
-                                 figures_option, path, event_or_not, dataset_settings, time_axis)
+                                 figures_option, path, event_or_not, dataset_settings, time_axis.copy(),
+                                 hsm_result, hsm_intensity, hsm_wavelengths)
 
             # Switch to MATLAB coordinates
 
@@ -1319,6 +1323,8 @@ class FittingPage(tk.Frame):
                                                                        method, nm_or_pixels, self.metadata)
             roi_locations = tools.roi_to_matlab_coordinates(roi_locations, self.frames[0].shape[0])
             drift = tools.switch_axis(drift)
+            if hsm_result is not None:
+                hsm_result, hsm_intensity = tools.switch_to_matlab_hsm(hsm_result, hsm_intensity)
 
             # Save
 
@@ -1332,7 +1338,7 @@ class FittingPage(tk.Frame):
             outputting.save_to_csv_mat_drift('Drift_correction', drift, path)
             outputting.save_to_csv_mat_results('Localizations', results, method, path)
             outputting.save_to_csv_mat_results('Localizations_drift', results_drift, method, path)
-            if hsm_dir is not None and hsm_corr != []:
+            if hsm_result is not None:
                 outputting.save_hsm(hsm_result, hsm_intensity, path)
 
             total_fits = results.shape[0]
@@ -1451,7 +1457,7 @@ class FittingPage(tk.Frame):
             self.histogram.clear()
             logbins = np.logspace(np.log10(bins[0]), np.log10(bins[-1]), len(bins))
             plt.hist(self.to_hist, bins=logbins)
-            plt.title("Intensity. Use grap select to change threshold")
+            plt.title("Intensity. Use graph select to change threshold")
             plt.axvline(x=min_int, color='red', linestyle='--')
             plt.axvline(x=max_int, color='red', linestyle='--')
             plt.xscale('log')
@@ -1527,6 +1533,7 @@ if __name__ == '__main__':
     gui = MbxPython()
     gui.geometry(str(GUI_WIDTH) + "x" + str(GUI_HEIGHT) + "+" + str(GUI_WIDTH_START) + "+" + str(GUI_HEIGHT_START))
     gui.iconbitmap(getcwd() + "\ico.ico")
+    gui.protocol("WM_DELETE_WINDOW", lambda: quit_program())
 
     ttk_style = ttk.Style(gui)
     ttk_style.configure("Big.TButton", font=FONT_BUTTON_BIG)
@@ -1536,4 +1543,6 @@ if __name__ == '__main__':
     ttk_style.configure("TMenubutton", font=FONT_DROP, background="White")
 
     tk.Tk.report_callback_exception = show_error
+
+    plt.ioff()
     gui.mainloop()

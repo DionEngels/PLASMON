@@ -479,12 +479,13 @@ class Gaussian:
             result, its, success = self.fit_gaussian(my_roi, peak_index)
 
             if self.threshold_method == "None":
-                if success == 0:
+                if success == 0 or result[0] == 0:
                     self.params[peak_index, :] = [self.init_sig, self.init_sig]
+                    success = 0
             else:
                 if success == 0 or \
                         result[2] < pos_min or result[2] > pos_max or result[1] < pos_min or result[1] > pos_max or \
-                        result[0] < int_min or result[0] > int_max or \
+                        result[0] <= int_min or result[0] > int_max or \
                         result[3] < sig_min or result[3] > sig_max or result[4] < sig_min or result[4] > sig_max:
                     self.params[peak_index, :] = [self.init_sig, self.init_sig]
                     success = 0
@@ -628,12 +629,13 @@ class GaussianBackground(Gaussian):
             result, its, success = self.fit_gaussian(my_roi, peak_index)
 
             if self.threshold_method == "None":
-                if success == 0:
+                if success == 0 or result[0] == 0:
                     self.params[peak_index, :] = [self.init_sig, self.init_sig]
+                    success = 0
             else:
                 if success == 0 or \
                         result[2] < pos_min or result[2] > pos_max or result[1] < pos_min or result[1] > pos_max or \
-                        result[0] < int_min or result[0] > int_max or \
+                        result[0] <= int_min or result[0] > int_max or \
                         result[3] < sig_min or result[3] > sig_max or result[4] < sig_min or result[4] > sig_max:
                     self.params[peak_index, :] = [self.init_sig, self.init_sig]
                     success = 0
@@ -791,6 +793,8 @@ class Phasor:
             if self.threshold_method != "None" and (pos_x > self.roi_size or pos_x < 0):
                 success = 0
             if self.threshold_method != "None" and (pos_y > self.roi_size or pos_y < 0):
+                success = 0
+            if frame_max == 0:
                 success = 0
 
             if success == 1:
@@ -968,6 +972,8 @@ class PhasorSum(Phasor):
             if self.threshold_method != "None" and (pos_x > self.roi_size or pos_x < 0):
                 success = 0
             if self.threshold_method != "None" and (pos_y > self.roi_size or pos_y < 0):
+                success = 0
+            if frame_sum == 0:
                 success = 0
 
             if success == 1:
