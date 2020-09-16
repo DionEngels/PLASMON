@@ -19,7 +19,7 @@ v1.3: feedback of Peter meeting: 06/09/2020
 """
 
 from os import mkdir
-from numpy import asarray, invert, concatenate, mean
+from numpy import asarray, invert, concatenate, mean, pi
 from numpy import max as np_max
 from numpy import min as np_min
 from math import ceil
@@ -97,7 +97,7 @@ def find_range(results, results_drift, roi_locations):
 
 
 def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pixels, figures_option, path,
-                event_or_not, settings, time_axis):
+                event_or_not, settings, time_axis, hsm_result, hsm_intensity, hsm_wavelengths):
     """
     Input results and drift-corrected results, puts out some example graphs for quick checking
 
@@ -114,6 +114,9 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
     event_or_not: event or not boolean for each roi
     settings: settings used to fit with
     time_axis: time axis of experiment
+    hsm_result: HSM results
+    hsm_intensity: HSM intensities found used to find results
+    hsm_wavelengths: wavelengths used at HSM
 
     Returns
     -------
@@ -121,6 +124,7 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
     """
     path += "/Graphs"
     mkdir(path)
+    plt.ioff()
 
     time_axis /= 1000
 
@@ -248,26 +252,40 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
         x_positions = results_drift[results_drift[:, 1] == roi_index, 2]
         y_positions = results_drift[results_drift[:, 1] == roi_index, 3]
 
-        ax_loc_drift = fig.add_subplot(gs[row + 1, column + 1])
-        ax_loc_drift.scatter(x_positions[invert(event_or_not_roi)], y_positions[invert(event_or_not_roi)],
-                             label='non-events')
-        ax_loc_drift.scatter(x_positions[event_or_not_roi], y_positions[event_or_not_roi], label='events')
-        if nm_or_pixels == 'nm':
-            ax_loc_drift.set_xlabel('x-position (nm)')
-            ax_loc_drift.set_ylabel('y-position (nm)')
-        else:
-            ax_loc_drift.set_xlabel('x-position (pixels)')
-            ax_loc_drift.set_ylabel('y-position (pixels)')
-        ax_loc_drift.set_title('Scatter ROI ' + str(roi_index + 1) + " post drift")
-        ax_loc_drift.axis('equal')
-        ax_loc_drift.legend()
+        if hsm_result is None:
+            ax_loc_drift = fig.add_subplot(gs[row + 1, column + 1])
+            ax_loc_drift.scatter(x_positions[invert(event_or_not_roi)], y_positions[invert(event_or_not_roi)],
+                                 label='non-events')
+            ax_loc_drift.scatter(x_positions[event_or_not_roi], y_positions[event_or_not_roi], label='events')
+            if nm_or_pixels == 'nm':
+                ax_loc_drift.set_xlabel('x-position (nm)')
+                ax_loc_drift.set_ylabel('y-position (nm)')
+            else:
+                ax_loc_drift.set_xlabel('x-position (pixels)')
+                ax_loc_drift.set_ylabel('y-position (pixels)')
+            ax_loc_drift.set_title('Scatter ROI ' + str(roi_index + 1) + " post drift")
+            ax_loc_drift.axis('equal')
+            ax_loc_drift.legend()
 
-        ylim = ax_loc_drift.get_ylim()
-        xlim = ax_loc_drift.get_xlim()
-        x_center = mean(xlim)
-        y_center = mean(ylim)
-        ax_loc_drift.set_xlim(x_center - max_range / 2, x_center + max_range / 2)
-        ax_loc_drift.set_ylim(y_center - max_range / 2, y_center + max_range / 2)
+            ylim = ax_loc_drift.get_ylim()
+            xlim = ax_loc_drift.get_xlim()
+            x_center = mean(xlim)
+            y_center = mean(ylim)
+            ax_loc_drift.set_xlim(x_center - max_range / 2, x_center + max_range / 2)
+            ax_loc_drift.set_ylim(y_center - max_range / 2, y_center + max_range / 2)
+        else:
+            def lorentzian(width, central, height, x):
+                return height * width / (2 * pi) / ((x - central) ** 2 + width ** 2 / 4)
+
+            ax_hsm = fig.add_subplot(gs[row + 1, column + 1])
+            hsm_intensities = hsm_intensity[hsm_intensity[:, 0] == roi_index, 1:]
+            ax_hsm.scatter(hsm_wavelengths, hsm_intensities)
+            hsm_params = hsm_result[hsm_result[:, 0] == roi_index, 1:-1]
+            hsm_fit = lorentzian(*hsm_params[0], hsm_wavelengths)
+            ax_hsm.plot(hsm_wavelengths, hsm_fit,'r--')
+            ax_hsm.set_xlabel('wavelength (nm)')
+            ax_hsm.set_ylabel('intensity (arb. units)')
+            ax_hsm.set_title('HSM Result ROI {}'.format(str(roi_index + 1)))
 
     name = path + "/" + "_Overview.png"
     plt.tight_layout()
@@ -300,6 +318,13 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
                 ax_tt.set_xlabel('Time (s)')
                 ax_tt.set_ylabel('Integrated intensity (counts)')
                 ax_tt.set_title('Time trace ROI ' + str(roi_index + 1))
+            elif "Sum" in method:
+                ax_tt = fig.add_subplot(2, 2, 2)
+                intensities = results[results[:, 1] == roi_index, 4]
+                ax_tt.plot(time_axis, intensities)
+                ax_tt.set_xlabel('Time (s)')
+                ax_tt.set_ylabel('Summed intensity (counts)')
+                ax_tt.set_title('Time trace ROI ' + str(roi_index + 1))
 
             x_positions = results[results[:, 1] == roi_index, 2]
             y_positions = results[results[:, 1] == roi_index, 3]
@@ -328,26 +353,40 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
             x_positions = results_drift[results_drift[:, 1] == roi_index, 2]
             y_positions = results_drift[results_drift[:, 1] == roi_index, 3]
 
-            ax_loc_drift = fig.add_subplot(2, 2, 4)
-            ax_loc_drift.scatter(x_positions[invert(event_or_not_roi)], y_positions[invert(event_or_not_roi)],
-                                 label='non-events')
-            ax_loc_drift.scatter(x_positions[event_or_not_roi], y_positions[event_or_not_roi], label='events')
-            if nm_or_pixels == 'nm':
-                ax_loc_drift.set_xlabel('x-position (nm)')
-                ax_loc_drift.set_ylabel('y-position (nm)')
-            else:
-                ax_loc_drift.set_xlabel('x-position (pixels)')
-                ax_loc_drift.set_ylabel('y-position (pixels)')
-            ax_loc_drift.set_title('Scatter ROI ' + str(roi_index + 1) + " post drift")
-            ax_loc_drift.axis('equal')
-            ax_loc_drift.legend()
+            if hsm_result is None:
+                ax_loc_drift = fig.add_subplot(2, 2, 4)
+                ax_loc_drift.scatter(x_positions[invert(event_or_not_roi)], y_positions[invert(event_or_not_roi)],
+                                     label='non-events')
+                ax_loc_drift.scatter(x_positions[event_or_not_roi], y_positions[event_or_not_roi], label='events')
+                if nm_or_pixels == 'nm':
+                    ax_loc_drift.set_xlabel('x-position (nm)')
+                    ax_loc_drift.set_ylabel('y-position (nm)')
+                else:
+                    ax_loc_drift.set_xlabel('x-position (pixels)')
+                    ax_loc_drift.set_ylabel('y-position (pixels)')
+                ax_loc_drift.set_title('Scatter ROI ' + str(roi_index + 1) + " post drift")
+                ax_loc_drift.axis('equal')
+                ax_loc_drift.legend()
 
-            ylim = ax_loc_drift.get_ylim()
-            xlim = ax_loc_drift.get_xlim()
-            x_center = mean(xlim)
-            y_center = mean(ylim)
-            ax_loc_drift.set_xlim(x_center - max_range / 2, x_center + max_range / 2)
-            ax_loc_drift.set_ylim(y_center - max_range / 2, y_center + max_range / 2)
+                ylim = ax_loc_drift.get_ylim()
+                xlim = ax_loc_drift.get_xlim()
+                x_center = mean(xlim)
+                y_center = mean(ylim)
+                ax_loc_drift.set_xlim(x_center - max_range / 2, x_center + max_range / 2)
+                ax_loc_drift.set_ylim(y_center - max_range / 2, y_center + max_range / 2)
+            else:
+                def lorentzian(width, central, height, x):
+                    return height * width / (2 * pi) / ((x - central) ** 2 + width ** 2 / 4)
+
+                ax_hsm = fig.add_subplot(2, 2, 4)
+                hsm_intensities = hsm_intensity[hsm_intensity[:, 0] == roi_index, 1:]
+                ax_hsm.scatter(hsm_wavelengths, hsm_intensities)
+                hsm_params = hsm_result[hsm_result[:, 0] == roi_index, 1:-1]
+                hsm_fit = lorentzian(*hsm_params[0], hsm_wavelengths)
+                ax_hsm.plot(hsm_wavelengths, hsm_fit, 'r--')
+                ax_hsm.set_xlabel('wavelength (nm)')
+                ax_hsm.set_ylabel('intensity (arb. units)')
+                ax_hsm.set_title('HSM Result ROI {}'.format(str(roi_index + 1)))
 
             name = path + "/" + "ROI" + str(roi_index+1)+".png"
             plt.tight_layout()

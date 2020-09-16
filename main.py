@@ -198,7 +198,8 @@ for name in filenames:
         start = time.time()
 
         figuring.save_graphs(frames, results, results_drift, ROI_locations, METHOD, "pixels", FIGURE_OPTION,
-                             path, event_or_not, settings, metadata['timesteps'][SLICE])
+                             path, event_or_not, settings, metadata['timesteps'][SLICE],
+                             hsm_result, hsm_intensity, hsm.wavelength)
 
         time_taken = round(time.time() - start, 3)
         print('Time taken plotting: ' + str(time_taken) + ' s. Fits done: ' + str(successful_fits))

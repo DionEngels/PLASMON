@@ -73,6 +73,7 @@ class HSM:
         self.metadata = metadata
         self.frame_zero = frame_zero
         self.frame_merge = None
+        self.wavelength = None
 
         # load in nd2 frames
 
@@ -146,6 +147,7 @@ class HSM:
         # find correct shape for wavelength
 
         wavelength = to_int(self.nd2_files)
+        self.wavelength = wavelength.copy()
         shape = np.asarray([find_nearest(self.spec_wavelength, self.spec_shape, nu) for nu in wavelength])
 
         # correct frames for drift
