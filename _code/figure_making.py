@@ -22,11 +22,13 @@ from os import mkdir
 from numpy import asarray, invert, concatenate, mean, pi
 from numpy import max as np_max
 from numpy import min as np_min
-from math import ceil
+from math import ceil, floor
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.gridspec import GridSpec
+
+DPI = 400
 
 
 def plot_rois(frame, roi_locations, roi_size):
@@ -128,8 +130,10 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
 
     time_axis /= 1000
 
+    linewidth = 1 / (2**(floor(len(time_axis) / 1500) - 1))
+
     if "Gaussian" in method:
-        fig = plt.figure(constrained_layout=True, figsize=(16, 40))
+        fig = plt.figure(constrained_layout=True, figsize=(16, 40), dpi=DPI)
         widths = [1] * 4
         heights = [1] * 10
         gs = GridSpec(10, 4, figure=fig, width_ratios=widths, height_ratios=heights)
@@ -157,7 +161,7 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
 
         start_row = 6
     else:
-        fig = plt.figure(constrained_layout=True, figsize=(16, 32))
+        fig = plt.figure(constrained_layout=True, figsize=(16, 32), dpi=DPI)
         widths = [1] * 4
         heights = [1] * 8
         gs = GridSpec(8, 4, figure=fig, width_ratios=widths, height_ratios=heights)
@@ -214,14 +218,14 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
         if "Gaussian" in method:
             ax_tt = fig.add_subplot(gs[row, column + 1])
             intensities = results[results[:, 1] == roi_index, 4]
-            ax_tt.plot(time_axis, intensities)
+            ax_tt.plot(time_axis, intensities, linewidth=linewidth)
             ax_tt.set_xlabel('Time (s)')
             ax_tt.set_ylabel('Integrated intensity (counts)')
             ax_tt.set_title('Time trace ROI ' + str(roi_index + 1))
         elif "Sum" in method:
             ax_tt = fig.add_subplot(gs[row, column + 1])
             intensities = results[results[:, 1] == roi_index, 4]
-            ax_tt.plot(time_axis, intensities)
+            ax_tt.plot(time_axis, intensities, linewidth=linewidth)
             ax_tt.set_xlabel('Time (s)')
             ax_tt.set_ylabel('Summed intensity (counts)')
             ax_tt.set_title('Time trace ROI ' + str(roi_index + 1))
@@ -296,7 +300,7 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
         max_range = find_range(results, results_drift, roi_locations)
 
         for roi_index in range(roi_locations.shape[0]):
-            fig = plt.figure(figsize=(8, 8))
+            fig = plt.figure(figsize=(8, 8), dpi=DPI)
 
             y = int(roi_locations[roi_index, 0])
             x = int(roi_locations[roi_index, 1])
@@ -314,14 +318,14 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
             if "Gaussian" in method:
                 ax_tt = fig.add_subplot(2, 2, 2)
                 intensities = results[results[:, 1] == roi_index, 4]
-                ax_tt.plot(time_axis, intensities)
+                ax_tt.plot(time_axis, intensities, linewidth=linewidth)
                 ax_tt.set_xlabel('Time (s)')
                 ax_tt.set_ylabel('Integrated intensity (counts)')
                 ax_tt.set_title('Time trace ROI ' + str(roi_index + 1))
             elif "Sum" in method:
                 ax_tt = fig.add_subplot(2, 2, 2)
                 intensities = results[results[:, 1] == roi_index, 4]
-                ax_tt.plot(time_axis, intensities)
+                ax_tt.plot(time_axis, intensities, linewidth=linewidth)
                 ax_tt.set_xlabel('Time (s)')
                 ax_tt.set_ylabel('Summed intensity (counts)')
                 ax_tt.set_title('Time trace ROI ' + str(roi_index + 1))
