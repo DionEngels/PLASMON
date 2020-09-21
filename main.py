@@ -73,6 +73,124 @@ CORRECTION = "SN_objTIRF_PFS_510-800"  # "Matej_670-890"
 NM_OR_PIXELS = "nm"
 SLICE = slice(0, 10)
 
+# %% Classes
+
+
+class Roi:
+
+    def __init__(self, x, y, created_by):
+
+        if created_by == "HSM":
+            self.x = None
+            self.y = None
+            self.hsm_x = x
+            self.hsm_y = y
+        elif created_by == "TT":
+            self.x = x
+            self.y = y
+            self.hsm_x = None
+            self.hsm_y = None
+        else:
+            self.x = x
+            self.y = y
+            self.hsm_x = None
+            self.hsm_y = None
+
+        self.raw = None
+        self.tt = None
+        self.tt_drift = None
+        self.drift = None
+        self.hsm = None
+
+
+class Dataset:
+
+    def __init__(self, nd2, created_by):
+
+        if created_by == "HSM":
+            self.hsm = hsm.HSM(nd2)
+            self.frames = None
+            self.metadata = None
+            self.to_show_frame = self.hsm.frame_merge
+        elif created_by == "TT":
+            self.frames = nd2
+            self.metadata = nd2.get_metadata()
+            self.hsm = None
+            self.to_show_frame = self.frames[0]
+        else:
+            self.frames = nd2
+            self.metadata = nd2.get_metadata()
+            self.hsm = None
+            self.to_show_frame = self.frames[0]
+
+        self.created_by = created_by
+        self.name = None
+        self.dir = None
+        self.to_run = []
+
+        self.roi_finder = None
+        self.drift_corrector = None
+        self.tt = None
+
+        self.rois = []
+
+    def add_rois(self, roi_finder, rois):
+
+        self.rois = rois
+        self.roi_finder = roi_finder
+
+    def add_hsm(self, nd2):
+
+        self.hsm = hsm.HSM(nd2)
+        
+    def run_hsm(self, correction, settings):
+        
+        self.hsm.setup(self, correction, settings)
+        self.to_run.append("HSM")
+
+    def add_tt(self, nd2):
+
+        self.frames = nd2
+        self.metadata = nd2.get_metadata()
+
+    def run_tt(self, settings):
+
+        method = settings['method']
+
+        if method == "Phasor + Intensity":
+            self.tt = fitting.Phasor(settings)
+        elif method == "Phasor":
+            self.tt = fitting.PhasorDumb(settings)
+        elif method == "Phasor + Sum":
+            self.tt = fitting.PhasorSum(settings)
+        elif method == "Gaussian - Estimate bg":
+            self.tt = fitting.Gaussian(settings)
+        elif method == "Gaussian - Fit bg":
+            self.tt = fitting.GaussianBackground(settings)
+
+        self.to_run.append("TT")
+
+    def run(self, gui=None):
+
+        if "TT" in self.to_run:
+            self.rois = self.tt.run(self.rois, gui=gui)
+        if "HSM" in self.to_run:
+            self.rois = self.hsm.run(self.rois, gui=gui)
+
+        self.save()
+
+    def save(self):
+        tools.convert_to_matlab(self.rois)
+
+        outputting.save_metadata(self.metadata, self.dir)
+        outputting.save_roi_pos(self.rois, self.dir)
+        outputting.save_results(self.rois, self.dir)
+        outputting.save_settings(self)
+
+        figuring.save_overview(self.rois, self.dir)
+        figuring.individual_figures(self.rois, self.dir, self.hsm.all_figures, self.tt.all_figures)
+
+
 # %% Main loop cell
 
 for name in filenames:
