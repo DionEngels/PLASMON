@@ -78,117 +78,118 @@ SLICE = slice(0, 10)
 
 class Roi:
 
-    def __init__(self, x, y, created_by):
+    def __init__(self, x, y):
 
-        if created_by == "HSM":
-            self.x = None
-            self.y = None
-            self.hsm_x = x
-            self.hsm_y = y
-        elif created_by == "TT":
-            self.x = x
-            self.y = y
-            self.hsm_x = None
-            self.hsm_y = None
-        else:
-            self.x = x
-            self.y = y
-            self.hsm_x = None
-            self.hsm_y = None
+        self.x = x
+        self.y = y
 
-        self.raw = None
-        self.tt = None
-        self.tt_drift = None
-        self.drift = None
-        self.hsm = None
+        self.results = {}
+
+    def in_frame(self, shape, offset):
+        return in_frame_boolean
 
 
 class Dataset:
 
-    def __init__(self, nd2, created_by):
+    @staticmethod
+    def correlate(settings, frame_zero, roi_frame):
+        return offset
 
-        if created_by == "HSM":
-            self.hsm = hsm.HSM(nd2)
-            self.frames = None
-            self.metadata = None
-            self.to_show_frame = self.hsm.frame_merge
-        elif created_by == "TT":
-            self.frames = nd2
-            self.metadata = nd2.get_metadata()
-            self.hsm = None
-            self.to_show_frame = self.frames[0]
-        else:
-            self.frames = nd2
-            self.metadata = nd2.get_metadata()
-            self.hsm = None
-            self.to_show_frame = self.frames[0]
 
-        self.created_by = created_by
-        self.name = None
-        self.dir = None
-        self.to_run = []
-
-        self.roi_finder = None
-        self.drift_corrector = None
-        self.tt = None
-
-        self.rois = []
-
-    def add_rois(self, roi_finder, rois):
-
-        self.rois = rois
-        self.roi_finder = roi_finder
-
-    def add_hsm(self, nd2):
-
-        self.hsm = hsm.HSM(nd2)
-        
-    def run_hsm(self, correction, settings):
-        
-        self.hsm.setup(self, correction, settings)
-        self.to_run.append("HSM")
-
-    def add_tt(self, nd2):
-
+class TimeTrace(Dataset):
+    def __init__(self, experiment, nd2):
+        self.experiment = experiment
         self.frames = nd2
         self.metadata = nd2.get_metadata()
+        self.roi_finder = None
+        self.fitter = None
+        self.drift_corrector = None
+        self.roi_offset = None
+        self.active_rois = []
 
-    def run_tt(self, settings):
+    def find_rois(self, settings):
+        self.roi_offset = self.correlate(settings, self.frames[0], self.experiment.frame_zero)
+        self.active_rois = [roi for roi in self.experiment.rois if roi.in_frame(self.frames.shape, self.roi_offset)]
 
-        method = settings['method']
+    def prepare_run(self, settings):
+        self.fitter.change_settings(settings)
 
-        if method == "Phasor + Intensity":
-            self.tt = fitting.Phasor(settings)
-        elif method == "Phasor":
-            self.tt = fitting.PhasorDumb(settings)
-        elif method == "Phasor + Sum":
-            self.tt = fitting.PhasorSum(settings)
-        elif method == "Gaussian - Estimate bg":
-            self.tt = fitting.Gaussian(settings)
-        elif method == "Gaussian - Fit bg":
-            self.tt = fitting.GaussianBackground(settings)
+    def run(self):
+        self.fitter.run(self)
 
-        self.to_run.append("TT")
 
-    def run(self, gui=None):
+class HSMDataset(Dataset):
+    def __init__(self, experiment, nd2):
+        self.experiment = experiment
+        self.frames = nd2
+        self.roi_offset = None
+        self.hsm_object = hsm.HSM()
+        self.active_rois = []
 
-        if "TT" in self.to_run:
-            self.rois = self.tt.run(self.rois, gui=gui)
-        if "HSM" in self.to_run:
-            self.rois = self.hsm.run(self.rois, gui=gui)
+        self.corrected_merged, self.corrected = self.hsm_object.hsm_drift(self.frames)
+
+    def find_rois(self, settings):
+        self.roi_offset = self.correlate(settings, self.frames[0], self.experiment.frame_zero)
+        self.active_rois = [roi for roi in self.experiment.rois if roi.in_frame(self.corrected_merged.shape,
+                                                                                self.roi_offset)]
+
+    def prepare_run(self, settings):
+        self.hsm_object.change_settings(settings)
+
+    def run(self):
+        self.hsm_object.run(self)
+
+
+class Experiment:
+
+    def __init__(self, created_by, nd2):
+        self.created_by = created_by
+        self.directory = None
+        self.name = None
+        self.datasets = []
+
+        if created_by == 'HSM':
+            self.init_new_hsm(nd2)
+            self.frame_zero = self.datasets[-1].corrected_merged
+        elif created_by == 'TT':
+            self.frame_zero = nd2[0]
+            self.init_new_tt(nd2)
+
+        self.roi_finder = roi_finding.RoiFinder(self.frame_zero)
+        self.rois = self.roi_finder.main()
+
+    def init_new_hsm(self, nd2):
+        hsm_object = HSMDataset(self, nd2)
+        self.datasets.append(hsm_object)
+
+    def init_new_tt(self, nd2):
+        time_trace_object = TimeTrace(self, nd2)
+        self.datasets.append(time_trace_object)
+
+    def change_rois(self, settings):
+        self.roi_finder.change_settings(settings)
+        self.rois = self.roi_finder.main()
+
+    def save(self):
+
+        tools.convert_to_matlab(self.rois)
+
+        results = self.rois.to_dict()
+
+        outputting.save_results(self.dir, results)
+        outputting.save_roi_pos(self.dir, self.rois)
+        outputting.save_datasets(self.dir, self.datasets)
+
+        figuring.save_overview(self.dir, self.rois)
+        figuring.individual_figures(self.dir, self.rois, self.datasets)
+
+    def run(self):
+
+        for dataset in self.datasets:
+            dataset.run()
 
         self.save()
 
-    def save(self):
-        tools.convert_to_matlab(self.rois)
-
-        outputting.save_metadata(self.metadata, self.dir)
-        outputting.save_roi_pos(self.rois, self.dir)
-        outputting.save_results(self.rois, self.dir)
-        outputting.save_settings(self)
-
-        figuring.save_overview(self.rois, self.dir)
-        figuring.individual_figures(self.rois, self.dir, self.hsm.all_figures, self.tt.all_figures)
 
 
 # %% Main loop cell
