@@ -153,9 +153,24 @@ def mt_main(name, fitter, frames_split, roi_locations, shared, q):
 # %% Divert errors
 
 
-def show_error(self, exc, val, tb):
-    error = traceback.format_exception(exc, val, tb)
-    tk.messagebox.showerror("Error. Send screenshot to Dion", message=error)
+def show_error_critical(self, exc, val, tb):
+    show_error(True)
+
+
+def show_error(critical):
+    exc_type, exc_value, exc_traceback = sys.exc_info()  # most recent (if any) by default
+    traceback_details = {
+        'filename': exc_traceback.tb_frame.f_code.co_filename,
+        'lineno': exc_traceback.tb_lineno,
+        'name': exc_traceback.tb_frame.f_code.co_name,
+        'type': exc_type.__name__,
+        'message' : exc_value
+    }
+    if critical:
+        tk.messagebox.showerror("Critical error. Send screenshot to Dion. PROGRAM WILL STOP",
+                                message=str(traceback_details))
+    else:
+        tk.messagebox.showerror("Error. Send screenshot to Dion. PROGRAM WILL CONTINUE", message=str(traceback_details))
 
 
 # %% Own buttons / fields
@@ -1356,9 +1371,12 @@ class FittingPage(tk.Frame):
             self.progress_status_label.updater(text="Plotting dataset " +
                                                     str(self.dataset_index + 1) + " of " + str(len(filenames)))
             self.update()
-            figuring.save_graphs(self.frames, results, results_drift, roi_locations, method, nm_or_pixels,
-                                 figures_option, path, event_or_not, dataset_settings, time_axis.copy(),
-                                 hsm_result, hsm_intensity, hsm_wavelengths)
+            try:
+                figuring.save_graphs(self.frames, results, results_drift, roi_locations, method, nm_or_pixels,
+                                     figures_option, path, event_or_not, dataset_settings, time_axis.copy(),
+                                     hsm_result, hsm_intensity, hsm_wavelengths)
+            except Exception as _:
+                show_error(False)
 
             # Switch to MATLAB coordinates
 
@@ -1577,7 +1595,7 @@ if __name__ == '__main__':
     ttk_style.configure("TSeparator", background="black")
     ttk_style.configure("TMenubutton", font=FONT_DROP, background="White")
 
-    tk.Tk.report_callback_exception = show_error
+    tk.Tk.report_callback_exception = show_error_critical
 
     plt.ioff()
     gui.mainloop()
