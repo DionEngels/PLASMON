@@ -1339,6 +1339,18 @@ class FittingPage(tk.Frame):
                         path = path[:-4]
                         path += "_%03d" % directory_try
 
+            # Settings output
+
+            total_fits = results.shape[0]
+            failed_fits = results[np.isnan(results[:, 3]), :].shape[0]
+            time_taken = round(time.time() - dataset_time, 3)
+
+            successful_fits = total_fits - failed_fits
+            results_counter += successful_fits
+
+            outputting.text_output(dataset_settings.copy(), method, rejection_type, nm_or_pixels,
+                                   total_fits, failed_fits, time_taken, path)
+
             # Plotting
 
             self.progress_status_label.updater(text="Plotting dataset " +
@@ -1373,16 +1385,6 @@ class FittingPage(tk.Frame):
             outputting.save_to_csv_mat_results('Localizations_drift', results_drift, method, path)
             if hsm_result is not None:
                 outputting.save_hsm(hsm_result, hsm_intensity, path)
-
-            total_fits = results.shape[0]
-            failed_fits = results[np.isnan(results[:, 3]), :].shape[0]
-            time_taken = round(time.time() - dataset_time, 3)
-
-            outputting.text_output(dataset_settings.copy(), method, rejection_type, nm_or_pixels,
-                                   total_fits, failed_fits, time_taken, path)
-
-            successful_fits = total_fits - failed_fits
-            results_counter += successful_fits
 
         end_message = 'Time taken: ' + str(round(time.time() - self.start_time, 3)) \
                       + ' s. Fits done: ' + str(results_counter)
