@@ -56,6 +56,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 from matplotlib.figure import Figure
 import matplotlib.patches as patches
 from scipy.io import loadmat
+from scipy.ndimage import median_filter
 
 # GUI
 import tkinter as tk  # for GUI
@@ -1007,6 +1008,23 @@ class FittingPage(tk.Frame):
     # %% Load from previously processed dataset
 
     def load_from_other(self):
+        def load_in_files(filenames):
+            frame_zero_old = np.load([file for file in filenames if file.endswith('.npy')][0])
+            roi_locations = loadmat([file for file in filenames if file.endswith('.mat')][0])
+            roi_locations = [roi_locations[key] for key in roi_locations.keys() if not key.startswith('_')][0]
+            roi_locations = tools.roi_to_python_coordinates(roi_locations, frame_zero_old.shape[0])
+            return roi_locations, frame_zero_old
+
+        def correlate_frames(frame_old, frame_new):
+            if frame_old.shape == frame_new.shape:
+                corr = normxcorr2(frame_old, frame_new)
+                maxima = np.transpose(np.asarray(np.where(corr == np.amax(corr))))[0]
+                offset = maxima - np.asarray(frame_old.shape) + np.asarray([1, 1])
+            else:
+                corr = normxcorr2_large(frame_old, frame_new)
+                maxima = np.transpose(np.asarray(np.where(corr == np.amax(corr))))[0]
+                offset = maxima - np.asarray(frame_old.shape) + np.asarray([1, 1])
+            return offset
 
         tk.Tk().withdraw()
         while True:
@@ -1021,24 +1039,28 @@ class FittingPage(tk.Frame):
                 if not check:
                     return
 
-        frame_zero_old = np.load([file for file in filenames if file.endswith('.npy')][0])
-        roi_locations = loadmat([file for file in filenames if file.endswith('.mat')][0])
-        roi_locations = [roi_locations[key] for key in roi_locations.keys() if not key.startswith('_')][0]
-        roi_locations = tools.roi_to_python_coordinates(roi_locations, frame_zero_old.shape[0])
-
+        roi_locations, frame_zero_old = load_in_files(filenames)
         frame_zero = np.asarray(self.frames[0])
 
-        if frame_zero_old.shape == frame_zero.shape:
-            corr = normxcorr2(frame_zero_old, frame_zero)
-            maxima = np.transpose(np.asarray(np.where(corr == np.amax(corr))))[0]
-            offset = maxima - np.asarray(frame_zero_old.shape) + np.asarray([1, 1])
-        else:
-            corr = normxcorr2_large(frame_zero_old, frame_zero)
-            maxima = np.transpose(np.asarray(np.where(corr == np.amax(corr))))[0]
-            offset = maxima - np.asarray(frame_zero_old.shape) + np.asarray([1, 1])
+        background = median_filter(frame_zero_old, size=9)
+        frame_zero_old = frame_zero_old.astype(np.int16) - background
+        background = median_filter(frame_zero, size=9)
+        frame_zero = frame_zero.astype(np.int16) - background
+
+        offset = correlate_frames(frame_zero_old, frame_zero)
 
         try:
-            roi_locations += offset
+            if offset[0] < 50 and offset[1] < 50:
+                roi_locations += offset
+            else:  # other background mode as backup
+                load_in_files(filenames)
+                frame_zero = np.asarray(self.frames[0])
+                background = median_filter(frame_zero_old, size=9, mode='constant', cval=np.mean(frame_zero_old))
+                frame_zero_old = frame_zero_old.astype(np.int16) - background
+                background = median_filter(frame_zero, size=9, mode='constant', cval=np.mean(frame_zero))
+                frame_zero = frame_zero.astype(np.int16) - background
+                offset = correlate_frames(frame_zero_old, frame_zero)
+                roi_locations += offset
         except:
             tk.messagebox.askokcancel("ERROR", "You did not select a proper ROI locations file. Try again.")
             return
