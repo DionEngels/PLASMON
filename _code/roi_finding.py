@@ -357,3 +357,29 @@ class RoiFinder:
 
         return max_its
 
+    def find_snr_load_from_other(self, fitter, roi_locations):
+
+        int_list = []
+
+        for roi_index, roi in enumerate(roi_locations):
+            y = int(roi[0])
+            x = int(roi[1])
+
+            my_roi = self.frame[y - self.roi_size_1d:y + self.roi_size_1d + 1,
+                     x - self.roi_size_1d:x + self.roi_size_1d + 1]
+
+            result, its, success = fitter.fit_gaussian(my_roi, roi_index)
+
+            int_list.append(result[0])
+
+        mu, std = norm.fit(int_list)
+        intensity_list2 = np.asarray(int_list)[int_list < mu]
+        mu, std = norm.fit(intensity_list2)
+
+        if mu >= 2000:
+            max_its = 100
+        else:
+            int_under_which_more_its_are_needed = 2000
+            max_its = ceil((int_under_which_more_its_are_needed - mu) / 1000) * 100 + 100
+
+        return max_its

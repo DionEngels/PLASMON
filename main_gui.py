@@ -35,8 +35,9 @@ v1.1.1: tiny bugfixes: 10/08/2020
 v1.2: GUI and output improvement based on Sjoerd's feedback, HSM: 27/08/2020 - 13/09/2020
 v1.2.0.1: small bugfix
 v1.2.1: HSM checks, bugfixes
+v1.2.2: load from other bugfixes
 """
-__version__ = "1.2.1"
+__version__ = "1.2.2"
 
 # GENERAL IMPORTS
 from os import getcwd, mkdir, environ, listdir  # to get standard usage
@@ -1002,7 +1003,15 @@ class FittingPage(tk.Frame):
         self.roi_side_input.updater(settings['roi_side'])
         self.inter_roi_input.updater(settings['inter_roi'])
 
-        self.fit_rois()
+        self.roi_finder.change_settings(settings)
+        self.roi_finder.frame = self.default_settings[self.dataset_index]['processed_frame']
+
+        self.temp_roi_locations = self.roi_locations[self.dataset_index]
+
+        self.fig.updater(self.frames[0], roi_locations=self.temp_roi_locations, roi_size=self.roi_finder.roi_size_1d)
+        self.number_of_rois.updater(text=str(len(self.temp_roi_locations)) + " ROIs found")
+
+        self.update()
 
     # %% Load from previously processed dataset
 
@@ -1046,6 +1055,20 @@ class FittingPage(tk.Frame):
         self.temp_roi_locations = roi_locations
         self.roi_locations[self.dataset_index] = self.temp_roi_locations.copy()
 
+        max_its = self.roi_finder.find_snr_load_from_other(self.roi_fitter, roi_locations)
+
+        settings = self.read_out_settings()
+        settings['max_its'] = max_its
+
+        self.saved_settings[self.dataset_index] = settings
+
+        self.roi_status.updater(text=str(len(self.roi_locations)) + " of " + str(len(
+            self.filenames)) + " have settings")
+        self.button_restore_saved.updater(command=lambda: self.restore_saved())
+
+        if len(self.roi_locations) == len(self.filenames):
+            self.button_fit.updater(state='enabled')
+
         self.fig.updater(self.frames[0], roi_locations=self.temp_roi_locations, roi_size=self.roi_finder.roi_size_1d)
         self.number_of_rois.updater(text=str(len(self.temp_roi_locations)) + " ROIs found")
 
@@ -1085,13 +1108,9 @@ class FittingPage(tk.Frame):
         self.frames = self.nd2
         self.metadata = self.nd2.get_metadata()
 
-        self.fig.updater(self.frames[0])
-
-        self.restore_default()
-
         if self.dataset_index in self.saved_settings:
-            self.button_restore_saved.updater(command=lambda: self.restore_saved())
             self.restore_saved()
+            self.button_restore_saved.updater(command=lambda: self.restore_saved())
             self.hsm_correct_var.set(self.saved_settings[self.dataset_index]['hsm_correction'])
             if self.saved_settings[self.dataset_index]['hsm_directory'] is not None:
                 hsm_folder_show = '/'.join(self.saved_settings[self.dataset_index]['hsm_directory'].split('/')[-2:])
@@ -1101,6 +1120,7 @@ class FittingPage(tk.Frame):
         else:
             self.button_restore_saved.updater(state='disabled')
             self.clear_hsm()
+            self.restore_default()
 
         if self.dataset_index == len(self.filenames) - 1:
             self.button_right.updater(state='disabled')
