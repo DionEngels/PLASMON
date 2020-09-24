@@ -19,7 +19,7 @@ v1.3: feedback of Peter meeting: 06/09/2020
 """
 
 from os import mkdir
-from numpy import asarray, invert, concatenate, mean, pi
+from numpy import asarray, invert, concatenate, mean
 from numpy import max as np_max
 from numpy import min as np_min
 from math import ceil, floor
@@ -118,12 +118,15 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
     time_axis: time axis of experiment
     hsm_result: HSM results
     hsm_intensity: HSM intensities found used to find results
-    hsm_wavelengths: wavelengths used at HSM
+    hsm_wavelengths: wavelengths used at HSM in eV
 
     Returns
     -------
     None really. Outputs graphs to disk
     """
+    def lorentzian(params, x):
+        return params[0] + params[1] / ((x - params[2]) ** 2 + (0.5 * params[3]) ** 2)
+
     path += "/Graphs"
     mkdir(path)
     plt.ioff()
@@ -278,16 +281,16 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
             ax_loc_drift.set_xlim(x_center - max_range / 2, x_center + max_range / 2)
             ax_loc_drift.set_ylim(y_center - max_range / 2, y_center + max_range / 2)
         else:
-            def lorentzian(width, central, height, x):
-                return height * width / (2 * pi) / ((x - central) ** 2 + width ** 2 / 4)
-
             ax_hsm = fig.add_subplot(gs[row + 1, column + 1])
             hsm_intensities = hsm_intensity[hsm_intensity[:, 0] == roi_index, 1:]
             ax_hsm.scatter(hsm_wavelengths, hsm_intensities)
             hsm_params = hsm_result[hsm_result[:, 0] == roi_index, 1:-1]
-            hsm_fit = lorentzian(*hsm_params[0], hsm_wavelengths)
-            ax_hsm.plot(hsm_wavelengths, hsm_fit,'r--')
-            ax_hsm.set_xlabel('wavelength (nm)')
+            try:
+                hsm_fit = lorentzian(hsm_params.flatten(), hsm_wavelengths)
+                ax_hsm.plot(hsm_wavelengths, hsm_fit, 'r--')
+            except:
+                pass
+            ax_hsm.set_xlabel('wavelength (eV)')
             ax_hsm.set_ylabel('intensity (arb. units)')
             ax_hsm.set_title('HSM Result ROI {}'.format(str(roi_index + 1)))
 
@@ -379,16 +382,16 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
                 ax_loc_drift.set_xlim(x_center - max_range / 2, x_center + max_range / 2)
                 ax_loc_drift.set_ylim(y_center - max_range / 2, y_center + max_range / 2)
             else:
-                def lorentzian(width, central, height, x):
-                    return height * width / (2 * pi) / ((x - central) ** 2 + width ** 2 / 4)
-
                 ax_hsm = fig.add_subplot(2, 2, 4)
                 hsm_intensities = hsm_intensity[hsm_intensity[:, 0] == roi_index, 1:]
                 ax_hsm.scatter(hsm_wavelengths, hsm_intensities)
                 hsm_params = hsm_result[hsm_result[:, 0] == roi_index, 1:-1]
-                hsm_fit = lorentzian(*hsm_params[0], hsm_wavelengths)
-                ax_hsm.plot(hsm_wavelengths, hsm_fit, 'r--')
-                ax_hsm.set_xlabel('wavelength (nm)')
+                try:
+                    hsm_fit = lorentzian(hsm_params.flatten(), hsm_wavelengths)
+                    ax_hsm.plot(hsm_wavelengths, hsm_fit, 'r--')
+                except:
+                    pass
+                ax_hsm.set_xlabel('wavelength (eV)')
                 ax_hsm.set_ylabel('intensity (arb. units)')
                 ax_hsm.set_title('HSM Result ROI {}'.format(str(roi_index + 1)))
 
