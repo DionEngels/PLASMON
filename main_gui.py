@@ -164,7 +164,7 @@ def show_error(critical):
         'lineno': exc_traceback.tb_lineno,
         'name': exc_traceback.tb_frame.f_code.co_name,
         'type': exc_type.__name__,
-        'message' : exc_value
+        'message': exc_value
     }
     if critical:
         tk.messagebox.showerror("Critical error. Send screenshot to Dion. PROGRAM WILL STOP",
@@ -753,7 +753,7 @@ class FittingPage(tk.Frame):
         button_load_new = ttk.Button(self, text="Load new", command=lambda: self.load_new(parent))
         button_load_new.grid(row=50, column=45, columnspan=2, sticky='EW', padx=PAD_SMALL)
 
-        button_quit = ttk.Button(self, text="Quit", command= lambda: sys.exit(0))
+        button_quit = ttk.Button(self, text="Quit", command=lambda: sys.exit(0))
         button_quit.grid(row=50, column=48, columnspan=2, sticky='EW', padx=PAD_SMALL)
 
         for i in range(0, 49):

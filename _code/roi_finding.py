@@ -31,7 +31,6 @@ from scipy.ndimage.filters import maximum_filter
 from math import ceil
 
 from scipy.stats import norm
-import matplotlib.pyplot as plt
 
 # %% Python ROI finder
 
@@ -239,13 +238,13 @@ class RoiFinder:
             x = int(roi[1])
 
             my_roi = roi_boolean[y - self.side_distance:y + self.side_distance + 1,
-                     x - self.side_distance:x + self.side_distance + 1]
+                                 x - self.side_distance:x + self.side_distance + 1]
             if my_roi.shape != (self.side_distance * 2 + 1, self.side_distance * 2 + 1):
                 keep_boolean[roi_index] = False  # if this fails, the roi is on the boundary
                 continue
 
             my_roi = roi_boolean[y - self.roi_distance:y + self.roi_distance + 1,
-                     x - self.roi_distance:x + self.roi_distance + 1]
+                                 x - self.roi_distance:x + self.roi_distance + 1]
 
             trues_in_roi = np.transpose(np.where(my_roi == True))
 
@@ -276,7 +275,7 @@ class RoiFinder:
             x = int(roi[1])
 
             my_roi = self.frame[y - self.roi_size_1d:y + self.roi_size_1d + 1,
-                     x - self.roi_size_1d:x + self.roi_size_1d + 1]
+                                x - self.roi_size_1d:x + self.roi_size_1d + 1]
 
             result, its, success = fitter.fit_gaussian(my_roi, roi_index)
 
@@ -366,7 +365,7 @@ class RoiFinder:
             x = int(roi[1])
 
             my_roi = self.frame[y - self.roi_size_1d:y + self.roi_size_1d + 1,
-                     x - self.roi_size_1d:x + self.roi_size_1d + 1]
+                                x - self.roi_size_1d:x + self.roi_size_1d + 1]
 
             result, its, success = fitter.fit_gaussian(my_roi, roi_index)
 
