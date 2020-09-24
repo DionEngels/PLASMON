@@ -1336,6 +1336,7 @@ class FittingPage(tk.Frame):
                 hsm_result, hsm_intensity = hsm_object.main(verbose=False)
 
                 hsm_wavelengths = hsm_object.wavelength
+                hsm_wavelengths = 1248 / hsm_wavelengths
 
             # create folder for output
 
@@ -1374,7 +1375,7 @@ class FittingPage(tk.Frame):
             try:
                 figuring.save_graphs(self.frames, results, results_drift, roi_locations, method, nm_or_pixels,
                                      figures_option, path, event_or_not, dataset_settings, time_axis.copy(),
-                                     hsm_result, hsm_intensity, 1248 / hsm_wavelengths)
+                                     hsm_result, hsm_intensity, hsm_wavelengths)
             except Exception as _:
                 show_error(False)
 
