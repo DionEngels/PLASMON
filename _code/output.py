@@ -219,7 +219,7 @@ def save_hsm(hsm_result, hsm_intensity, path):
     name = 'hsm_result'
 
     with open(path + "/" + name + '.csv', mode='w') as _:
-        header = "Frame index,width,central wavelength,height,r-squared"
+        header = "ROI index,width,central wavelength,height,r-squared"
         savetxt(path + "/" + name + '.csv', hsm_result, delimiter=',', header=header)
 
     hsm_result_dict = {name: hsm_result}
@@ -228,7 +228,7 @@ def save_hsm(hsm_result, hsm_intensity, path):
     name = 'hsm_intensity'
 
     with open(path + "/" + name + '.csv', mode='w') as _:
-        header = "Frame index,intensity at each wavelength"
+        header = "ROI index,intensity at each wavelength"
         savetxt(path + "/" + name + '.csv', hsm_intensity, delimiter=',', header=header)
 
     hsm_intensity_dict = {name: hsm_intensity}
