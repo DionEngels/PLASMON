@@ -19,7 +19,7 @@ v1.3: feedback of Peter meeting: 06/09/2020
 """
 
 from os import mkdir
-from numpy import asarray, invert, concatenate, mean, pi
+from numpy import asarray, invert, concatenate, mean
 from numpy import max as np_max
 from numpy import min as np_min
 from math import ceil, floor
