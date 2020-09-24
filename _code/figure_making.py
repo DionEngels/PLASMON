@@ -118,14 +118,14 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
     time_axis: time axis of experiment
     hsm_result: HSM results
     hsm_intensity: HSM intensities found used to find results
-    hsm_wavelengths: wavelengths used at HSM
+    hsm_wavelengths: wavelengths used at HSM in eV
 
     Returns
     -------
     None really. Outputs graphs to disk
     """
-    def lorentzian(width, central, height, x):
-        return height * width / (2 * pi) / ((x - central) ** 2 + width ** 2 / 4)
+    def lorentzian(params, x):
+        return params[0] + params[1] / ((x - params[2]) ** 2 + (0.5 * params[3]) ** 2)
 
     path += "/Graphs"
     mkdir(path)
@@ -286,11 +286,11 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
             ax_hsm.scatter(hsm_wavelengths, hsm_intensities)
             hsm_params = hsm_result[hsm_result[:, 0] == roi_index, 1:-1]
             try:
-                hsm_fit = lorentzian(*hsm_params.flatten(), hsm_wavelengths)
-                ax_hsm.plot(hsm_wavelengths, hsm_fit,'r--')
+                hsm_fit = lorentzian(hsm_params.flatten(), hsm_wavelengths)
+                ax_hsm.plot(hsm_wavelengths, hsm_fit, 'r--')
             except:
                 pass
-            ax_hsm.set_xlabel('wavelength (nm)')
+            ax_hsm.set_xlabel('wavelength (eV)')
             ax_hsm.set_ylabel('intensity (arb. units)')
             ax_hsm.set_title('HSM Result ROI {}'.format(str(roi_index + 1)))
 
@@ -387,11 +387,11 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
                 ax_hsm.scatter(hsm_wavelengths, hsm_intensities)
                 hsm_params = hsm_result[hsm_result[:, 0] == roi_index, 1:-1]
                 try:
-                    hsm_fit = lorentzian(*hsm_params.flatten(), hsm_wavelengths)
+                    hsm_fit = lorentzian(hsm_params.flatten(), hsm_wavelengths)
                     ax_hsm.plot(hsm_wavelengths, hsm_fit, 'r--')
                 except:
                     pass
-                ax_hsm.set_xlabel('wavelength (nm)')
+                ax_hsm.set_xlabel('wavelength (eV)')
                 ax_hsm.set_ylabel('intensity (arb. units)')
                 ax_hsm.set_title('HSM Result ROI {}'.format(str(roi_index + 1)))
 
