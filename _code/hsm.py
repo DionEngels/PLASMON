@@ -179,7 +179,7 @@ class HSM:
             fig, ax = plt.subplots(1)
             frame_670 = np.where(wavelength == 670)[0][0]
             cutout_670 = self.frames[frame_670, offset[0]:offset[0] + size_laser_frame[0],
-                         offset[1]:offset[1] + size_laser_frame[1]]
+                                     offset[1]:offset[1] + size_laser_frame[1]]
             ax.imshow(cutout_670, extent=[0, cutout_670.shape[1], cutout_670.shape[0], 0], aspect='auto')
             plt.title("Frame 670 nm")
             plt.show()
