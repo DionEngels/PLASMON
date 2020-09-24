@@ -64,7 +64,7 @@ hsm_dir = ("C:/Users/s150127/Downloads/___MBx/datasets/_1nMimager_newGNRs_100mW_
 fit_options = ["Gaussian - Fit bg", "Gaussian - Estimate bg",
                "Phasor + Intensity", "Phasor + Sum", "Phasor"]
 
-FIGURE_OPTION = "Overview" # "Overview" "All"
+FIGURE_OPTION = "Overview"  # "Overview" "All"
 
 METHOD = "Gaussian - Estimate bg"
 DATASET = "YUYANG"  # "MATLAB_v2, "MATLAB_v3" OR "YUYANG"
@@ -186,7 +186,7 @@ for name in filenames:
 
         print('Starting HSM')
 
-        hsm = hsm.HSM(hsm_dir, np.asarray(frames[0], dtype=frames[0].dtype), ROI_locations, metadata, CORRECTION)
+        hsm = hsm.HSM(hsm_dir, np.asarray(frames[0], dtype=frames[0].dtype), ROI_locations.copy(), metadata, CORRECTION)
         hsm_result, hsm_intensity = hsm.main(verbose=False)
 
         print('Starting saving')
@@ -199,7 +199,7 @@ for name in filenames:
 
         figuring.save_graphs(frames, results, results_drift, ROI_locations, METHOD, "pixels", FIGURE_OPTION,
                              path, event_or_not, settings, metadata['timesteps'][SLICE],
-                             hsm_result, hsm_intensity, hsm.wavelength)
+                             hsm_result, hsm_intensity, 1248 / hsm.wavelength)
 
         time_taken = round(time.time() - start, 3)
         print('Time taken plotting: ' + str(time_taken) + ' s. Fits done: ' + str(successful_fits))

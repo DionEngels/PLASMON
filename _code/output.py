@@ -170,19 +170,7 @@ def text_output(settings, method, threshold_method, nm_or_pixels, total_fits, fa
         text_file.write("\nMethod \n------------\n")
         text_file.write("Method: " + method + "\n")
         text_file.write("Rejection method: " + threshold_method + "\n")
-        text_file.write("Nm or pixels: " + nm_or_pixels + "\n")
-
-        text_file.write("\nResult \n------------\n")
-        text_file.write("Total fits: " + str(total_fits) + "\n")
-        text_file.write("Failed fits: " + str(failed_fits) + "\n")
-        text_file.write("Successful fits: " + str(total_fits - failed_fits) + "\n")
-        text_file.write("Time taken: " + str(time_taken) + "\n\n")
-
-        text_file.write("\nHSM \n------------\n")
-        text_file.write("Meaning of variables in HSM output: \n")
-        text_file.write("Frame index | width | peak wavelength | peak height | R^2 \n")
-        text_file.write("Directory: " + str(hsm_directory) + "\n")
-        text_file.write("Correction file: " + str(hsm_correction) + "\n")
+        text_file.write("Nm or pixels: " + nm_or_pixels + "\n\n")
 
         text_file.write("Meaning of variables in Localizations output: \n")
         if method == "Phasor + Intensity":
@@ -197,6 +185,18 @@ def text_output(settings, method, threshold_method, nm_or_pixels, total_fits, fa
         else:
             text_file.write("Frame index | ROI index | x position | y position | Integrated intensity | "
                             "Sigma x | Sigma y | Background (estimate) | Iterations needed to converge \n")
+
+        text_file.write("\nResult \n------------\n")
+        text_file.write("Total fits: " + str(total_fits) + "\n")
+        text_file.write("Failed fits: " + str(failed_fits) + "\n")
+        text_file.write("Successful fits: " + str(total_fits - failed_fits) + "\n")
+        text_file.write("Time taken (without saving results): " + str(time_taken) + "\n\n")
+
+        text_file.write("\nHSM \n------------\n")
+        text_file.write("Meaning of variables in HSM output: \n")
+        text_file.write("ROI index | width | peak wavelength | peak height | R^2 \n")
+        text_file.write("Directory: " + str(hsm_directory) + "\n")
+        text_file.write("Correction file: " + str(hsm_correction) + "\n")
 
 
 def save_first_frame(frame_zero, path):

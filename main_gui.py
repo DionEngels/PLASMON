@@ -35,8 +35,9 @@ v1.1.1: tiny bugfixes: 10/08/2020
 v1.2: GUI and output improvement based on Sjoerd's feedback, HSM: 27/08/2020 - 13/09/2020
 v1.2.0.1: small bugfix
 v1.2.1: HSM checks, bugfixes
+v1.2.2: load from other bugfixes
 """
-__version__ = "1.2.1"
+__version__ = "1.2.2"
 
 # GENERAL IMPORTS
 from os import getcwd, mkdir, environ, listdir  # to get standard usage
@@ -55,6 +56,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 from matplotlib.figure import Figure
 import matplotlib.patches as patches
 from scipy.io import loadmat
+from scipy.ndimage import median_filter
 
 # GUI
 import tkinter as tk  # for GUI
@@ -148,21 +150,27 @@ def mt_main(name, fitter, frames_split, roi_locations, shared, q):
         shared[9 * result_index:9 * (result_index + 1)] = result[:]
 
 
-# %% Quit
-
-
-def quit_program():
-    global gui
-    gui.destroy()
-    sys.exit(0)
-
-
 # %% Divert errors
 
 
-def show_error(self, exc, val, tb):
-    error = traceback.format_exception(exc, val, tb)
-    tk.messagebox.showerror("Error. Send screenshot to Dion", message=error)
+def show_error_critical(self, exc, val, tb):
+    show_error(True)
+
+
+def show_error(critical):
+    exc_type, exc_value, exc_traceback = sys.exc_info()  # most recent (if any) by default
+    traceback_details = {
+        'filename': exc_traceback.tb_frame.f_code.co_filename,
+        'lineno': exc_traceback.tb_lineno,
+        'name': exc_traceback.tb_frame.f_code.co_name,
+        'type': exc_type.__name__,
+        'message': exc_value
+    }
+    if critical:
+        tk.messagebox.showerror("Critical error. Send screenshot to Dion. PROGRAM WILL STOP",
+                                message=str(traceback_details))
+    else:
+        tk.messagebox.showerror("Error. Send screenshot to Dion. PROGRAM WILL CONTINUE", message=str(traceback_details))
 
 
 # %% Own buttons / fields
@@ -745,7 +753,7 @@ class FittingPage(tk.Frame):
         button_load_new = ttk.Button(self, text="Load new", command=lambda: self.load_new(parent))
         button_load_new.grid(row=50, column=45, columnspan=2, sticky='EW', padx=PAD_SMALL)
 
-        button_quit = ttk.Button(self, text="Quit", command=quit_program)
+        button_quit = ttk.Button(self, text="Quit", command=lambda: sys.exit(0))
         button_quit.grid(row=50, column=48, columnspan=2, sticky='EW', padx=PAD_SMALL)
 
         for i in range(0, 49):
@@ -1002,11 +1010,36 @@ class FittingPage(tk.Frame):
         self.roi_side_input.updater(settings['roi_side'])
         self.inter_roi_input.updater(settings['inter_roi'])
 
-        self.fit_rois()
+        self.roi_finder.change_settings(settings)
+        self.roi_finder.frame = self.default_settings[self.dataset_index]['processed_frame']
+
+        self.temp_roi_locations = self.roi_locations[self.dataset_index]
+
+        self.fig.updater(self.frames[0], roi_locations=self.temp_roi_locations, roi_size=self.roi_finder.roi_size_1d)
+        self.number_of_rois.updater(text=str(len(self.temp_roi_locations)) + " ROIs found")
+
+        self.update()
 
     # %% Load from previously processed dataset
 
     def load_from_other(self):
+        def load_in_files(filenames):
+            frame_zero_old = np.load([file for file in filenames if file.endswith('.npy')][0])
+            roi_locations = loadmat([file for file in filenames if file.endswith('.mat')][0])
+            roi_locations = [roi_locations[key] for key in roi_locations.keys() if not key.startswith('_')][0]
+            roi_locations = tools.roi_to_python_coordinates(roi_locations, frame_zero_old.shape[0])
+            return roi_locations, frame_zero_old
+
+        def correlate_frames(frame_old, frame_new):
+            if frame_old.shape == frame_new.shape:
+                corr = normxcorr2(frame_old, frame_new)
+                maxima = np.transpose(np.asarray(np.where(corr == np.amax(corr))))[0]
+                offset = maxima - np.asarray(frame_old.shape) + np.asarray([1, 1])
+            else:
+                corr = normxcorr2_large(frame_old, frame_new)
+                maxima = np.transpose(np.asarray(np.where(corr == np.amax(corr))))[0]
+                offset = maxima - np.asarray(frame_old.shape) + np.asarray([1, 1])
+            return offset
 
         tk.Tk().withdraw()
         while True:
@@ -1021,30 +1054,48 @@ class FittingPage(tk.Frame):
                 if not check:
                     return
 
-        frame_zero_old = np.load([file for file in filenames if file.endswith('.npy')][0])
-        roi_locations = loadmat([file for file in filenames if file.endswith('.mat')][0])
-        roi_locations = [roi_locations[key] for key in roi_locations.keys() if not key.startswith('_')][0]
-        roi_locations = tools.roi_to_python_coordinates(roi_locations, frame_zero_old.shape[0])
-
+        roi_locations, frame_zero_old = load_in_files(filenames)
         frame_zero = np.asarray(self.frames[0])
 
-        if frame_zero_old.shape == frame_zero.shape:
-            corr = normxcorr2(frame_zero_old, frame_zero)
-            maxima = np.transpose(np.asarray(np.where(corr == np.amax(corr))))[0]
-            offset = maxima - np.asarray(frame_zero_old.shape) + np.asarray([1, 1])
-        else:
-            corr = normxcorr2_large(frame_zero_old, frame_zero)
-            maxima = np.transpose(np.asarray(np.where(corr == np.amax(corr))))[0]
-            offset = maxima - np.asarray(frame_zero_old.shape) + np.asarray([1, 1])
+        background = median_filter(frame_zero_old, size=9)
+        frame_zero_old = frame_zero_old.astype(np.int16) - background
+        background = median_filter(frame_zero, size=9)
+        frame_zero = frame_zero.astype(np.int16) - background
+
+        offset = correlate_frames(frame_zero_old, frame_zero)
 
         try:
-            roi_locations += offset
+            if offset[0] < 50 and offset[1] < 50:
+                roi_locations += offset
+            else:  # other background mode as backup
+                load_in_files(filenames)
+                frame_zero = np.asarray(self.frames[0])
+                background = median_filter(frame_zero_old, size=9, mode='constant', cval=np.mean(frame_zero_old))
+                frame_zero_old = frame_zero_old.astype(np.int16) - background
+                background = median_filter(frame_zero, size=9, mode='constant', cval=np.mean(frame_zero))
+                frame_zero = frame_zero.astype(np.int16) - background
+                offset = correlate_frames(frame_zero_old, frame_zero)
+                roi_locations += offset
         except:
             tk.messagebox.askokcancel("ERROR", "You did not select a proper ROI locations file. Try again.")
             return
 
         self.temp_roi_locations = roi_locations
         self.roi_locations[self.dataset_index] = self.temp_roi_locations.copy()
+
+        max_its = self.roi_finder.find_snr_load_from_other(self.roi_fitter, roi_locations)
+
+        settings = self.read_out_settings()
+        settings['max_its'] = max_its
+
+        self.saved_settings[self.dataset_index] = settings
+
+        self.roi_status.updater(text=str(len(self.roi_locations)) + " of " + str(len(
+            self.filenames)) + " have settings")
+        self.button_restore_saved.updater(command=lambda: self.restore_saved())
+
+        if len(self.roi_locations) == len(self.filenames):
+            self.button_fit.updater(state='enabled')
 
         self.fig.updater(self.frames[0], roi_locations=self.temp_roi_locations, roi_size=self.roi_finder.roi_size_1d)
         self.number_of_rois.updater(text=str(len(self.temp_roi_locations)) + " ROIs found")
@@ -1085,13 +1136,9 @@ class FittingPage(tk.Frame):
         self.frames = self.nd2
         self.metadata = self.nd2.get_metadata()
 
-        self.fig.updater(self.frames[0])
-
-        self.restore_default()
-
         if self.dataset_index in self.saved_settings:
-            self.button_restore_saved.updater(command=lambda: self.restore_saved())
             self.restore_saved()
+            self.button_restore_saved.updater(command=lambda: self.restore_saved())
             self.hsm_correct_var.set(self.saved_settings[self.dataset_index]['hsm_correction'])
             if self.saved_settings[self.dataset_index]['hsm_directory'] is not None:
                 hsm_folder_show = '/'.join(self.saved_settings[self.dataset_index]['hsm_directory'].split('/')[-2:])
@@ -1101,6 +1148,7 @@ class FittingPage(tk.Frame):
         else:
             self.button_restore_saved.updater(state='disabled')
             self.clear_hsm()
+            self.restore_default()
 
         if self.dataset_index == len(self.filenames) - 1:
             self.button_right.updater(state='disabled')
@@ -1288,6 +1336,7 @@ class FittingPage(tk.Frame):
                 hsm_result, hsm_intensity = hsm_object.main(verbose=False)
 
                 hsm_wavelengths = hsm_object.wavelength
+                hsm_wavelengths = 1248 / hsm_wavelengths
 
             # create folder for output
 
@@ -1306,14 +1355,29 @@ class FittingPage(tk.Frame):
                         path = path[:-4]
                         path += "_%03d" % directory_try
 
+            # Settings output
+
+            total_fits = results.shape[0]
+            failed_fits = results[np.isnan(results[:, 3]), :].shape[0]
+            time_taken = round(time.time() - dataset_time, 3)
+
+            successful_fits = total_fits - failed_fits
+            results_counter += successful_fits
+
+            outputting.text_output(dataset_settings.copy(), method, rejection_type, nm_or_pixels,
+                                   total_fits, failed_fits, time_taken, path)
+
             # Plotting
 
             self.progress_status_label.updater(text="Plotting dataset " +
                                                     str(self.dataset_index + 1) + " of " + str(len(filenames)))
             self.update()
-            figuring.save_graphs(self.frames, results, results_drift, roi_locations, method, nm_or_pixels,
-                                 figures_option, path, event_or_not, dataset_settings, time_axis.copy(),
-                                 hsm_result, hsm_intensity, hsm_wavelengths)
+            try:
+                figuring.save_graphs(self.frames, results, results_drift, roi_locations, method, nm_or_pixels,
+                                     figures_option, path, event_or_not, dataset_settings, time_axis.copy(),
+                                     hsm_result, hsm_intensity, hsm_wavelengths)
+            except Exception as _:
+                show_error(False)
 
             # Switch to MATLAB coordinates
 
@@ -1340,16 +1404,6 @@ class FittingPage(tk.Frame):
             outputting.save_to_csv_mat_results('Localizations_drift', results_drift, method, path)
             if hsm_result is not None:
                 outputting.save_hsm(hsm_result, hsm_intensity, path)
-
-            total_fits = results.shape[0]
-            failed_fits = results[np.isnan(results[:, 3]), :].shape[0]
-            time_taken = round(time.time() - dataset_time, 3)
-
-            outputting.text_output(dataset_settings.copy(), method, rejection_type, nm_or_pixels,
-                                   total_fits, failed_fits, time_taken, path)
-
-            successful_fits = total_fits - failed_fits
-            results_counter += successful_fits
 
         end_message = 'Time taken: ' + str(round(time.time() - self.start_time, 3)) \
                       + ' s. Fits done: ' + str(results_counter)
@@ -1533,7 +1587,7 @@ if __name__ == '__main__':
     gui = MbxPython()
     gui.geometry(str(GUI_WIDTH) + "x" + str(GUI_HEIGHT) + "+" + str(GUI_WIDTH_START) + "+" + str(GUI_HEIGHT_START))
     gui.iconbitmap(getcwd() + "\ico.ico")
-    gui.protocol("WM_DELETE_WINDOW", lambda: quit_program())
+    gui.protocol("WM_DELETE_WINDOW", lambda: sys.exit(0))
 
     ttk_style = ttk.Style(gui)
     ttk_style.configure("Big.TButton", font=FONT_BUTTON_BIG)
@@ -1542,7 +1596,7 @@ if __name__ == '__main__':
     ttk_style.configure("TSeparator", background="black")
     ttk_style.configure("TMenubutton", font=FONT_DROP, background="White")
 
-    tk.Tk.report_callback_exception = show_error
+    tk.Tk.report_callback_exception = show_error_critical
 
     plt.ioff()
     gui.mainloop()
