@@ -176,6 +176,12 @@ def show_error(critical):
         tk.messagebox.showerror("Error. Send screenshot to Dion. PROGRAM WILL CONTINUE", message=str(traceback_details))
 
 
+# %% Close GUI
+
+def quit_gui(gui):
+    gui.quit()
+    sys.exit(0)
+
 # %% Own buttons / fields
 
 
@@ -756,7 +762,7 @@ class FittingPage(tk.Frame):
         button_load_new = ttk.Button(self, text="Load new", command=lambda: self.load_new(parent))
         button_load_new.grid(row=50, column=45, columnspan=2, sticky='EW', padx=PAD_SMALL)
 
-        button_quit = ttk.Button(self, text="Quit", command=lambda: sys.exit(0))
+        button_quit = ttk.Button(self, text="Quit", command=lambda: quit_gui(self))
         button_quit.grid(row=50, column=48, columnspan=2, sticky='EW', padx=PAD_SMALL)
 
         for i in range(0, 49):
@@ -1590,7 +1596,7 @@ if __name__ == '__main__':
     gui = MbxPython()
     gui.geometry(str(GUI_WIDTH) + "x" + str(GUI_HEIGHT) + "+" + str(GUI_WIDTH_START) + "+" + str(GUI_HEIGHT_START))
     gui.iconbitmap(getcwd() + "\ico.ico")
-    gui.protocol("WM_DELETE_WINDOW", lambda: sys.exit(0))
+    gui.protocol("WM_DELETE_WINDOW", lambda: quit_gui(gui))
 
     ttk_style = ttk.Style(gui)
     ttk_style.configure("Big.TButton", font=FONT_BUTTON_BIG)
