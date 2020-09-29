@@ -17,6 +17,7 @@ v0.0.3: continued development 31/08/2020
 v0.0.4: correlations working: 07/09/2020
 v0.1: working: 13/09/2020
 v0.1.1: in GUI
+v1.0: Working as desired and as in SPectrA: 29/09/2020
 
 """
 # General
@@ -69,9 +70,10 @@ class HSM:
             return new_list
 
         self.roi_locations = roi_locations
-        self.hsm_result = np.zeros((roi_locations.shape[0], 6))
+        self.hsm_result = np.zeros((roi_locations.shape[0], 4))
+        bg = median_filter(frame_zero, size=9)
+        self.frame_zero = frame_zero.astype(np.int16) - bg
         self.metadata = metadata
-        self.frame_zero = frame_zero
         self.frame_merge = None
         self.wavelength = None
 
@@ -190,6 +192,7 @@ class HSM:
 
         # prep for fitting
 
+        hsm_raw = np.zeros((self.roi_locations.shape[0], 5))
         raw_intensity = np.zeros((self.roi_locations.shape[0], self.frames.shape[0]))
         intensity = np.zeros((self.roi_locations.shape[0], self.frames.shape[0]))
         roi_size = 9
@@ -209,7 +212,14 @@ class HSM:
 
             if x < roi_size_1d or y < roi_size_1d or \
                     x > self.frames.shape[1] - roi_size_1d or y > self.frames.shape[2] - roi_size_1d:
-                pass
+                raw_intensity[roi_index, :] = np.nan
+                intensity[roi_index, :] = np.nan
+
+                hsm_raw[roi_index, 0] = roi_index
+                hsm_raw[roi_index, 1:] = np.nan
+
+                self.hsm_result[roi_index, 0] = roi_index
+                self.hsm_result[roi_index, 1:] = np.nan
             else:
 
                 for frame_index, frame in enumerate(self.frames):
@@ -241,14 +251,18 @@ class HSM:
 
                 result, r_squared = self.fit_lorentzian(intensity[roi_index, :], wavelength, verbose=verbose)
 
+                hsm_raw[roi_index, 0] = roi_index
+                hsm_raw[roi_index, 1:] = result
+
                 self.hsm_result[roi_index, 0] = roi_index
-                self.hsm_result[roi_index, 1:5] = result
-                self.hsm_result[roi_index, 5] = r_squared
+                self.hsm_result[roi_index, 1] = 1248 / result[2]  # SP lambda
+                self.hsm_result[roi_index, 2] = 1000 * result[3]  # linewidth
+                self.hsm_result[roi_index, 3] = r_squared
 
         intensity_result = np.concatenate((np.array(range(self.roi_locations.shape[0]))[:, np.newaxis], intensity),
                                           axis=1)
 
-        return self.hsm_result, intensity_result
+        return self.hsm_result, hsm_raw, intensity_result
 
     # %% Correct for drift between frames
     def hsm_drift(self, verbose=False):
@@ -373,10 +387,10 @@ class HSM:
 
         # find max and min
 
-        max_sca = np.max(scattering[scattering < np.max(scattering)])
-        idx_max = np.argmax(scattering[scattering < np.max(scattering)])
-        min_sca = np.min(scattering)
-        idx_min = np.argmin(scattering)
+        max_sca = np.nanmax(scattering[scattering < np.nanmax(scattering)])
+        idx_max = np.nanargmax(scattering[scattering < np.nanmax(scattering)])
+        min_sca = np.nanmin(scattering)
+        idx_min = np.nanargmin(scattering)
 
         # init guess and first fit
 

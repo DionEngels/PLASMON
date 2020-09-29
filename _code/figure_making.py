@@ -19,7 +19,7 @@ v1.3: feedback of Peter meeting: 06/09/2020
 """
 
 from os import mkdir
-from numpy import asarray, invert, concatenate, mean
+from numpy import asarray, invert, concatenate, linspace, nanmin, nanmax
 from numpy import max as np_max
 from numpy import min as np_min
 from math import ceil, floor
@@ -29,6 +29,7 @@ import matplotlib.patches as patches
 from matplotlib.gridspec import GridSpec
 
 DPI = 400
+N_TICKS = 4
 
 
 def plot_rois(frame, roi_locations, roi_size):
@@ -60,7 +61,7 @@ def plot_rois(frame, roi_locations, roi_size):
     plt.show()
 
 
-def find_range(results, results_drift, roi_locations):
+def find_range(results_drift, roi_locations):
 
     max_range = 0
 
@@ -70,27 +71,19 @@ def find_range(results, results_drift, roi_locations):
         numerate_length = len(roi_locations)
 
     for roi_index in range(numerate_length):
-        x_positions = results[results[:, 1] == roi_index, 2]
-        y_positions = results[results[:, 1] == roi_index, 3]
-
-        if np_max(x_positions) - np_min(x_positions) > max_range:
-            max_range = np_max(x_positions) - np_min(x_positions)
-        if np_max(y_positions) - np_min(y_positions) > max_range:
-            max_range = np_max(y_positions) - np_min(y_positions)
-
         x_positions = results_drift[results_drift[:, 1] == roi_index, 2]
         y_positions = results_drift[results_drift[:, 1] == roi_index, 3]
 
-        if np_max(x_positions) - np_min(x_positions) > max_range:
-            max_range = np_max(x_positions) - np_min(x_positions)
-        if np_max(y_positions) - np_min(y_positions) > max_range:
-            max_range = np_max(y_positions) - np_min(y_positions)
+        if nanmax(x_positions) - nanmin(x_positions) > max_range:
+            max_range = nanmax(x_positions) - nanmin(x_positions)
+        if nanmax(y_positions) - nanmin(y_positions) > max_range:
+            max_range = nanmax(y_positions) - nanmin(y_positions)
 
-    if max_range > 1999:
+    if max_range > 999:
         max_range = ceil(max_range / 100) * 100
-    elif max_range > 499:
-        max_range = ceil(max_range / 50) * 50
     elif max_range > 199:
+        max_range = ceil(max_range / 50) * 50
+    elif max_range > 99:
         max_range = ceil(max_range / 20) * 20
     else:
         max_range = ceil(max_range / 10) * 10
@@ -99,7 +92,7 @@ def find_range(results, results_drift, roi_locations):
 
 
 def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pixels, figures_option, path,
-                event_or_not, settings, time_axis, hsm_result, hsm_intensity, hsm_wavelengths):
+                event_or_not, settings, time_axis, hsm_result, hsm_raw, hsm_intensity, hsm_wavelengths):
     """
     Input results and drift-corrected results, puts out some example graphs for quick checking
 
@@ -117,8 +110,9 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
     settings: settings used to fit with
     time_axis: time axis of experiment
     hsm_result: HSM results
+    hsm_raw: Full HSM fit results
     hsm_intensity: HSM intensities found used to find results
-    hsm_wavelengths: wavelengths used at HSM in eV
+    hsm_wavelengths: wavelengths used at HSM in nm
 
     Returns
     -------
@@ -126,6 +120,11 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
     """
     def lorentzian(params, x):
         return params[0] + params[1] / ((x - params[2]) ** 2 + (0.5 * params[3]) ** 2)
+
+    if hsm_wavelengths is not None:
+        hsm_wavelengths_ev = 1248 / linspace(np_min(hsm_wavelengths), np_max(hsm_wavelengths), num=50)
+    else:
+        hsm_wavelengths_ev = None
 
     path += "/Graphs"
     mkdir(path)
@@ -193,12 +192,14 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
                 roi_list.append(roi_index)
         if len(roi_list) < 4:  # sometimes modulo does give four due to small mismatch. This adds a fourth ROI.
             roi_list.append(range(roi_locations.shape[0])[-1])
+        while len(roi_list) > 4:
+            roi_list.pop()
     else:
         for i in range(4):
             value = i % roi_locations.shape[0]
             roi_list.append(value)
 
-    max_range = find_range(results, results_drift, roi_list)
+    max_range = find_range(results_drift, roi_locations)
 
     for roi_list_index, roi_index in enumerate(roi_list):
         row = start_row + int(int(roi_list_index / 2)*2)
@@ -233,65 +234,47 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
             ax_tt.set_ylabel('Summed intensity (counts)')
             ax_tt.set_title('Time trace ROI ' + str(roi_index + 1))
 
-        x_positions = results[results[:, 1] == roi_index, 2]
-        y_positions = results[results[:, 1] == roi_index, 3]
-
-        ax_loc = fig.add_subplot(gs[row + 1, column])
-        ax_loc.scatter(x_positions[invert(event_or_not_roi)], y_positions[invert(event_or_not_roi)], label='non-events')
-        ax_loc.scatter(x_positions[event_or_not_roi], y_positions[event_or_not_roi], label='events')
-        if nm_or_pixels == 'nm':
-            ax_loc.set_xlabel('x-position (nm)')
-            ax_loc.set_ylabel('y-position (nm)')
-        else:
-            ax_loc.set_xlabel('x-position (pixels)')
-            ax_loc.set_ylabel('y-position (pixels)')
-        ax_loc.set_title('Scatter ROI ' + str(roi_index + 1))
-        ax_loc.axis('equal')
-        ax_loc.legend()
-
-        ylim = ax_loc.get_ylim()
-        xlim = ax_loc.get_xlim()
-        x_center = mean(xlim)
-        y_center = mean(ylim)
-        ax_loc.set_xlim(x_center - max_range / 2, x_center + max_range / 2)
-        ax_loc.set_ylim(y_center - max_range / 2, y_center + max_range / 2)
-
         x_positions = results_drift[results_drift[:, 1] == roi_index, 2]
         y_positions = results_drift[results_drift[:, 1] == roi_index, 3]
 
-        if hsm_result is None:
-            ax_loc_drift = fig.add_subplot(gs[row + 1, column + 1])
-            ax_loc_drift.scatter(x_positions[invert(event_or_not_roi)], y_positions[invert(event_or_not_roi)],
-                                 label='non-events')
-            ax_loc_drift.scatter(x_positions[event_or_not_roi], y_positions[event_or_not_roi], label='events')
-            if nm_or_pixels == 'nm':
-                ax_loc_drift.set_xlabel('x-position (nm)')
-                ax_loc_drift.set_ylabel('y-position (nm)')
-            else:
-                ax_loc_drift.set_xlabel('x-position (pixels)')
-                ax_loc_drift.set_ylabel('y-position (pixels)')
-            ax_loc_drift.set_title('Scatter ROI ' + str(roi_index + 1) + " post drift")
-            ax_loc_drift.axis('equal')
-            ax_loc_drift.legend()
+        ax_loc_drift = fig.add_subplot(gs[row + 1, column])
+        ax_loc_drift.scatter(x_positions[invert(event_or_not_roi)], y_positions[invert(event_or_not_roi)],
+                             label='non-events')
+        ax_loc_drift.scatter(x_positions[event_or_not_roi], y_positions[event_or_not_roi], label='events')
+        if nm_or_pixels == 'nm':
+            ax_loc_drift.set_xlabel('x-position (nm)')
+            ax_loc_drift.set_ylabel('y-position (nm)')
+        else:
+            ax_loc_drift.set_xlabel('x-position (pixels)')
+            ax_loc_drift.set_ylabel('y-position (pixels)')
+        ax_loc_drift.set_title('Scatter ROI ' + str(roi_index + 1) + " post drift corr")
+        ax_loc_drift.axis('equal')
+        ax_loc_drift.legend()
 
-            ylim = ax_loc_drift.get_ylim()
-            xlim = ax_loc_drift.get_xlim()
-            x_center = mean(xlim)
-            y_center = mean(ylim)
-            ax_loc_drift.set_xlim(x_center - max_range / 2, x_center + max_range / 2)
-            ax_loc_drift.set_ylim(y_center - max_range / 2, y_center + max_range / 2)
+        y_min, y_max = ax_loc_drift.get_ylim()
+        x_min, x_max = ax_loc_drift.get_xlim()
+        y_center = (y_max + y_min) / 2
+        x_center = (x_max + x_min) / 2
+        ax_loc_drift.set_xlim(x_center - max_range / 2, x_center + max_range / 2)
+        ax_loc_drift.set_ylim(y_center - max_range / 2, y_center + max_range / 2)
+        ax_loc_drift.xaxis.set_major_locator(plt.MaxNLocator(N_TICKS))
+        ax_loc_drift.yaxis.set_major_locator(plt.MaxNLocator(N_TICKS))
+
+        if hsm_result is None:
+            pass
         else:
             ax_hsm = fig.add_subplot(gs[row + 1, column + 1])
             hsm_intensities = hsm_intensity[hsm_intensity[:, 0] == roi_index, 1:]
             ax_hsm.scatter(hsm_wavelengths, hsm_intensities)
-            hsm_params = hsm_result[hsm_result[:, 0] == roi_index, 1:-1]
+            hsm_params = hsm_raw[hsm_raw[:, 0] == roi_index, 1:]
             try:
-                hsm_fit = lorentzian(hsm_params.flatten(), hsm_wavelengths)
-                ax_hsm.plot(hsm_wavelengths, hsm_fit, 'r--')
+                hsm_fit = lorentzian(hsm_params.flatten(), hsm_wavelengths_ev)
+                ax_hsm.plot(1248 / hsm_wavelengths_ev, hsm_fit, 'r--')
             except:
                 pass
-            ax_hsm.set_xlabel('wavelength (eV)')
+            ax_hsm.set_xlabel('wavelength (nm)')
             ax_hsm.set_ylabel('intensity (arb. units)')
+            ax_hsm.set_xlim(np_min(hsm_wavelengths) - 30, np_max(hsm_wavelengths) + 30)
             ax_hsm.set_title('HSM Result ROI {}'.format(str(roi_index + 1)))
 
     name = path + "/" + "_Overview.png"
@@ -300,7 +283,7 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
 
     if figures_option == "All":
 
-        max_range = find_range(results, results_drift, roi_locations)
+        max_range = find_range(results_drift, roi_locations)
 
         for roi_index in range(roi_locations.shape[0]):
             fig = plt.figure(figsize=(8, 8), dpi=DPI)
@@ -333,66 +316,47 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
                 ax_tt.set_ylabel('Summed intensity (counts)')
                 ax_tt.set_title('Time trace ROI ' + str(roi_index + 1))
 
-            x_positions = results[results[:, 1] == roi_index, 2]
-            y_positions = results[results[:, 1] == roi_index, 3]
-
-            ax_loc = fig.add_subplot(2, 2, 3)
-            ax_loc.scatter(x_positions[invert(event_or_not_roi)], y_positions[invert(event_or_not_roi)],
-                           label='non-events')
-            ax_loc.scatter(x_positions[event_or_not_roi], y_positions[event_or_not_roi], label='events')
-            if nm_or_pixels == 'nm':
-                ax_loc.set_xlabel('x-position (nm)')
-                ax_loc.set_ylabel('y-position (nm)')
-            else:
-                ax_loc.set_xlabel('x-position (pixels)')
-                ax_loc.set_ylabel('y-position (pixels)')
-            ax_loc.set_title('Scatter ROI ' + str(roi_index + 1))
-            ax_loc.axis('equal')
-            ax_loc.legend()
-
-            ylim = ax_loc.get_ylim()
-            xlim = ax_loc.get_xlim()
-            x_center = mean(xlim)
-            y_center = mean(ylim)
-            ax_loc.set_xlim(x_center - max_range / 2, x_center + max_range / 2)
-            ax_loc.set_ylim(y_center - max_range / 2, y_center + max_range / 2)
-
             x_positions = results_drift[results_drift[:, 1] == roi_index, 2]
             y_positions = results_drift[results_drift[:, 1] == roi_index, 3]
 
-            if hsm_result is None:
-                ax_loc_drift = fig.add_subplot(2, 2, 4)
-                ax_loc_drift.scatter(x_positions[invert(event_or_not_roi)], y_positions[invert(event_or_not_roi)],
-                                     label='non-events')
-                ax_loc_drift.scatter(x_positions[event_or_not_roi], y_positions[event_or_not_roi], label='events')
-                if nm_or_pixels == 'nm':
-                    ax_loc_drift.set_xlabel('x-position (nm)')
-                    ax_loc_drift.set_ylabel('y-position (nm)')
-                else:
-                    ax_loc_drift.set_xlabel('x-position (pixels)')
-                    ax_loc_drift.set_ylabel('y-position (pixels)')
-                ax_loc_drift.set_title('Scatter ROI ' + str(roi_index + 1) + " post drift")
-                ax_loc_drift.axis('equal')
-                ax_loc_drift.legend()
+            ax_loc_drift = fig.add_subplot(2, 2, 3)
+            ax_loc_drift.scatter(x_positions[invert(event_or_not_roi)], y_positions[invert(event_or_not_roi)],
+                                 label='non-events')
+            ax_loc_drift.scatter(x_positions[event_or_not_roi], y_positions[event_or_not_roi], label='events')
+            if nm_or_pixels == 'nm':
+                ax_loc_drift.set_xlabel('x-position (nm)')
+                ax_loc_drift.set_ylabel('y-position (nm)')
+            else:
+                ax_loc_drift.set_xlabel('x-position (pixels)')
+                ax_loc_drift.set_ylabel('y-position (pixels)')
+            ax_loc_drift.set_title('Scatter ROI ' + str(roi_index + 1) + " post drift")
+            ax_loc_drift.axis('equal')
+            ax_loc_drift.legend()
 
-                ylim = ax_loc_drift.get_ylim()
-                xlim = ax_loc_drift.get_xlim()
-                x_center = mean(xlim)
-                y_center = mean(ylim)
-                ax_loc_drift.set_xlim(x_center - max_range / 2, x_center + max_range / 2)
-                ax_loc_drift.set_ylim(y_center - max_range / 2, y_center + max_range / 2)
+            y_min, y_max = ax_loc_drift.get_ylim()
+            x_min, x_max = ax_loc_drift.get_xlim()
+            y_center = (y_max + y_min) / 2
+            x_center = (x_max + x_min) / 2
+            ax_loc_drift.set_xlim(x_center - max_range / 2, x_center + max_range / 2)
+            ax_loc_drift.set_ylim(y_center - max_range / 2, y_center + max_range / 2)
+            ax_loc_drift.xaxis.set_major_locator(plt.MaxNLocator(N_TICKS))
+            ax_loc_drift.yaxis.set_major_locator(plt.MaxNLocator(N_TICKS))
+
+            if hsm_result is None:
+                pass
             else:
                 ax_hsm = fig.add_subplot(2, 2, 4)
                 hsm_intensities = hsm_intensity[hsm_intensity[:, 0] == roi_index, 1:]
                 ax_hsm.scatter(hsm_wavelengths, hsm_intensities)
-                hsm_params = hsm_result[hsm_result[:, 0] == roi_index, 1:-1]
+                hsm_params = hsm_raw[hsm_raw[:, 0] == roi_index, 1:]
                 try:
-                    hsm_fit = lorentzian(hsm_params.flatten(), hsm_wavelengths)
-                    ax_hsm.plot(hsm_wavelengths, hsm_fit, 'r--')
+                    hsm_fit = lorentzian(hsm_params.flatten(), hsm_wavelengths_ev)
+                    ax_hsm.plot(1248 / hsm_wavelengths_ev, hsm_fit, 'r--')
                 except:
                     pass
-                ax_hsm.set_xlabel('wavelength (eV)')
+                ax_hsm.set_xlabel('wavelength (nm)')
                 ax_hsm.set_ylabel('intensity (arb. units)')
+                ax_hsm.set_xlim(np_min(hsm_wavelengths) - 30, np_max(hsm_wavelengths) + 30)
                 ax_hsm.set_title('HSM Result ROI {}'.format(str(roi_index + 1)))
 
             name = path + "/" + "ROI" + str(roi_index+1)+".png"
