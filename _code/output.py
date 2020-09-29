@@ -209,21 +209,31 @@ def save_first_frame(frame_zero, path):
     save(path + '/frame_zero.npy', frame_zero)
 
 
-def save_hsm(hsm_result, hsm_intensity, path):
+def save_hsm(hsm_result, hsm_raw, hsm_intensity, path):
     """
     Saves all the HSM results
     :param hsm_result: HSM results to save
+    :param hsm_raw: Full fit parameters to save
     :param hsm_intensity: HSM intensities to save
     :param path: path to save to
     """
     name = 'hsm_result'
 
     with open(path + "/" + name + '.csv', mode='w') as _:
-        header = "ROI index,width,central wavelength,height,r-squared"
+        header = "ROI index,SP lambda,linewidth,r-squared"
         savetxt(path + "/" + name + '.csv', hsm_result, delimiter=',', header=header)
 
     hsm_result_dict = {name: hsm_result}
     savemat(path + "/" + name + '.mat', hsm_result_dict)
+
+    name = 'hsm_raw'
+
+    with open(path + "/" + name + '.csv', mode='w') as _:
+        header = "ROI index,offset,height,central position,width"
+        savetxt(path + "/" + name + '.csv', hsm_raw, delimiter=',', header=header)
+
+    hsm_raw_dict = {name: hsm_raw}
+    savemat(path + "/" + name + '.mat', hsm_raw_dict)
 
     name = 'hsm_intensity'
 

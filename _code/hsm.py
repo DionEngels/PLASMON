@@ -69,7 +69,7 @@ class HSM:
             return new_list
 
         self.roi_locations = roi_locations
-        self.hsm_result = np.zeros((roi_locations.shape[0], 6))
+        self.hsm_result = np.zeros((roi_locations.shape[0], 4))
         self.metadata = metadata
         self.frame_zero = frame_zero
         self.frame_merge = None
@@ -190,6 +190,7 @@ class HSM:
 
         # prep for fitting
 
+        hsm_raw = np.zeros((self.roi_locations.shape[0], 5))
         raw_intensity = np.zeros((self.roi_locations.shape[0], self.frames.shape[0]))
         intensity = np.zeros((self.roi_locations.shape[0], self.frames.shape[0]))
         roi_size = 9
@@ -241,14 +242,18 @@ class HSM:
 
                 result, r_squared = self.fit_lorentzian(intensity[roi_index, :], wavelength, verbose=verbose)
 
+                hsm_raw[roi_index, 0] = roi_index
+                hsm_raw[roi_index, 1:] = result
+
                 self.hsm_result[roi_index, 0] = roi_index
-                self.hsm_result[roi_index, 1:5] = result
-                self.hsm_result[roi_index, 5] = r_squared
+                self.hsm_result[roi_index, 1] = 1248 / result[2]  # SP lambda
+                self.hsm_result[roi_index, 2] = 1000 * result[3]  # linewidth
+                self.hsm_result[roi_index, 3] = r_squared
 
         intensity_result = np.concatenate((np.array(range(self.roi_locations.shape[0]))[:, np.newaxis], intensity),
                                           axis=1)
 
-        return self.hsm_result, intensity_result
+        return self.hsm_result, hsm_raw, intensity_result
 
     # %% Correct for drift between frames
     def hsm_drift(self, verbose=False):

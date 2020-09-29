@@ -71,7 +71,7 @@ def find_range(results, results_drift, roi_locations):
         numerate_length = len(roi_locations)
 
     for roi_index in range(numerate_length):
-        x_positions = results[rfesults[:, 1] == roi_index, 2]
+        x_positions = results[results[:, 1] == roi_index, 2]
         y_positions = results[results[:, 1] == roi_index, 3]
 
         if np_max(x_positions) - np_min(x_positions) > max_range:
@@ -100,7 +100,7 @@ def find_range(results, results_drift, roi_locations):
 
 
 def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pixels, figures_option, path,
-                event_or_not, settings, time_axis, hsm_result, hsm_intensity, hsm_wavelengths):
+                event_or_not, settings, time_axis, hsm_result, hsm_raw, hsm_intensity, hsm_wavelengths):
     """
     Input results and drift-corrected results, puts out some example graphs for quick checking
 
@@ -118,8 +118,9 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
     settings: settings used to fit with
     time_axis: time axis of experiment
     hsm_result: HSM results
+    hsm_raw: Full HSM fit results
     hsm_intensity: HSM intensities found used to find results
-    hsm_wavelengths: wavelengths used at HSM in eV
+    hsm_wavelengths: wavelengths used at HSM in nm
 
     Returns
     -------
@@ -127,6 +128,11 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
     """
     def lorentzian(params, x):
         return params[0] + params[1] / ((x - params[2]) ** 2 + (0.5 * params[3]) ** 2)
+
+    if hsm_wavelengths is not None:
+        hsm_wavelengths_ev = 1248 / linspace(np_min(hsm_wavelengths), np_max(hsm_wavelengths), num=50)
+    else:
+        hsm_wavelengths_ev = None
 
     path += "/Graphs"
     mkdir(path)
@@ -266,14 +272,15 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
             ax_hsm = fig.add_subplot(gs[row + 1, column + 1])
             hsm_intensities = hsm_intensity[hsm_intensity[:, 0] == roi_index, 1:]
             ax_hsm.scatter(hsm_wavelengths, hsm_intensities)
-            hsm_params = hsm_result[hsm_result[:, 0] == roi_index, 1:-1]
+            hsm_params = hsm_raw[hsm_raw[:, 0] == roi_index, 1:]
             try:
-                hsm_fit = lorentzian(hsm_params.flatten(), hsm_wavelengths)
-                ax_hsm.plot(hsm_wavelengths, hsm_fit, 'r--')
+                hsm_fit = lorentzian(hsm_params.flatten(), hsm_wavelengths_ev)
+                ax_hsm.plot(1248 / hsm_wavelengths_ev, hsm_fit, 'r--')
             except:
                 pass
-            ax_hsm.set_xlabel('wavelength (eV)')
+            ax_hsm.set_xlabel('wavelength (nm)')
             ax_hsm.set_ylabel('intensity (arb. units)')
+            ax_hsm.set_xlim(np_min(hsm_wavelengths) - 30, np_max(hsm_wavelengths) + 30)
             ax_hsm.set_title('HSM Result ROI {}'.format(str(roi_index + 1)))
 
     name = path + "/" + "_Overview.png"
@@ -345,14 +352,15 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
                 ax_hsm = fig.add_subplot(2, 2, 4)
                 hsm_intensities = hsm_intensity[hsm_intensity[:, 0] == roi_index, 1:]
                 ax_hsm.scatter(hsm_wavelengths, hsm_intensities)
-                hsm_params = hsm_result[hsm_result[:, 0] == roi_index, 1:-1]
+                hsm_params = hsm_raw[hsm_raw[:, 0] == roi_index, 1:]
                 try:
-                    hsm_fit = lorentzian(hsm_params.flatten(), hsm_wavelengths)
-                    ax_hsm.plot(hsm_wavelengths, hsm_fit, 'r--')
+                    hsm_fit = lorentzian(hsm_params.flatten(), hsm_wavelengths_ev)
+                    ax_hsm.plot(1248 / hsm_wavelengths_ev, hsm_fit, 'r--')
                 except:
                     pass
-                ax_hsm.set_xlabel('wavelength (eV)')
+                ax_hsm.set_xlabel('wavelength (nm)')
                 ax_hsm.set_ylabel('intensity (arb. units)')
+                ax_hsm.set_xlim(np_min(hsm_wavelengths) - 30, np_max(hsm_wavelengths) + 30)
                 ax_hsm.set_title('HSM Result ROI {}'.format(str(roi_index + 1)))
 
             name = path + "/" + "ROI" + str(roi_index+1)+".png"

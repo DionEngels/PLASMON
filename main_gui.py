@@ -63,7 +63,6 @@ from scipy.ndimage import median_filter
 import tkinter as tk  # for GUI
 from tkinter import ttk  # GUI styling
 from tkinter.filedialog import askopenfilenames, askdirectory  # for popup that asks to select .nd2's or folders
-import traceback
 
 # Own code
 import _code.roi_finding as roi_finding
@@ -1333,6 +1332,7 @@ class FittingPage(tk.Frame):
             hsm_result = None  # just to make Python shut up about potential reference before assignment
             hsm_intensity = None
             hsm_wavelengths = None
+            hsm_raw = None
 
             if hsm_dir[0] is not None and hsm_corr != '':
                 self.progress_status_label.updater(text="HSM dataset " +
@@ -1342,10 +1342,9 @@ class FittingPage(tk.Frame):
 
                 hsm_object = hsm.HSM(hsm_dir, np.asarray(self.frames[0], dtype=self.frames[0].dtype),
                                      roi_locations.copy(), self.metadata, hsm_corr)
-                hsm_result, hsm_intensity = hsm_object.main(verbose=False)
+                hsm_result, hsm_raw, hsm_intensity = hsm_object.main(verbose=False)
 
                 hsm_wavelengths = hsm_object.wavelength
-                hsm_wavelengths = 1248 / hsm_wavelengths
 
             # create folder for output
 
@@ -1384,7 +1383,7 @@ class FittingPage(tk.Frame):
             try:
                 figuring.save_graphs(self.frames, results, results_drift, roi_locations, method, nm_or_pixels,
                                      figures_option, path, event_or_not, dataset_settings, time_axis.copy(),
-                                     hsm_result, hsm_intensity, hsm_wavelengths)
+                                     hsm_result, hsm_raw, hsm_intensity, hsm_wavelengths)
             except Exception as _:
                 show_error(False)
 
@@ -1397,7 +1396,7 @@ class FittingPage(tk.Frame):
             roi_locations = tools.roi_to_matlab_coordinates(roi_locations, self.frames[0].shape[0])
             drift = tools.switch_axis(drift)
             if hsm_result is not None:
-                hsm_result, hsm_intensity = tools.switch_to_matlab_hsm(hsm_result, hsm_intensity)
+                hsm_result, hsm_raw, hsm_intensity = tools.switch_to_matlab_hsm(hsm_result, hsm_raw, hsm_intensity)
 
             # Save
 
@@ -1412,7 +1411,7 @@ class FittingPage(tk.Frame):
             outputting.save_to_csv_mat_results('Localizations', results, method, path)
             outputting.save_to_csv_mat_results('Localizations_drift', results_drift, method, path)
             if hsm_result is not None:
-                outputting.save_hsm(hsm_result, hsm_intensity, path)
+                outputting.save_hsm(hsm_result, hsm_raw, hsm_intensity, path)
 
         end_message = 'Time taken: ' + str(round(time.time() - self.start_time, 3)) \
                       + ' s. Fits done: ' + str(results_counter)
