@@ -17,6 +17,7 @@ v0.0.3: continued development 31/08/2020
 v0.0.4: correlations working: 07/09/2020
 v0.1: working: 13/09/2020
 v0.1.1: in GUI
+v1.0: Working as desired and as in SPectrA: 29/09/2020
 
 """
 # General
@@ -71,7 +72,6 @@ class HSM:
         self.roi_locations = roi_locations
         self.hsm_result = np.zeros((roi_locations.shape[0], 4))
         self.metadata = metadata
-        self.frame_zero = frame_zero
         self.frame_merge = None
         self.wavelength = None
 
@@ -210,7 +210,14 @@ class HSM:
 
             if x < roi_size_1d or y < roi_size_1d or \
                     x > self.frames.shape[1] - roi_size_1d or y > self.frames.shape[2] - roi_size_1d:
-                pass
+                raw_intensity[roi_index, :] = np.nan
+                intensity[roi_index, :] = np.nan
+
+                hsm_raw[roi_index, 0] = roi_index
+                hsm_raw[roi_index, 1:] = np.nan
+
+                self.hsm_result[roi_index, 0] = roi_index
+                self.hsm_result[roi_index, 1:] = np.nan
             else:
 
                 for frame_index, frame in enumerate(self.frames):
