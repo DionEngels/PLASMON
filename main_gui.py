@@ -37,8 +37,9 @@ v1.2.0.1: small bugfix
 v1.2.1: HSM checks, bugfixes
 v1.2.2: load from other bugfixes
 v1.3: HSM to eV: 24/09/2020
+v1.4: HSM output back to nm, while fitting in eV: 29/09/2020
 """
-__version__ = "1.3"
+__version__ = "1.4"
 
 # GENERAL IMPORTS
 from os import getcwd, mkdir, environ, listdir  # to get standard usage
@@ -63,7 +64,6 @@ from scipy.ndimage import median_filter
 import tkinter as tk  # for GUI
 from tkinter import ttk  # GUI styling
 from tkinter.filedialog import askopenfilenames, askdirectory  # for popup that asks to select .nd2's or folders
-import traceback
 
 # Own code
 import _code.roi_finding as roi_finding
@@ -160,6 +160,11 @@ def show_error_critical(self, exc, val, tb):
 
 def show_error(critical):
     exc_type, exc_value, exc_traceback = sys.exc_info()  # most recent (if any) by default
+    try:
+        while '_code' in exc_traceback.tb_next.tb_frame.f_globals['__name__']:
+            exc_traceback = exc_traceback.tb_next
+    except:
+        exc_traceback = exc_traceback
     traceback_details = {
         'filename': exc_traceback.tb_frame.f_code.co_filename,
         'lineno': exc_traceback.tb_lineno,
@@ -173,6 +178,12 @@ def show_error(critical):
     else:
         tk.messagebox.showerror("Error. Send screenshot to Dion. PROGRAM WILL CONTINUE", message=str(traceback_details))
 
+
+# %% Close GUI
+
+def quit_gui(gui):
+    gui.quit()
+    sys.exit(0)
 
 # %% Own buttons / fields
 
@@ -754,7 +765,7 @@ class FittingPage(tk.Frame):
         button_load_new = ttk.Button(self, text="Load new", command=lambda: self.load_new(parent))
         button_load_new.grid(row=50, column=45, columnspan=2, sticky='EW', padx=PAD_SMALL)
 
-        button_quit = ttk.Button(self, text="Quit", command=lambda: sys.exit(0))
+        button_quit = ttk.Button(self, text="Quit", command=lambda: quit_gui(self))
         button_quit.grid(row=50, column=48, columnspan=2, sticky='EW', padx=PAD_SMALL)
 
         for i in range(0, 49):
@@ -1325,6 +1336,7 @@ class FittingPage(tk.Frame):
             hsm_result = None  # just to make Python shut up about potential reference before assignment
             hsm_intensity = None
             hsm_wavelengths = None
+            hsm_raw = None
 
             if hsm_dir[0] is not None and hsm_corr != '':
                 self.progress_status_label.updater(text="HSM dataset " +
@@ -1334,10 +1346,9 @@ class FittingPage(tk.Frame):
 
                 hsm_object = hsm.HSM(hsm_dir, np.asarray(self.frames[0], dtype=self.frames[0].dtype),
                                      roi_locations.copy(), self.metadata, hsm_corr)
-                hsm_result, hsm_intensity = hsm_object.main(verbose=False)
+                hsm_result, hsm_raw, hsm_intensity = hsm_object.main(verbose=False)
 
                 hsm_wavelengths = hsm_object.wavelength
-                hsm_wavelengths = 1248 / hsm_wavelengths
 
             # create folder for output
 
@@ -1376,7 +1387,7 @@ class FittingPage(tk.Frame):
             try:
                 figuring.save_graphs(self.frames, results, results_drift, roi_locations, method, nm_or_pixels,
                                      figures_option, path, event_or_not, dataset_settings, time_axis.copy(),
-                                     hsm_result, hsm_intensity, hsm_wavelengths)
+                                     hsm_result, hsm_raw, hsm_intensity, hsm_wavelengths)
             except Exception as _:
                 show_error(False)
 
@@ -1389,7 +1400,7 @@ class FittingPage(tk.Frame):
             roi_locations = tools.roi_to_matlab_coordinates(roi_locations, self.frames[0].shape[0])
             drift = tools.switch_axis(drift)
             if hsm_result is not None:
-                hsm_result, hsm_intensity = tools.switch_to_matlab_hsm(hsm_result, hsm_intensity)
+                hsm_result, hsm_raw, hsm_intensity = tools.switch_to_matlab_hsm(hsm_result, hsm_raw, hsm_intensity)
 
             # Save
 
@@ -1404,7 +1415,7 @@ class FittingPage(tk.Frame):
             outputting.save_to_csv_mat_results('Localizations', results, method, path)
             outputting.save_to_csv_mat_results('Localizations_drift', results_drift, method, path)
             if hsm_result is not None:
-                outputting.save_hsm(hsm_result, hsm_intensity, path)
+                outputting.save_hsm(hsm_result, hsm_raw, hsm_intensity, path)
 
         end_message = 'Time taken: ' + str(round(time.time() - self.start_time, 3)) \
                       + ' s. Fits done: ' + str(results_counter)
@@ -1588,7 +1599,7 @@ if __name__ == '__main__':
     gui = MbxPython()
     gui.geometry(str(GUI_WIDTH) + "x" + str(GUI_HEIGHT) + "+" + str(GUI_WIDTH_START) + "+" + str(GUI_HEIGHT_START))
     gui.iconbitmap(getcwd() + "\ico.ico")
-    gui.protocol("WM_DELETE_WINDOW", lambda: sys.exit(0))
+    gui.protocol("WM_DELETE_WINDOW", lambda: quit_gui(gui))
 
     ttk_style = ttk.Style(gui)
     ttk_style.configure("Big.TButton", font=FONT_BUTTON_BIG)

@@ -187,7 +187,7 @@ for name in filenames:
         print('Starting HSM')
 
         hsm = hsm.HSM(hsm_dir, np.asarray(frames[0], dtype=frames[0].dtype), ROI_locations.copy(), metadata, CORRECTION)
-        hsm_result, hsm_intensity = hsm.main(verbose=False)
+        hsm_result, hsm_raw, hsm_intensity = hsm.main(verbose=False)
 
         print('Starting saving')
 
@@ -199,7 +199,7 @@ for name in filenames:
 
         figuring.save_graphs(frames, results, results_drift, ROI_locations, METHOD, "pixels", FIGURE_OPTION,
                              path, event_or_not, settings, metadata['timesteps'][SLICE],
-                             hsm_result, hsm_intensity, 1248 / hsm.wavelength)
+                             hsm_result, hsm_raw, hsm_intensity, hsm.wavelength)
 
         time_taken = round(time.time() - start, 3)
         print('Time taken plotting: ' + str(time_taken) + ' s. Fits done: ' + str(successful_fits))
@@ -214,7 +214,7 @@ for name in filenames:
             ROI_locations = tools.switch_axis_to_matlab_coordinates(ROI_locations, frames[0].shape[0])
             drift = tools.switch_axis(drift)
 
-            hsm_result, hsm_intensity = tools.switch_to_matlab_hsm(hsm_result, hsm_intensity)
+            hsm_result, hsm_raw, hsm_intensity = tools.switch_to_matlab_hsm(hsm_result, hsm_raw, hsm_intensity)
 
         # %% save everything
         outputting.save_to_csv_mat_metadata('metadata', metadata, path)
@@ -222,6 +222,6 @@ for name in filenames:
         outputting.save_to_csv_mat_drift('Drift_correction', drift, path)
         outputting.save_to_csv_mat_results('Localizations', results, METHOD, path)
         outputting.save_to_csv_mat_results('Localizations_drift', results_drift, METHOD, path)
-        outputting.save_hsm(hsm_result, hsm_intensity, path)
+        outputting.save_hsm(hsm_result, hsm_raw, hsm_intensity, path)
 
         outputting.text_output({}, METHOD, THRESHOLD_METHOD, "", total_fits, failed_fits, time_taken, path)
