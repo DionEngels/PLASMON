@@ -21,6 +21,8 @@ v1.1: switch to Python coordinate system: 10/08/2020
 import numpy as np
 from scipy.stats import norm
 
+__self_made__ = True
+
 
 class DriftCorrector:
     """

@@ -25,6 +25,7 @@ import os
 import sys
 from cx_Freeze import setup, Executable
 
+__self_made__ = True
 
 r'-b C:\Users\s150127\Downloads\___MBx\build'  # take this control location of build
 

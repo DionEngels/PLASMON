@@ -40,6 +40,7 @@ import _code.fitters as fitting
 import _code.figure_making as figuring
 
 import matplotlib.pyplot as plt
+__self_made__ = True
 
 
 class HSM:

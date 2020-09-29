@@ -33,6 +33,7 @@ from math import ceil
 from scipy.stats import norm
 
 # %% Python ROI finder
+__self_made__ = True
 
 
 class RoiFinder:

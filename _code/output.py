@@ -21,6 +21,8 @@ from scipy.io import savemat  # to export for MATLAB
 from numpy import savetxt, save
 from datetime import datetime
 
+__self_made__ = True
+
 # translates the raw dictionary keys to user readable input
 TRANSLATOR_DICT = {'int_max': 'Maximum Intensity', 'int_min': 'Minimum Intensity', 'sigma_min': "Minimum Sigma",
                    'sigma_max': "Maximum Sigma", 'corr_min': "Minimum Correlation",

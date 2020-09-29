@@ -40,6 +40,7 @@ v1.3: HSM to eV: 24/09/2020
 v1.4: HSM output back to nm, while fitting in eV: 29/09/2020
 """
 __version__ = "1.4"
+__self_made__ = True
 
 # GENERAL IMPORTS
 from os import getcwd, mkdir, environ, listdir  # to get standard usage
@@ -160,11 +161,17 @@ def show_error_critical(self, exc, val, tb):
 
 def show_error(critical):
     exc_type, exc_value, exc_traceback = sys.exc_info()  # most recent (if any) by default
-    try:
-        while '_code' in exc_traceback.tb_next.tb_frame.f_globals['__name__']:
+    while True:
+        try:
+            self_made = exc_traceback.tb_next.tb_frame.f_globals['__self_made__']
+        except:
+            self_made = None
+        if self_made is None:
+            break
+        elif self_made:
             exc_traceback = exc_traceback.tb_next
-    except:
-        exc_traceback = exc_traceback
+        else:
+            break
     traceback_details = {
         'filename': exc_traceback.tb_frame.f_code.co_filename,
         'lineno': exc_traceback.tb_lineno,

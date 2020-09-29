@@ -27,6 +27,8 @@ v1.1: emptied out: 09/08/2020
 """
 from numpy import zeros
 
+__self_made__ = True
+
 
 def change_to_nm(results, metadata, method):
     """
