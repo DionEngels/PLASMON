@@ -37,8 +37,9 @@ v1.2.0.1: small bugfix
 v1.2.1: HSM checks, bugfixes
 v1.2.2: load from other bugfixes
 v1.3: HSM to eV: 24/09/2020
+v1.4: HSM output back to nm, while fitting in eV: 29/09/2020
 """
-__version__ = "1.3"
+__version__ = "1.4"
 
 # GENERAL IMPORTS
 from os import getcwd, mkdir, environ, listdir  # to get standard usage
