@@ -160,8 +160,11 @@ def show_error_critical(self, exc, val, tb):
 
 def show_error(critical):
     exc_type, exc_value, exc_traceback = sys.exc_info()  # most recent (if any) by default
-    while '_code' in exc_traceback.tb_next.tb_frame.f_globals['__name__']:
-        exc_traceback = exc_traceback.tb_next
+    try:
+        while '_code' in exc_traceback.tb_next.tb_frame.f_globals['__name__']:
+            exc_traceback = exc_traceback.tb_next
+    except:
+        exc_traceback = exc_traceback
     traceback_details = {
         'filename': exc_traceback.tb_frame.f_code.co_filename,
         'lineno': exc_traceback.tb_lineno,
