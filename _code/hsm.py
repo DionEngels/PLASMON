@@ -71,6 +71,8 @@ class HSM:
 
         self.roi_locations = roi_locations
         self.hsm_result = np.zeros((roi_locations.shape[0], 4))
+        bg = median_filter(frame_zero, size=9)
+        self.frame_zero = frame_zero.astype(np.int16) - bg
         self.metadata = metadata
         self.frame_merge = None
         self.wavelength = None
