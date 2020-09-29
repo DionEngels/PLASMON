@@ -28,6 +28,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.gridspec import GridSpec
 
+__self_made__ = True
 DPI = 400
 N_TICKS = 4
 

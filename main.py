@@ -53,6 +53,8 @@ import _code.output as outputting
 import _code.nd2_reading as nd2_reading
 import _code.hsm as hsm
 
+__self_made__ = True
+
 # %% Inputs
 ROI_SIZE = 7  # 7 or 9
 

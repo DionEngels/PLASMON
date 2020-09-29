@@ -42,6 +42,8 @@ from pyfftw import empty_aligned, FFTW  # for FFT for Phasor
 from math import pi, atan2  # general mathematics
 from cmath import phase  # general mathematics
 
+__self_made__ = True
+
 # %% Gaussian fitter with estimated background
 
 TERMINATION_MESSAGES = {
