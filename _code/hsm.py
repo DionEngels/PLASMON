@@ -387,10 +387,10 @@ class HSM:
 
         # find max and min
 
-        max_sca = np.max(scattering[scattering < np.max(scattering)])
-        idx_max = np.argmax(scattering[scattering < np.max(scattering)])
-        min_sca = np.min(scattering)
-        idx_min = np.argmin(scattering)
+        max_sca = np.nanmax(scattering[scattering < np.nanmax(scattering)])
+        idx_max = np.nanargmax(scattering[scattering < np.nanmax(scattering)])
+        min_sca = np.nanmin(scattering)
+        idx_min = np.nanargmin(scattering)
 
         # init guess and first fit
 
