@@ -193,8 +193,10 @@ def text_output(settings, method, threshold_method, nm_or_pixels, total_fits, fa
         text_file.write("Time taken (without saving results): " + str(time_taken) + "\n\n")
 
         text_file.write("\nHSM \n------------\n")
-        text_file.write("Meaning of variables in HSM output: \n")
-        text_file.write("ROI index | width | peak wavelength | peak height | R^2 \n")
+        text_file.write("Meaning of variables in HSM_result: \n")
+        text_file.write("ROI index | SP lambda | Linewidth | R^2 \n")
+        text_file.write("Meaning of variables in HSM_raw: \n")
+        text_file.write("ROI index | Offset | Height | Central position | width \n")
         text_file.write("Directory: " + str(hsm_directory) + "\n")
         text_file.write("Correction file: " + str(hsm_correction) + "\n")
 
