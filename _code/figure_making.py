@@ -19,7 +19,7 @@ v1.3: feedback of Peter meeting: 06/09/2020
 """
 
 from os import mkdir
-from numpy import asarray, invert, concatenate, mean, linspace
+from numpy import asarray, invert, concatenate, linspace, nanmin, nanmax
 from numpy import max as np_max
 from numpy import min as np_min
 from math import ceil, floor
@@ -61,7 +61,7 @@ def plot_rois(frame, roi_locations, roi_size):
     plt.show()
 
 
-def find_range(results, results_drift, roi_locations):
+def find_range(results_drift, roi_locations):
 
     max_range = 0
 
@@ -71,27 +71,19 @@ def find_range(results, results_drift, roi_locations):
         numerate_length = len(roi_locations)
 
     for roi_index in range(numerate_length):
-        x_positions = results[results[:, 1] == roi_index, 2]
-        y_positions = results[results[:, 1] == roi_index, 3]
-
-        if np_max(x_positions) - np_min(x_positions) > max_range:
-            max_range = np_max(x_positions) - np_min(x_positions)
-        if np_max(y_positions) - np_min(y_positions) > max_range:
-            max_range = np_max(y_positions) - np_min(y_positions)
-
         x_positions = results_drift[results_drift[:, 1] == roi_index, 2]
         y_positions = results_drift[results_drift[:, 1] == roi_index, 3]
 
-        if np_max(x_positions) - np_min(x_positions) > max_range:
-            max_range = np_max(x_positions) - np_min(x_positions)
-        if np_max(y_positions) - np_min(y_positions) > max_range:
-            max_range = np_max(y_positions) - np_min(y_positions)
+        if nanmax(x_positions) - nanmin(x_positions) > max_range:
+            max_range = nanmax(x_positions) - nanmin(x_positions)
+        if nanmax(y_positions) - nanmin(y_positions) > max_range:
+            max_range = nanmax(y_positions) - nanmin(y_positions)
 
-    if max_range > 1999:
+    if max_range > 999:
         max_range = ceil(max_range / 100) * 100
-    elif max_range > 499:
-        max_range = ceil(max_range / 50) * 50
     elif max_range > 199:
+        max_range = ceil(max_range / 50) * 50
+    elif max_range > 99:
         max_range = ceil(max_range / 20) * 20
     else:
         max_range = ceil(max_range / 10) * 10
@@ -207,7 +199,7 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
             value = i % roi_locations.shape[0]
             roi_list.append(value)
 
-    max_range = find_range(results, results_drift, roi_list)
+    max_range = find_range(results_drift, roi_locations)
 
     for roi_list_index, roi_index in enumerate(roi_list):
         row = start_row + int(int(roi_list_index / 2)*2)
@@ -259,8 +251,10 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
         ax_loc_drift.axis('equal')
         ax_loc_drift.legend()
 
-        y_center = mean(ax_loc_drift.get_ylim())
-        x_center = mean(ax_loc_drift.get_xlim())
+        y_min, y_max = ax_loc_drift.get_ylim()
+        x_min, x_max = ax_loc_drift.get_xlim()
+        y_center = (y_max + y_min) / 2
+        x_center = (x_max + x_min) / 2
         ax_loc_drift.set_xlim(x_center - max_range / 2, x_center + max_range / 2)
         ax_loc_drift.set_ylim(y_center - max_range / 2, y_center + max_range / 2)
         ax_loc_drift.xaxis.set_major_locator(plt.MaxNLocator(N_TICKS))
@@ -289,7 +283,7 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
 
     if figures_option == "All":
 
-        max_range = find_range(results, results_drift, roi_locations)
+        max_range = find_range(results_drift, roi_locations)
 
         for roi_index in range(roi_locations.shape[0]):
             fig = plt.figure(figsize=(8, 8), dpi=DPI)
@@ -339,8 +333,10 @@ def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pix
             ax_loc_drift.axis('equal')
             ax_loc_drift.legend()
 
-            y_center = mean(ax_loc_drift.get_ylim())
-            x_center = mean(ax_loc_drift.get_xlim())
+            y_min, y_max = ax_loc_drift.get_ylim()
+            x_min, x_max = ax_loc_drift.get_xlim()
+            y_center = (y_max + y_min) / 2
+            x_center = (x_max + x_min) / 2
             ax_loc_drift.set_xlim(x_center - max_range / 2, x_center + max_range / 2)
             ax_loc_drift.set_ylim(y_center - max_range / 2, y_center + max_range / 2)
             ax_loc_drift.xaxis.set_major_locator(plt.MaxNLocator(N_TICKS))
