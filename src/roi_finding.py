@@ -76,7 +76,7 @@ class RoiFinder:
             self.int_min = 0
             self.int_max = np.inf
 
-            background = median_filter(frame, size=self.filter_size, mode='constant')
+            background = median_filter(frame, size=self.filter_size)
             background[background == 0] = np.min(background[background > 0])
             self.frame_bg = frame.astype('float') - background
 
@@ -129,11 +129,24 @@ class RoiFinder:
 
         if settings['filter_size'] != self.filter_size:
             self.filter_size = settings['filter_size']
-            background = median_filter(self.base_frame, kernel_size=self.filter_size)
+            background = median_filter(self.base_frame, size=self.filter_size)
             background[background == 0] = np.min(background[background > 0])
             self.frame_bg = self.base_frame.astype('float') - background
         else:
-            self.frame_bg = settings['processed_frame']
+            processed_frame = settings.pop('processed_frame', None)
+            if processed_frame is not None:
+                self.frame_bg = processed_frame
+            else:
+                background = median_filter(self.base_frame, size=self.filter_size)
+                background[background == 0] = np.min(background[background > 0])
+                self.frame_bg = self.base_frame.astype('float') - background
+
+    def get_settings(self):
+        return {'int_max': self.int_max, 'int_min': self.int_min,
+                'sigma_min': self.sigma_min, 'sigma_max': self.sigma_max,
+                'corr_min': self.corr_min, 'roi_size': self.roi_size, 'filter_size': self.filter_size,
+                'roi_side': self.side_distance, 'inter_roi': self.roi_distance,
+                'processed_frame': self.frame_bg}
 
     @staticmethod
     def make_gaussian(size, fwhm=3, center=None):

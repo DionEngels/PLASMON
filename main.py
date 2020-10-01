@@ -115,6 +115,7 @@ class HSMDataset(Dataset):
     def __init__(self, experiment, nd2):
         super().__init__(experiment)
         self.frames = nd2
+        self.metadata = nd2.get_metadata()
 
         self.corrected_merged, self.corrected = self.hsm_drift()
 
@@ -139,7 +140,7 @@ class Experiment:
 
     def __init__(self, created_by, filename):
         self.created_by = created_by
-        self.directory = None
+        self.directory = filename
         self.name = None
         self.datasets = []
 
@@ -147,10 +148,10 @@ class Experiment:
 
         if created_by == 'HSM':
             self.init_new_hsm(nd2)
-            self.frame_for_rois = self.datasets[-1].corrected_merged
+            self.frame_for_rois = np.asarray(self.datasets[-1].corrected_merged)
         elif created_by == 'TT':
             self.init_new_tt(nd2)
-            self.frame_for_rois = nd2[0]
+            self.frame_for_rois = np.asarray(nd2[0])
         self.roi_finder = RoiFinder(self.frame_for_rois)
         self.rois = self.roi_finder.main()
 
@@ -165,6 +166,37 @@ class Experiment:
     def change_rois(self, settings):
         self.roi_finder.change_settings(settings)
         self.rois = self.roi_finder.main()
+
+    def show_rois(self):
+        figuring.plot_rois(self.frame_for_rois, self.rois, self.roi_finder.roi_size)
+
+    def finalize_rois(self, name):
+        self.name = name
+        file_dir = '/'.join(self.directory.split(".")[0].split("/")[:-1]) + '/'
+
+        date = self.datasets[0].metadata.pop('date', None)
+        if date is None:
+            date = "XXXX-XX-XX"
+        else:
+            date_split = date.split(" ")[0].split("-")
+            date = "{:04d}-{:02d}-{:02d}".format(int(date_split[2]), int(date_split[1]), int(date_split[0]))
+
+        file_dir = file_dir + date + "_" + name
+
+        directory_try = 0
+        directory_success = False
+        while not directory_success:
+            try:
+                mkdir(file_dir)
+                directory_success = True
+            except:
+                directory_try += 1
+                if directory_try == 1:
+                    file_dir += "_%03d" % directory_try
+                else:
+                    file_dir = file_dir[:-4]
+                    file_dir += "_%03d" % directory_try
+        self.directory = file_dir
 
     def save(self):
 
@@ -192,6 +224,21 @@ class Experiment:
 for name in filenames:
 
     experiment = Experiment("TT", name)
+
+    experiment.show_rois()
+
+    defaults = experiment.roi_finder.get_settings()
+
+    settings = {'int_max': np.inf, 'int_min': 0,
+                'sigma_min': 0, 'sigma_max': int((ROI_SIZE - 1) / 2),
+                'corr_min': 0.05, 'roi_size': ROI_SIZE, 'filter_size': 9,
+                'roi_side': 11, 'inter_roi': 9}
+
+    experiment.change_rois(settings)
+
+    name = "v2_test"
+
+    experiment.finalize_rois(name)
 
     with nd2_reading.ND2ReaderSelf(name) as ND2:
         # create folder for output

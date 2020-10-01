@@ -51,10 +51,9 @@ def plot_rois(frame, roi_locations, roi_size):
     ax.imshow(frame, extent=[0, frame.shape[1], frame.shape[0], 0], aspect='auto')
     roi_size_1d = int((roi_size - 1) / 2)
 
-    roi_locations = roi_locations - roi_size_1d
-
     for roi in roi_locations:
-        rect = patches.Rectangle((roi[1], roi[0]), roi_size, roi_size,
+
+        rect = patches.Rectangle((roi.x-roi_size_1d, roi.y-roi_size_1d), roi_size, roi_size,
                                  linewidth=0.5, edgecolor='r', facecolor='none')
         ax.add_patch(rect)
 
