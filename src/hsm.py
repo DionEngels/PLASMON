@@ -38,9 +38,35 @@ from scipy.signal import fftconvolve
 from src.nd2_reading import ND2ReaderSelf
 import src.fitters as fitting
 import src.figure_making as figuring
+from src.data import Dataset
 
 import matplotlib.pyplot as plt
 __self_made__ = True
+
+# %% HSM Dataset v2
+
+
+class HSMDataset(Dataset):
+    def __init__(self, experiment, nd2):
+        super().__init__(experiment)
+        self.frames = nd2
+        self.metadata = nd2.get_metadata()
+
+        self.corrected_merged, self.corrected = self.hsm_drift()
+        self.frame_for_rois = self.corrected_merged
+
+    def prepare_run(self, settings):
+        self.hsm_object.change_settings(settings)
+
+    def run(self):
+        self.hsm_object.run(self)
+
+    def hsm_drift(self):
+        x =1
+        y= 1
+        return x, y
+
+# %% HSM Dataset v1
 
 
 class HSM:

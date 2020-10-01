@@ -34,15 +34,63 @@ import numpy as np  # general mathematics + arrays
 from pims import Frame  # for converting ND2 generator to one numpy array
 
 from scipy.optimize import _minpack, OptimizeResult  # for Gaussian fitter
+from scipy.ndimage import median_filter  # for correlation with experiment
 
 import src.mbx_fortran as fortran_linalg  # for fast self-made operations for Gaussian fitter
 import src.mbx_fortran_tools as fortran_tools  # for fast self-made general operations
+from src.data import Dataset  # base dataset
 
 from pyfftw import empty_aligned, FFTW  # for FFT for Phasor
 from math import pi, atan2  # general mathematics
 from cmath import phase  # general mathematics
 
 __self_made__ = True
+
+# %% Time trace class
+
+
+class TimeTrace(Dataset):
+    def __init__(self, experiment, nd2):
+        super().__init__(experiment)
+        self.frames = nd2
+        background = median_filter(np.asarray(nd2[0]), size=9)
+        self.frame_for_rois = np.asarray(nd2[0]).astype('float') - background
+        self.metadata = nd2.get_metadata()
+        self.pixels_or_nm = None
+        self.slice = None
+
+    def prepare_run(self, settings):
+        check = self.experiment.proceed_question("OK", "Cancel", "Are you sure?",
+                                                 "Fitting may take a while. Are you sure everything is set up correctly?")
+        if not check:
+            return
+
+        if settings['#cores'] > 1 and "Phasor" in settings['method']:
+            cores_check = self.experiment.proceed_question("ok_cancel", "Just a heads up",
+                                                           """Phasor will be used with one core since the
+            overhead only slows it down""")
+            if not cores_check:
+                return
+            settings['#cores'] = 1
+
+        # TO WRITE FUNCTION FOR
+        max_its = 300
+        self.pixels_or_nm = settings['pixels_or_nm']
+        self.slice = self.parse_start_end(settings['frame_begin'], settings['frame_end'])
+
+        if settings['method'] == "Phasor + Intensity":
+            self.fitter = Phasor(settings)
+        elif settings['method'] == "Phasor":
+            self.fitter = PhasorDumb(settings)
+        elif settings['method'] == "Gaussian - Fit bg":
+            self.fitter = GaussianBackground(settings, max_its, 6)
+        elif settings['method'] == "Gaussian - Estimate bg":
+            self.fitter = Gaussian(settings, max_its, 5)
+        else:
+            self.fitter = PhasorSum(settings)
+
+    def run(self):
+        self.fitter.run(self)
 
 # %% Gaussian fitter with estimated background
 
