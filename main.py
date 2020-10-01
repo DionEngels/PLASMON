@@ -41,8 +41,6 @@ import sys
 # Numpy and matplotlib, for linear algebra and plotting respectively
 import numpy as np
 
-
-
 # v2
 
 from src.data import Experiment
@@ -57,19 +55,21 @@ ROI_SIZE = 7  # 7 or 9
 filenames = ("C:/Users/s150127/Downloads/___MBx/datasets/1nMimager_newGNRs_100mW.nd2",)
 hsm_dir = ("C:/Users/s150127/Downloads/___MBx/datasets/_1nMimager_newGNRs_100mW_HSM",)
 
+NAME = "test_v2"
+
 fit_options = ["Gaussian - Fit bg", "Gaussian - Estimate bg",
                "Phasor + Intensity", "Phasor + Sum", "Phasor"]
 
-FIGURE_OPTION = "Overview"  # "Overview" "All"
-
+ALL_FIGURES = True
 METHOD = "Gaussian - Estimate bg"
 THRESHOLD_METHOD = "Loose"  # "Loose", or "None"
 CORRECTION = "SN_objTIRF_PFS_510-800"  # "Matej_670-890"
 NM_OR_PIXELS = "nm"
-SLICE = slice(0, 10)
-
+FRAME_BEGIN = "Leave empty for start"  # number or "Leave empty for start"
+FRAME_END = 10  # number or "Leave empty for end"
 
 # %% GUI-less specific
+
 
 def proceed_question(option1, option2, title, text):
     answer = input(title + "\n" + text + "\n" + option1 + "/" + option2)
@@ -98,11 +98,9 @@ for name in filenames:
 
     experiment.show_rois("Experiment")
 
-    name = "v2_test"
+    settings_experiment = {'All Figures': ALL_FIGURES}
 
-    settings_experiment = {'All Figures': True}
-
-    experiment.finalize_rois(name, settings_experiment)
+    experiment.finalize_rois(NAME, settings_experiment)
 
     settings_correlation = {'x_min': "Leave empty for start", 'x_max': "Leave empty for end",
                             'y_min': "Leave empty for start", 'y_max': "Leave empty for end"}
@@ -111,11 +109,13 @@ for name in filenames:
 
     experiment.show_rois("Dataset")
 
-    settings_runtime = {'method': "Gaussian", 'rejection': "Loose", '#cores': 6, "pixels_or_nm": "nm",
+    settings_runtime = {'method': "Gaussian", 'rejection': THRESHOLD_METHOD, '#cores': 6, "pixels_or_nm": NM_OR_PIXELS,
                         'roi_size': ROI_SIZE,
-                        'frame_begin': "Leave empty for start", 'frame_end': "Leave empty for end"}
+                        'frame_begin': FRAME_BEGIN, 'frame_end': FRAME_END}
     experiment.add_to_queue(settings_runtime)
 
+
+    # end
     sys.exit(0)
 
     with nd2_reading.ND2ReaderSelf(name) as ND2:
