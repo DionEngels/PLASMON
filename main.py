@@ -44,14 +44,14 @@ import numpy as np
 from scipy.io import loadmat
 
 # Own code
-import _code.roi_finding as roi_finding
-import _code.fitters as fitting
-import _code.tools as tools
-import _code.drift_correction as drift_correction
-import _code.figure_making as figuring
-import _code.output as outputting
-import _code.nd2_reading as nd2_reading
-import _code.hsm as hsm
+from src.roi_finding import RoiFinder
+import src.fitters as fitting
+import src.tools as tools
+import src.drift_correction as drift_correction
+import src.figure_making as figuring
+import src.output as outputting
+import src.nd2_reading as nd2_reading
+import src.hsm as hsm
 
 __self_made__ = True
 
@@ -78,20 +78,16 @@ SLICE = slice(0, 10)
 # %% Classes
 
 
-class Roi:
-
-    def __init__(self, x, y):
-
-        self.x = x
-        self.y = y
-
-        self.results = {}
-
-    def in_frame(self, shape, offset):
-        return in_frame_boolean
-
-
 class Dataset:
+    def __init__(self, experiment):
+        self.experiment = experiment
+        self.frames = None
+        self.metadata = None
+        self.roi_finder = None
+        self.fitter = None
+        self.drift_corrector = None
+        self.roi_offset = None
+        self.active_rois = []
 
     @staticmethod
     def correlate(settings, frame_zero, roi_frame):
@@ -100,14 +96,9 @@ class Dataset:
 
 class TimeTrace(Dataset):
     def __init__(self, experiment, nd2):
-        self.experiment = experiment
+        super().__init__(experiment)
         self.frames = nd2
         self.metadata = nd2.get_metadata()
-        self.roi_finder = None
-        self.fitter = None
-        self.drift_corrector = None
-        self.roi_offset = None
-        self.active_rois = []
 
     def find_rois(self, settings):
         self.roi_offset = self.correlate(settings, self.frames[0], self.experiment.frame_zero)
@@ -122,13 +113,10 @@ class TimeTrace(Dataset):
 
 class HSMDataset(Dataset):
     def __init__(self, experiment, nd2):
-        self.experiment = experiment
+        super().__init__(experiment)
         self.frames = nd2
-        self.roi_offset = None
-        self.hsm_object = hsm.HSM()
-        self.active_rois = []
 
-        self.corrected_merged, self.corrected = self.hsm_object.hsm_drift(self.frames)
+        self.corrected_merged, self.corrected = self.hsm_drift()
 
     def find_rois(self, settings):
         self.roi_offset = self.correlate(settings, self.frames[0], self.experiment.frame_zero)
@@ -141,23 +129,29 @@ class HSMDataset(Dataset):
     def run(self):
         self.hsm_object.run(self)
 
+    def hsm_drift(self):
+        x =1
+        y= 1
+        return x, y
+
 
 class Experiment:
 
-    def __init__(self, created_by, nd2):
+    def __init__(self, created_by, filename):
         self.created_by = created_by
         self.directory = None
         self.name = None
         self.datasets = []
 
+        nd2 = nd2_reading.ND2ReaderSelf(filename)
+
         if created_by == 'HSM':
             self.init_new_hsm(nd2)
-            self.frame_zero = self.datasets[-1].corrected_merged
+            self.frame_for_rois = self.datasets[-1].corrected_merged
         elif created_by == 'TT':
-            self.frame_zero = nd2[0]
             self.init_new_tt(nd2)
-
-        self.roi_finder = roi_finding.RoiFinder(self.frame_zero)
+            self.frame_for_rois = nd2[0]
+        self.roi_finder = RoiFinder(self.frame_for_rois)
         self.rois = self.roi_finder.main()
 
     def init_new_hsm(self, nd2):
@@ -193,10 +187,12 @@ class Experiment:
         self.save()
 
 
-
 # %% Main loop cell
 
 for name in filenames:
+
+    experiment = Experiment("TT", name)
+
     with nd2_reading.ND2ReaderSelf(name) as ND2:
         # create folder for output
         path = name.split(".")[0]

@@ -67,15 +67,15 @@ from tkinter import ttk  # GUI styling
 from tkinter.filedialog import askopenfilenames, askdirectory  # for popup that asks to select .nd2's or folders
 
 # Own code
-import _code.roi_finding as roi_finding
-import _code.fitters as fitting
-import _code.tools as tools
-import _code.drift_correction as drift_correction
-import _code.figure_making as figuring
-import _code.output as outputting
-import _code.nd2_reading as nd2_reading
-from _code.hsm import normxcorr2, normxcorr2_large
-import _code.hsm as hsm
+import src.roi_finding as roi_finding
+import src.fitters as fitting
+import src.tools as tools
+import src.drift_correction as drift_correction
+import src.figure_making as figuring
+import src.output as outputting
+import src.nd2_reading as nd2_reading
+from src.hsm import normxcorr2, normxcorr2_large
+import src.hsm as hsm
 
 # Multiprocessing
 import multiprocessing as mp
