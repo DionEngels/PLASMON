@@ -109,7 +109,7 @@ for name in filenames:
 
     experiment.show_rois("Dataset")
 
-    settings_runtime = {'method': "Gaussian", 'rejection': THRESHOLD_METHOD, '#cores': 6, "pixels_or_nm": NM_OR_PIXELS,
+    settings_runtime = {'method': METHOD, 'rejection': THRESHOLD_METHOD, '#cores': 6, "pixels_or_nm": NM_OR_PIXELS,
                         'roi_size': ROI_SIZE,
                         'frame_begin': FRAME_BEGIN, 'frame_end': FRAME_END}
     experiment.add_to_queue(settings_runtime)
