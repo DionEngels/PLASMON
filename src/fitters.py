@@ -75,15 +75,14 @@ class Gaussian:
     Gaussian fitter with estimated background, build upon Scipy Optimize Least-Squares
     """
 
-    def __init__(self, roi_size, thresholds, threshold_method, method, num_fit_params, max_its):
+    def __init__(self, settings, max_its, num_fit_params):
         """
 
         Parameters
         ----------
-        roi_size : ROI size
-        thresholds : minimum and maximum of fits
-        threshold_method: way to apply threshold
+        :param settings: Fitting settings
         max_its: number of iterations limit
+        :param num_fit_params: number of fitting parameters, 5 for without bg, 6 with bg
 
         Returns
         -------
@@ -92,12 +91,11 @@ class Gaussian:
         """
         self.result = []
         self.roi_locations = np.ones((1, 2))
-        self.roi_size = roi_size
+        self.roi_size = settings['roi_size']
         self.roi_size_1D = int((self.roi_size - 1) / 2)
         self.init_sig = 1.2  # Slightly on the high side probably
-        self.thresholds = thresholds
-        self.threshold_method = threshold_method
-        self.__name__ = method
+        self.threshold_method = settings['rejection']
+        self.__name__ = settings['method']
 
         self.num_fit_params = num_fit_params
         self.params = np.zeros((1000, 2))
@@ -666,20 +664,16 @@ class GaussianBackground(Gaussian):
 # %% Phasor for ROI loops
 
 
-# noinspection DuplicatedCode
 class Phasor:
     """
     Phasor fitting using Fourier Transform. Also returns intensity of pixel in which Phasor position is found.
     """
 
-    def __init__(self, roi_size, thresholds, threshold_method, method):
+    def __init__(self, settings):
         """
         Parameters
         ----------
-        roi_size : ROI size
-        thresholds : minimum and maximum of fits
-        threshold_method: way to apply threshold
-        method : Name of method
+        :param settings: input settings
 
         Returns
         -------
@@ -688,11 +682,10 @@ class Phasor:
         """
         self.result = []
         self.roi_locations = []
-        self.roi_size = roi_size
+        self.roi_size = settings['roi_size']
         self.roi_size_1D = int((self.roi_size - 1) / 2)
-        self.thresholds = thresholds
-        self.threshold_method = threshold_method
-        self.__name__ = method
+        self.threshold_method = settings['rejection']
+        self.__name__ = settings['method']
 
     def fun_find_max(self, roi):
         """

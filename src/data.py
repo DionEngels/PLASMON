@@ -16,9 +16,9 @@ class Roi:
                      self.x - roi_size_1d:self.x + roi_size_1d + 1]
 
     def in_frame(self, shape, offset):
-        if self.x + offset[0] < 0 or self.x + offset[0] > shape[0]:
+        if self.x + offset[1] < 0 or self.x + offset[1] > shape[1]:
             in_frame_boolean = False
-        elif self.y + offset[1] < 0 or self.y + offset[1] > shape[1]:
+        elif self.y + offset[0] < 0 or self.y + offset[0] > shape[0]:
             in_frame_boolean = False
         else:
             in_frame_boolean = True

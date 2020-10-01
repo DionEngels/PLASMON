@@ -56,7 +56,8 @@ class RoiFinder:
 
         """
         self.base_frame = frame
-        self.fitter = fitting.Gaussian(7, {}, "None", "Gaussian", 5, 300)
+        fitter_settings = {'roi_size': 7, 'method': "Gaussian", 'rejection': "None"}
+        self.fitter = fitting.Gaussian(fitter_settings, 300, 5)
 
         self.sigma_list = []
         self.int_list = []
@@ -77,7 +78,6 @@ class RoiFinder:
             self.int_max = np.inf
 
             background = median_filter(frame, size=self.filter_size)
-            background[background == 0] = np.min(background[background > 0])
             self.frame_bg = frame.astype('float') - background
 
             self.roi_locations = self.main()
@@ -86,8 +86,6 @@ class RoiFinder:
             self.sigma_max = np.max(self.sigma_list) * 1.5  # 50% margin
             self.int_max = np.max(self.int_list) * 1.5  # 50% margin
             self.int_min = np.min(self.int_list) / 2
-
-
         else:
             self.filter_size = settings['filter_size']
             self.roi_size = settings['roi_size']
@@ -130,7 +128,6 @@ class RoiFinder:
         if settings['filter_size'] != self.filter_size:
             self.filter_size = settings['filter_size']
             background = median_filter(self.base_frame, size=self.filter_size)
-            background[background == 0] = np.min(background[background > 0])
             self.frame_bg = self.base_frame.astype('float') - background
         else:
             processed_frame = settings.pop('processed_frame', None)
@@ -138,7 +135,6 @@ class RoiFinder:
                 self.frame_bg = processed_frame
             else:
                 background = median_filter(self.base_frame, size=self.filter_size)
-                background[background == 0] = np.min(background[background > 0])
                 self.frame_bg = self.base_frame.astype('float') - background
 
     def get_settings(self):
