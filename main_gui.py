@@ -68,7 +68,7 @@ from tkinter.filedialog import askopenfilenames, askdirectory  # for popup that 
 
 # Own code
 import src.roi_finding as roi_finding
-import src.fitters as fitting
+import src.tt as fitting
 import src.tools as tools
 import src.drift_correction as drift_correction
 import src.figure_making as figuring

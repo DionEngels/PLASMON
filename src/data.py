@@ -19,7 +19,7 @@ import numpy as np
 from src.hsm import normxcorr2, normxcorr2_large  # for correlation
 from src.nd2_reading import ND2ReaderSelf
 from src.roi_finding import RoiFinder
-import src.fitters as fitting
+import src.tt as fitting
 from src.hsm import HSMDataset
 import src.tools as tools
 import src.drift_correction as drift_correction

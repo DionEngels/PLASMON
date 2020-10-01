@@ -24,7 +24,7 @@ v1.1: list creation bugfixes
 v1.2: find max_its
 
 """
-import src.fitters as fitting
+import src.tt as fitting
 from src.data import Roi
 
 import numpy as np  # for linear algebra

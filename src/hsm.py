@@ -36,7 +36,7 @@ from scipy.signal import fftconvolve
 
 # Own code
 from src.nd2_reading import ND2ReaderSelf
-import src.fitters as fitting
+import src.tt as fitting
 import src.figure_making as figuring
 from src.data import Dataset
 
