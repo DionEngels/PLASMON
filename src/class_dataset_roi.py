@@ -55,8 +55,9 @@ class Roi:
 
 
 class Dataset:
-    def __init__(self, experiment):
+    def __init__(self, experiment, name):
         self.experiment = experiment
+        self.name = name
         self.frames = None
         self.frame_for_rois = None
         self.metadata = None

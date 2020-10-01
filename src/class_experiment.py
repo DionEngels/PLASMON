@@ -45,20 +45,22 @@ class Experiment:
         nd2 = ND2ReaderSelf(filename)
 
         if created_by == 'HSM':
-            self.init_new_hsm(nd2)
+            self.init_new_hsm(filename)
             self.frame_for_rois = np.asarray(self.datasets[-1].corrected_merged)
         elif created_by == 'TT':
-            self.init_new_tt(nd2)
+            self.init_new_tt(filename)
             self.frame_for_rois = np.asarray(nd2[0])
         self.roi_finder = RoiFinder(self.frame_for_rois)
         self.rois = self.roi_finder.main()
 
-    def init_new_hsm(self, nd2):
-        hsm_object = HSMDataset(self, nd2)
+    def init_new_hsm(self, filename):
+        nd2 = ND2ReaderSelf(filename)
+        hsm_object = HSMDataset(self, nd2, self.directory.split(".")[0].split("/")[-1])
         self.datasets.append(hsm_object)
 
-    def init_new_tt(self, nd2):
-        time_trace_object = fitting.TimeTrace(self, nd2)
+    def init_new_tt(self, filename):
+        nd2 = ND2ReaderSelf(filename)
+        time_trace_object = fitting.TimeTrace(self, nd2, self.directory.split(".")[0].split("/")[-1])
         self.datasets.append(time_trace_object)
 
     def change_rois(self, settings):

@@ -50,8 +50,8 @@ __self_made__ = True
 
 
 class TimeTrace(Dataset):
-    def __init__(self, experiment, nd2):
-        super().__init__(experiment)
+    def __init__(self, experiment, nd2, name):
+        super().__init__(experiment, name)
         self.frames = nd2
         background = median_filter(np.asarray(nd2[0]), size=9)
         self.frame_for_rois = np.asarray(nd2[0]).astype('float') - background
@@ -76,9 +76,9 @@ class TimeTrace(Dataset):
 
         # TO WRITE FUNCTION FOR
         max_its = 300
-        n_cores= settings['#cores']
+        self.n_cores = settings['#cores']
         self.pixels_or_nm = settings['pixels_or_nm']
-        self.slice = self.parse_start_end(settings['frame_begin'], settings['frame_end'])
+        self.slice, _ = self.parse_start_end(settings['frame_begin'], settings['frame_end'])
 
         if settings['method'] == "Phasor + Intensity":
             self.fitter = Phasor(settings)
@@ -92,12 +92,18 @@ class TimeTrace(Dataset):
             self.fitter = PhasorSum(settings)
 
     def run(self):
-        frames_to_fit = self.frames[self.slice]
+        frames_to_fit = np.asarray(self.frames[self.slice])
 
+        results = []
         if self.n_cores > 1:
             pass
         else:
-            self.fitter.run(self, frames_to_fit, 0)
+            results = self.fitter.run(self, frames_to_fit, 0)
+
+        for roi in self.active_rois:
+            roi.results[self.name] = results[results[:, 1] == roi.index, :]
+            roi.results[self.name + "_raw_data"] = roi.get_frame_stack(frames_to_fit, self.fitter.roi_size_1D)
+
 
 # %% Gaussian fitter with estimated background
 
@@ -557,17 +563,19 @@ class Gaussian:
     def run(self, dataset, frames, start_frame):
         self.roi_locations = dataset.active_rois
         self.params = np.zeros((len(self.roi_locations), 2))
-        n_frames = frames.shape[0]
+        try:
+            n_frames = frames.shape[0]
+        except AttributeError:
+            n_frames = len(frames)
 
         tot_fits = 0
 
         for frame_index, frame in enumerate(frames):
-            frame = np.asarray(frame)
             if frame_index == 0:
                 frame_result = self.fitter(frame_index, frame, start_frame)
                 n_fits = frame_result.shape[0]
                 width = frame_result.shape[1]
-                height = len(frames) * self.roi_locations.shape[0]
+                height = len(frames) * len(self.roi_locations)
                 self.result = np.zeros((height, width))
                 self.result[tot_fits:tot_fits + n_fits, :] = frame_result
                 tot_fits += n_fits
@@ -578,9 +586,9 @@ class Gaussian:
                 tot_fits += n_fits
 
             if frame_index % (round(n_frames / 10, 0)) == 0:
-                dataset.experiment.progess_function(frame_index + 1, n_frames + 1)
+                dataset.experiment.progress_function(frame_index + 1, n_frames + 1)
 
-        dataset.experiment.progess_function(n_frames + 1, n_frames + 1)
+        dataset.experiment.progress_function(n_frames + 1, n_frames + 1)
 
         return self.result
 
@@ -814,7 +822,7 @@ class Phasor:
 
         return roi_result
 
-    def run(self, dataset, frames, start_frame):
+    def run(self, dataset, frames, _):
         self.roi_locations = dataset.active_rois
 
         frame_stack_total = np.asarray(frames)
@@ -829,7 +837,7 @@ class Phasor:
             if created == 0:
                 n_fits = roi_result.shape[0]
                 width = roi_result.shape[1]
-                height = len(frames) * self.roi_locations.shape[0]
+                height = len(frames) * len(self.roi_locations)
                 self.result = np.zeros((height, width))
                 created = 1
                 self.result[tot_fits:tot_fits + n_fits, :] = roi_result
@@ -839,8 +847,8 @@ class Phasor:
                 self.result[tot_fits:tot_fits + n_fits, :] = roi_result
                 tot_fits += n_fits
 
-            if self.roi_locations.shape[0] > 10:
-                if roi.index % (round(self.roi_locations.shape[0] / 10, 0)) == 0:
+            if len(self.roi_locations) > 10:
+                if roi.index % (round(len(self.roi_locations) / 10, 0)) == 0:
                     dataset.experiment.progess_function(roi.index + 1, len(self.roi_locations) + 1)
 
         dataset.experiment.progess_function(len(self.roi_locations) + 1, len(self.roi_locations) + 1)

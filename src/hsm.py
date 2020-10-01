@@ -46,8 +46,8 @@ __self_made__ = True
 
 
 class HSMDataset(Dataset):
-    def __init__(self, experiment, nd2):
-        super().__init__(experiment)
+    def __init__(self, experiment, nd2, name):
+        super().__init__(experiment, name)
         self.frames = nd2
         self.metadata = nd2.get_metadata()
 
