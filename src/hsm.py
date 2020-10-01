@@ -31,14 +31,13 @@ import mat73
 # A lot of scipy for signal processing
 from scipy.ndimage import median_filter
 from scipy.optimize import leastsq
-import scipy.fft as fft
-from scipy.signal import fftconvolve
+
 
 # Own code
 from src.nd2_reading import ND2ReaderSelf
 import src.tt as fitting
 import src.figure_making as figuring
-from src.data import Dataset
+from src.class_dataset_roi import Dataset, normxcorr2, normxcorr2_large
 
 import matplotlib.pyplot as plt
 __self_made__ = True
@@ -462,63 +461,3 @@ class HSM:
             compare_plot(wavelength_ev, scattering, result)
 
         return result, r_squared
-
-
-def normxcorr2(b, a):
-    """
-    Correlation of similar size frames
-    """
-    def conv2(a, b):
-        ma, na = a.shape
-        mb, nb = b.shape
-        return fft.ifft2(fft.fft2(a, [2 * ma - 1, 2 * na - 1]) * fft.fft2(b, [2 * mb - 1, 2 * nb - 1]))
-
-    c = conv2(a, np.flipud(np.fliplr(b)))
-    a = conv2(a ** 2, np.ones(b.shape))
-    b = sum(b.flatten() ** 2)
-    c = c / np.sqrt(a * b)
-    return c
-
-
-def normxcorr2_large(template, image, mode="full"):
-    """
-    Correlation of frames with different sizes
-
-    Input arrays should be floating point numbers.
-    :param template: N-D array, of template or filter you are using for cross-correlation.
-    Must be less or equal dimensions to image.
-    Length of each dimension must be less than length of image.
-    :param image: N-D array
-    :param mode: Options, "full", "valid", "same"
-    full (Default): The output of fftconvolve is the full discrete linear convolution of the inputs.
-    Output size will be image size + 1/2 template size in each dimension.
-    valid: The output consists only of those elements that do not rely on the zero-padding.
-    same: The output is the same size as image, centered with respect to the ‘full’ output.
-    :return: N-D array of same dimensions as image. Size depends on mode parameter.
-    """
-    # If this happens, it is probably a mistake
-    if np.ndim(template) > np.ndim(image) or \
-            len([i for i in range(np.ndim(template)) if template.shape[i] > image.shape[i]]) > 0:
-        print("normxcorr2: TEMPLATE larger than IMG. Arguments may be swapped.")
-
-    template = template - np.mean(template)
-    image = image - np.mean(image)
-
-    a1 = np.ones(template.shape)
-    # Faster to flip up down and left right then use fftconvolve instead of scipy's correlate
-    ar = np.flipud(np.fliplr(template))
-    out = fftconvolve(image, ar.conj(), mode=mode)
-
-    image = fftconvolve(np.square(image), a1, mode=mode) - \
-            np.square(fftconvolve(image, a1, mode=mode)) / (np.prod(template.shape))
-
-    # Remove small machine precision errors after subtraction
-    image[np.where(image < 0)] = 0
-
-    template = np.sum(np.square(template))
-    out = out / np.sqrt(image * template)
-
-    # Remove any divisions by 0 or very close to 0
-    out[np.where(np.logical_not(np.isfinite(out)))] = 0
-
-    return out

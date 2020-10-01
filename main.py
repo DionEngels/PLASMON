@@ -34,7 +34,6 @@ v1.0: bugfixes and release: 07/08/2020
  """
 
 # GENERAL IMPORTS
-from os import mkdir  # to get standard usage
 import time  # for timekeeping
 import sys
 
@@ -43,7 +42,7 @@ import numpy as np
 
 # v2
 
-from src.data import Experiment
+from src.class_experiment import Experiment
 
 __self_made__ = True
 
@@ -79,11 +78,15 @@ def proceed_question(option1, option2, title, text):
         return False
 
 
+def progress_function(progress, total):
+    print('Done fitting frame ' + str(progress) + ' of ' + str(total))
+
+
 # %% Main loop cell
 
 for name in filenames:
 
-    experiment = Experiment("TT", name, proceed_question)
+    experiment = Experiment("TT", name, proceed_question, progress_function)
 
     experiment.show_rois("Experiment")
 
@@ -114,6 +117,7 @@ for name in filenames:
                         'frame_begin': FRAME_BEGIN, 'frame_end': FRAME_END}
     experiment.add_to_queue(settings_runtime)
 
+    experiment.run()
 
     # end
     sys.exit(0)

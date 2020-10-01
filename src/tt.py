@@ -38,7 +38,7 @@ from scipy.ndimage import median_filter  # for correlation with experiment
 
 import src.mbx_fortran as fortran_linalg  # for fast self-made operations for Gaussian fitter
 import src.mbx_fortran_tools as fortran_tools  # for fast self-made general operations
-from src.data import Dataset  # base dataset
+from src.class_dataset_roi import Dataset  # base dataset
 
 from pyfftw import empty_aligned, FFTW  # for FFT for Phasor
 from math import pi, atan2  # general mathematics
@@ -58,6 +58,7 @@ class TimeTrace(Dataset):
         self.metadata = nd2.get_metadata()
         self.pixels_or_nm = None
         self.slice = None
+        self.n_cores = 1
 
     def prepare_run(self, settings):
         check = self.experiment.proceed_question("OK", "Cancel", "Are you sure?",
@@ -75,6 +76,7 @@ class TimeTrace(Dataset):
 
         # TO WRITE FUNCTION FOR
         max_its = 300
+        n_cores= settings['#cores']
         self.pixels_or_nm = settings['pixels_or_nm']
         self.slice = self.parse_start_end(settings['frame_begin'], settings['frame_end'])
 
@@ -90,9 +92,15 @@ class TimeTrace(Dataset):
             self.fitter = PhasorSum(settings)
 
     def run(self):
-        self.fitter.run(self)
+        frames_to_fit = self.frames[self.slice]
+
+        if self.n_cores > 1:
+            pass
+        else:
+            self.fitter.run(self, frames_to_fit, 0)
 
 # %% Gaussian fitter with estimated background
+
 
 TERMINATION_MESSAGES = {
     -1: "Improper input parameters status returned from `leastsq`",
@@ -138,7 +146,7 @@ class Gaussian:
 
         """
         self.result = []
-        self.roi_locations = np.ones((1, 2))
+        self.roi_locations = []
         self.roi_size = settings['roi_size']
         self.roi_size_1D = int((self.roi_size - 1) / 2)
         self.init_sig = 1.2  # Slightly on the high side probably
@@ -479,20 +487,12 @@ class Gaussian:
         sig_min : Min sigma of fit
 
         """
-        if self.threshold_method == "Strict":
-            pos_max = self.roi_size
-            pos_min = 0
-            int_min = self.thresholds['int_min']
-            int_max = self.thresholds['int_max']
-            sig_min = self.thresholds['sigma_min']
-            sig_max = self.thresholds['sigma_max']
-        else:
-            pos_max = self.roi_size
-            pos_min = 0
-            int_min = 0
-            int_max = ((2 ** 16) - 1) * 1.5  # 50% margin over maximum pixel value possible
-            sig_min = 0
-            sig_max = self.roi_size_1D + 1
+        pos_max = self.roi_size
+        pos_min = 0
+        int_min = 0
+        int_max = ((2 ** 16) - 1) * 1.5  # 50% margin over maximum pixel value possible
+        sig_min = 0
+        sig_max = self.roi_size_1D + 1
 
         return pos_max, pos_min, int_max, int_min, sig_max, sig_min
 
@@ -513,78 +513,51 @@ class Gaussian:
         """
         pos_max, pos_min, int_max, int_min, sig_max, sig_min = self.define_fitter_bounds()
 
-        frame_result = np.zeros([self.roi_locations.shape[0], 9])
+        frame_result = np.zeros([len(self.roi_locations), 9])
 
-        for peak_index, peak in enumerate(self.roi_locations):
-
-            y = int(peak[0])
-            x = int(peak[1])
-
-            my_roi = frame[y - self.roi_size_1D:y + self.roi_size_1D + 1, x - self.roi_size_1D:x + self.roi_size_1D + 1]
+        for roi in self.roi_locations:
+            my_roi = roi.get_roi(frame, self.roi_size_1D)
             my_roi_bg = self.fun_calc_bg(my_roi)
             my_roi = my_roi - my_roi_bg
 
-            result, its, success = self.fit_gaussian(my_roi, peak_index)
+            result, its, success = self.fit_gaussian(my_roi, roi.index)
 
             if self.threshold_method == "None":
                 if success == 0 or result[0] == 0:
-                    self.params[peak_index, :] = [self.init_sig, self.init_sig]
+                    self.params[roi.index, :] = [self.init_sig, self.init_sig]
                     success = 0
             else:
                 if success == 0 or \
                         result[2] < pos_min or result[2] > pos_max or result[1] < pos_min or result[1] > pos_max or \
                         result[0] <= int_min or result[0] > int_max or \
                         result[3] < sig_min or result[3] > sig_max or result[4] < sig_min or result[4] > sig_max:
-                    self.params[peak_index, :] = [self.init_sig, self.init_sig]
+                    self.params[roi.index, :] = [self.init_sig, self.init_sig]
                     success = 0
 
             if success == 1:
-                self.params[peak_index, :] = result[3:5]
+                self.params[roi.index, :] = result[3:5]
 
-                frame_result[peak_index, 0] = frame_index + start_frame
-                frame_result[peak_index, 1] = peak_index
+                frame_result[roi.index, 0] = frame_index + start_frame
+                frame_result[roi.index, 1] = roi.index
                 # start position plus from center in ROI + half for indexing of pixels
-                frame_result[peak_index, 2] = result[1] + y - self.roi_size_1D + 0.5  # y
-                frame_result[peak_index, 3] = result[2] + x - self.roi_size_1D + 0.5  # x
-                frame_result[peak_index, 4] = result[0]*result[3]*result[4]*2*pi  # Integrated intensity
-                frame_result[peak_index, 5] = result[3]  # sigma y
-                frame_result[peak_index, 6] = result[4]  # sigma x
-                frame_result[peak_index, 7] = my_roi_bg
-                frame_result[peak_index, 8] = its
+                frame_result[roi.index, 2] = result[1] + roi.y - self.roi_size_1D + 0.5  # y
+                frame_result[roi.index, 3] = result[2] + roi.x - self.roi_size_1D + 0.5  # x
+                frame_result[roi.index, 4] = result[0]*result[3]*result[4]*2*pi  # Integrated intensity
+                frame_result[roi.index, 5] = result[3]  # sigma y
+                frame_result[roi.index, 6] = result[4]  # sigma x
+                frame_result[roi.index, 7] = my_roi_bg
+                frame_result[roi.index, 8] = its
             else:
-                frame_result[peak_index, :] = np.nan
-                frame_result[peak_index, 0] = frame_index + start_frame
-                frame_result[peak_index, 1] = peak_index
+                frame_result[roi.index, :] = np.nan
+                frame_result[roi.index, 0] = frame_index + start_frame
+                frame_result[roi.index, 1] = roi.index
 
         return frame_result
 
-    def main(self, frames, metadata, roi_locations, gui=None, q=None,
-             start_frame=0, n_frames=None):
-        """
-        Main for every fitter method, calls fitter function and returns fits
-
-        Parameters
-        ----------
-        frames : All frames of .nd2 video
-        metadata : Metadata of .nd2 video
-        start_frame: in case of multiprocessing, the frame number of the first frame passed to this thread/process
-        n_frames: number of frames passed to this main
-        gui: GUI object in case GUI is used
-        q: queue object in case multiprocessing is used
-        roi_locations: locations of ROI
-
-        Returns
-        -------
-        All localizations
-
-        """
-        if n_frames is None:
-            n_frames = metadata['num_frames']
-        elif n_frames < 10:
-            n_frames = 10
-
-        self.roi_locations = roi_locations
-        self.params = np.zeros((self.roi_locations.shape[0], 2))
+    def run(self, dataset, frames, start_frame):
+        self.roi_locations = dataset.active_rois
+        self.params = np.zeros((len(self.roi_locations), 2))
+        n_frames = frames.shape[0]
 
         tot_fits = 0
 
@@ -605,20 +578,11 @@ class Gaussian:
                 tot_fits += n_fits
 
             if frame_index % (round(n_frames / 10, 0)) == 0:
-                if gui is not None:
-                    gui.update_status(frame_index + 1, n_frames + 1)
-                elif q is not None:
-                    q.put([start_frame, frame_index + 1])
-                else:
-                    print('Done fitting frame ' + str(frame_index) + ' of ' + str(n_frames))
+                dataset.experiment.progess_function(frame_index + 1, n_frames + 1)
 
-        if gui is not None:
-            gui.update_status(n_frames, n_frames)
-        if q is not None:
-            q.put([start_frame, len(frames) + 1])
+        dataset.experiment.progess_function(n_frames + 1, n_frames + 1)
 
         return self.result
-
 
 # %% Gaussian fitter including background
 
@@ -665,46 +629,41 @@ class GaussianBackground(Gaussian):
         """
         pos_max, pos_min, int_max, int_min, sig_max, sig_min = self.define_fitter_bounds()
 
-        frame_result = np.zeros([self.roi_locations.shape[0], 9])
+        frame_result = np.zeros([len(self.roi_locations), 9])
 
-        for peak_index, peak in enumerate(self.roi_locations):
-
-            y = int(peak[0])
-            x = int(peak[1])
-
-            my_roi = frame[y - self.roi_size_1D:y + self.roi_size_1D + 1, x - self.roi_size_1D:x + self.roi_size_1D + 1]
-
-            result, its, success = self.fit_gaussian(my_roi, peak_index)
+        for roi in self.roi_locations:
+            my_roi = roi.get_roi(frame, self.roi_size_1D)
+            result, its, success = self.fit_gaussian(my_roi, roi.index)
 
             if self.threshold_method == "None":
                 if success == 0 or result[0] == 0:
-                    self.params[peak_index, :] = [self.init_sig, self.init_sig]
+                    self.params[roi.index, :] = [self.init_sig, self.init_sig]
                     success = 0
             else:
                 if success == 0 or \
                         result[2] < pos_min or result[2] > pos_max or result[1] < pos_min or result[1] > pos_max or \
                         result[0] <= int_min or result[0] > int_max or \
                         result[3] < sig_min or result[3] > sig_max or result[4] < sig_min or result[4] > sig_max:
-                    self.params[peak_index, :] = [self.init_sig, self.init_sig]
+                    self.params[roi.index, :] = [self.init_sig, self.init_sig]
                     success = 0
 
             if success == 1:
-                self.params[peak_index, :] = result[3:5]
+                self.params[roi.index, :] = result[3:5]
 
-                frame_result[peak_index, 0] = frame_index + start_frame
-                frame_result[peak_index, 1] = peak_index
+                frame_result[roi.index, 0] = frame_index + start_frame
+                frame_result[roi.index, 1] = roi.index
                 # start position plus from center in ROI + half for indexing of pixels
-                frame_result[peak_index, 2] = result[1] + y - self.roi_size_1D + 0.5  # y
-                frame_result[peak_index, 3] = result[2] + x - self.roi_size_1D + 0.5  # x
-                frame_result[peak_index, 4] = result[0]*result[3]*result[4]*2*pi  # Integrated intensity
-                frame_result[peak_index, 5] = result[3]  # sigma y
-                frame_result[peak_index, 6] = result[4]  # sigma x
-                frame_result[peak_index, 7] = result[5]  # background
-                frame_result[peak_index, 8] = its
+                frame_result[roi.index, 2] = result[1] + roi.y - self.roi_size_1D + 0.5  # y
+                frame_result[roi.index, 3] = result[2] + roi.x - self.roi_size_1D + 0.5  # x
+                frame_result[roi.index, 4] = result[0]*result[3]*result[4]*2*pi  # Integrated intensity
+                frame_result[roi.index, 5] = result[3]  # sigma y
+                frame_result[roi.index, 6] = result[4]  # sigma x
+                frame_result[roi.index, 7] = result[5]  # background
+                frame_result[roi.index, 8] = its
             else:
-                frame_result[peak_index, :] = np.nan
-                frame_result[peak_index, 0] = frame_index + start_frame
-                frame_result[peak_index, 1] = peak_index
+                frame_result[roi.index, :] = np.nan
+                frame_result[roi.index, 0] = frame_index + start_frame
+                frame_result[roi.index, 1] = roi.index
 
         return frame_result
 
@@ -855,37 +814,17 @@ class Phasor:
 
         return roi_result
 
-    def main(self, frames, metadata, roi_locations, gui=None, n_frames=None):
-        """
-        Main for phasor over ROI loop, calls fitter function and returns fits.
+    def run(self, dataset, frames, start_frame):
+        self.roi_locations = dataset.active_rois
 
-        Parameters
-        ----------
-        frames : All frames of .nd2 video
-        metadata : Metadata of .nd2 video
-        roi_locations: locations of all the ROIs
-        gui: GUI object in case GUI is used
-        n_frames: Total number of frames to be fitted
-
-        Returns
-        -------
-        All localizations
-
-        """
-        self.roi_locations = roi_locations
-
-        frame_stack_total = Frame(frames)
+        frame_stack_total = np.asarray(frames)
 
         tot_fits = 0
         created = 0
 
-        for roi_index, roi in enumerate(self.roi_locations):
-            y = int(roi[0])
-            x = int(roi[1])
-            frame_stack = frame_stack_total[:, y - self.roi_size_1D:y + self.roi_size_1D + 1,
-                          x - self.roi_size_1D:x + self.roi_size_1D + 1]
-
-            roi_result = self.phasor_fit_stack(frame_stack, roi_index, y, x)
+        for roi in self.roi_locations:
+            frame_stack = roi.get_frame_stack(frame_stack_total, self.roi_size_1D)
+            roi_result = self.phasor_fit_stack(frame_stack, roi.index, roi.y, roi.x)
 
             if created == 0:
                 n_fits = roi_result.shape[0]
@@ -901,14 +840,10 @@ class Phasor:
                 tot_fits += n_fits
 
             if self.roi_locations.shape[0] > 10:
-                if roi_index % (round(self.roi_locations.shape[0] / 10, 0)) == 0:
-                    if gui is None:
-                        print('Done fitting ROI ' + str(roi_index) + ' of ' + str(self.roi_locations.shape[0]))
-                    else:
-                        gui.update_status(roi_index + 1, len(self.roi_locations) + 1)
+                if roi.index % (round(self.roi_locations.shape[0] / 10, 0)) == 0:
+                    dataset.experiment.progess_function(roi.index + 1, len(self.roi_locations) + 1)
 
-        if gui is not None:
-            gui.update_status(len(self.roi_locations), len(self.roi_locations))
+        dataset.experiment.progess_function(len(self.roi_locations) + 1, len(self.roi_locations) + 1)
 
         return self.result
 

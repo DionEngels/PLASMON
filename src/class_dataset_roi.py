@@ -7,24 +7,16 @@ Created on Thu 01/10/2020
 @author: Dion Engels
 MBx Python Data Analysis
 
-data
+class dataset & roi
 
-The data structure of v2 of the program
+The dataset and ROI class of v2 of program. Dataset is one nd2 file, ROIs are region of interest.
 """
 # GENERAL IMPORTS
-from os import mkdir  # to get standard usage
+import scipy.fft as fft
+from scipy.signal import fftconvolve
 import numpy as np
 
-# own code
-from src.hsm import normxcorr2, normxcorr2_large  # for correlation
-from src.nd2_reading import ND2ReaderSelf
-from src.roi_finding import RoiFinder
-import src.tt as fitting
-from src.hsm import HSMDataset
-import src.tools as tools
-import src.drift_correction as drift_correction
-import src.figure_making as figuring
-import src.output as outputting
+__self_made__ = True
 
 # %% ROI
 
@@ -45,6 +37,10 @@ class Roi:
     def get_roi(self, frame, roi_size_1d):
         return frame[self.y - roi_size_1d:self.y + roi_size_1d + 1,
                      self.x - roi_size_1d:self.x + roi_size_1d + 1]
+
+    def get_frame_stack(self, frames, roi_size_1d):
+        return frames[:, self.y - roi_size_1d:self.y + roi_size_1d + 1,
+                      self.x - roi_size_1d:self.x + roi_size_1d + 1]
 
     def in_frame(self, shape, offset):
         if self.x + offset[1] < 0 or self.x + offset[1] > shape[1]:
@@ -119,100 +115,65 @@ class Dataset:
         self.roi_offset = self.correlate(settings)
         self.active_rois = [roi for roi in self.experiment.rois if roi.in_frame(self.frame_for_rois.shape,
                                                                                 self.roi_offset)]
-# %% Experiment
+
+# %% correlation
 
 
-class Experiment:
+def normxcorr2(b, a):
+    """
+    Correlation of similar size frames
+    """
+    def conv2(a, b):
+        ma, na = a.shape
+        mb, nb = b.shape
+        return fft.ifft2(fft.fft2(a, [2 * ma - 1, 2 * na - 1]) * fft.fft2(b, [2 * mb - 1, 2 * nb - 1]))
 
-    def __init__(self, created_by, filename, proceed_question):
-        self.created_by = created_by
-        self.directory = filename
-        self.name = None
-        self.datasets = []
-        self.experiment_settings = None
-        self.proceed_question = proceed_question
+    c = conv2(a, np.flipud(np.fliplr(b)))
+    a = conv2(a ** 2, np.ones(b.shape))
+    b = sum(b.flatten() ** 2)
+    c = c / np.sqrt(a * b)
+    return c
 
-        nd2 = ND2ReaderSelf(filename)
 
-        if created_by == 'HSM':
-            self.init_new_hsm(nd2)
-            self.frame_for_rois = np.asarray(self.datasets[-1].corrected_merged)
-        elif created_by == 'TT':
-            self.init_new_tt(nd2)
-            self.frame_for_rois = np.asarray(nd2[0])
-        self.roi_finder = RoiFinder(self.frame_for_rois)
-        self.rois = self.roi_finder.main()
+def normxcorr2_large(template, image, mode="full"):
+    """
+    Correlation of frames with different sizes
 
-    def init_new_hsm(self, nd2):
-        hsm_object = HSMDataset(self, nd2)
-        self.datasets.append(hsm_object)
+    Input arrays should be floating point numbers.
+    :param template: N-D array, of template or filter you are using for cross-correlation.
+    Must be less or equal dimensions to image.
+    Length of each dimension must be less than length of image.
+    :param image: N-D array
+    :param mode: Options, "full", "valid", "same"
+    full (Default): The output of fftconvolve is the full discrete linear convolution of the inputs.
+    Output size will be image size + 1/2 template size in each dimension.
+    valid: The output consists only of those elements that do not rely on the zero-padding.
+    same: The output is the same size as image, centered with respect to the ‘full’ output.
+    :return: N-D array of same dimensions as image. Size depends on mode parameter.
+    """
+    # If this happens, it is probably a mistake
+    if np.ndim(template) > np.ndim(image) or \
+            len([i for i in range(np.ndim(template)) if template.shape[i] > image.shape[i]]) > 0:
+        print("normxcorr2: TEMPLATE larger than IMG. Arguments may be swapped.")
 
-    def init_new_tt(self, nd2):
-        time_trace_object = fitting.TimeTrace(self, nd2)
-        self.datasets.append(time_trace_object)
+    template = template - np.mean(template)
+    image = image - np.mean(image)
 
-    def change_rois(self, settings):
-        self.roi_finder.change_settings(settings)
-        self.rois = self.roi_finder.main()
+    a1 = np.ones(template.shape)
+    # Faster to flip up down and left right then use fftconvolve instead of scipy's correlate
+    ar = np.flipud(np.fliplr(template))
+    out = fftconvolve(image, ar.conj(), mode=mode)
 
-    def show_rois(self, experiment_or_dataset):
-        if experiment_or_dataset == "Experiment":
-            figuring.plot_rois(self.frame_for_rois, self.rois, self.roi_finder.roi_size)
-        elif experiment_or_dataset == "Dataset":
-            figuring.plot_rois(self.datasets[-1].frame_for_rois, self.datasets[-1].active_rois,
-                               self.roi_finder.roi_size)
+    image = fftconvolve(np.square(image), a1, mode=mode) - \
+            np.square(fftconvolve(image, a1, mode=mode)) / (np.prod(template.shape))
 
-    def finalize_rois(self, name, experiment_settings):
-        self.name = name
-        file_dir = '/'.join(self.directory.split(".")[0].split("/")[:-1]) + '/'
+    # Remove small machine precision errors after subtraction
+    image[np.where(image < 0)] = 0
 
-        date = self.datasets[0].metadata.pop('date', None)
-        if date is None:
-            date = "XXXX-XX-XX"
-        else:
-            date_split = date.split(" ")[0].split("-")
-            date = "{:04d}-{:02d}-{:02d}".format(int(date_split[2]), int(date_split[1]), int(date_split[0]))
+    template = np.sum(np.square(template))
+    out = out / np.sqrt(image * template)
 
-        file_dir = file_dir + date + "_" + name
+    # Remove any divisions by 0 or very close to 0
+    out[np.where(np.logical_not(np.isfinite(out)))] = 0
 
-        directory_try = 0
-        directory_success = False
-        while not directory_success:
-            try:
-                mkdir(file_dir)
-                directory_success = True
-            except:
-                directory_try += 1
-                if directory_try == 1:
-                    file_dir += "_%03d" % directory_try
-                else:
-                    file_dir = file_dir[:-4]
-                    file_dir += "_%03d" % directory_try
-        self.directory = file_dir
-        self.experiment_settings = experiment_settings
-
-    def find_rois_dataset(self, settings):
-        self.datasets[-1].find_rois(settings, self.frame_for_rois, self.created_by)
-
-    def add_to_queue(self, settings):
-        self.datasets[-1].prepare_run(settings)
-
-    def save(self):
-
-        tools.convert_to_matlab(self.rois)
-
-        results = self.rois.to_dict()
-
-        outputting.save_results(self.dir, results)
-        outputting.save_roi_pos(self.dir, self.rois)
-        outputting.save_datasets(self.dir, self.datasets)
-
-        figuring.save_overview(self.dir, self.rois)
-        figuring.individual_figures(self.dir, self.rois, self.datasets)
-
-    def run(self):
-
-        for dataset in self.datasets:
-            dataset.run()
-
-        self.save()
+    return out
