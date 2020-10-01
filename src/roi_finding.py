@@ -215,14 +215,12 @@ class RoiFinder:
         remove_list = []
 
         for roi_index, roi in enumerate(self.roi_locations):
-            my_roi = roi_boolean[roi.y - self.side_distance:roi.y + self.side_distance + 1,
-                                 roi.x - self.side_distance:roi.x + self.side_distance + 1]
+            my_roi = roi.get_roi(roi_boolean, self.side_distance)
             if my_roi.shape != (self.side_distance * 2 + 1, self.side_distance * 2 + 1):
                 remove_list.append(roi_index)  # if this fails, the roi is on the boundary
                 continue
 
-            my_roi = roi_boolean[roi.y - self.roi_distance:roi.y + self.roi_distance + 1,
-                                 roi.x - self.roi_distance:roi.x + self.roi_distance + 1]
+            my_roi = roi.get_roi(roi_boolean, self.roi_distance)
 
             trues_in_roi = np.transpose(np.where(my_roi == True))
 
@@ -347,9 +345,7 @@ class RoiFinder:
             y = int(roi[0])
             x = int(roi[1])
 
-            my_roi = self.frame_bg[y - self.roi_size_1d:y + self.roi_size_1d + 1,
-                                   x - self.roi_size_1d:x + self.roi_size_1d + 1]
-
+            my_roi = roi.get_roi(self.frame_bg, self.roi_size_1d)
             result, its, success = self.fitter.fit_gaussian(my_roi, roi_index)
 
             int_list.append(result[0])
