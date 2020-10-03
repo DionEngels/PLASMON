@@ -182,6 +182,7 @@ class RoiFinder:
         -------
         beads : boolean array. One if ROI position, zero if not
         """
+        roi_locations = []
         compare = self.make_gaussian(self.roi_size)
 
         frame_convolution = convolve2d(self.frame_bg, compare, mode='same')
@@ -197,16 +198,16 @@ class RoiFinder:
         locations = np.transpose(np.where(beads == 1))
 
         for roi in locations:
-            self.roi_locations.append(Roi(roi[1], roi[0]))
+            roi_locations.append(Roi(roi[1], roi[0]))
 
         if return_corr:
             corr = frame_convolution * local_peaks_bool / max_convolution
 
-            for roi in self.roi_locations:
+            for roi in roi_locations:
                 value = corr[roi.y, roi.x]
                 self.corr_list.append(value)
 
-        return beads
+        return beads, roi_locations
 
     def adjacent_or_boundary_rois(self, roi_boolean):
         """
@@ -305,14 +306,12 @@ class RoiFinder:
         if return_corr:
             saved_corr_min = self.corr_min
             self.corr_min = 0.005
-
-        # find particles
-        roi_boolean = self.find_particles(return_corr)
-
-        # reset corr value
-        if return_corr:
+            self.find_particles(return_corr)
             self.corr_min = saved_corr_min
             return self.corr_list
+
+        # find particles
+        roi_boolean, self.roi_locations = self.find_particles(return_corr)
 
         # continue finding particles
         self.adjacent_or_boundary_rois(roi_boolean)
