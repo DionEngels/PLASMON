@@ -64,7 +64,6 @@ class Dataset:
         self.frame_for_rois = None
         self.metadata = None
         self.fitter = None
-        self.drift_corrector = None
         self.roi_offset = None
         self.settings = None
         self.active_rois = []
@@ -82,15 +81,15 @@ class Dataset:
 
     @staticmethod
     def correlate_frames(frame_old, frame_new):
-            if frame_old.shape == frame_new.shape:
-                corr = normxcorr2(frame_old, frame_new)
-                maxima = np.transpose(np.asarray(np.where(corr == np.amax(corr))))[0]
-                offset = maxima - np.asarray(frame_old.shape) + np.asarray([1, 1])
-            else:
-                corr = normxcorr2_large(frame_old, frame_new)
-                maxima = np.transpose(np.asarray(np.where(corr == np.amax(corr))))[0]
-                offset = maxima - np.asarray(frame_old.shape) + np.asarray([1, 1])
-            return offset
+        if frame_old.shape == frame_new.shape:
+            corr = normxcorr2(frame_old, frame_new)
+            maxima = np.transpose(np.asarray(np.where(corr == np.amax(corr))))[0]
+            offset = maxima - np.asarray(frame_old.shape) + np.asarray([1, 1])
+        else:
+            corr = normxcorr2_large(frame_old, frame_new)
+            maxima = np.transpose(np.asarray(np.where(corr == np.amax(corr))))[0]
+            offset = maxima - np.asarray(frame_old.shape) + np.asarray([1, 1])
+        return offset
 
     def correlate(self, settings):
         x_slice, x_offset = self.parse_start_end(settings['x_min'], settings['x_max'])
@@ -115,7 +114,7 @@ class Dataset:
             offset = self.correlate_frames(old_frame, new_frame)
         return offset
 
-    def find_rois(self, settings, frame_for_rois, created_by):
+    def find_rois(self, settings):
         self.roi_offset = self.correlate(settings)
         self.active_rois = [roi for roi in self.experiment.rois if roi.in_frame(self.frame_for_rois.shape,
                                                                                 self.roi_offset)]

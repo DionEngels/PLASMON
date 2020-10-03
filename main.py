@@ -80,8 +80,11 @@ def proceed_question(option1, option2, title, text):
         return False
 
 
-def progress_function(progress, total):
-    print('Done fitting ' + str(progress) + ' of ' + str(total))
+def progress_function(progress=None, total=None, message=None):
+    if message is not None:
+        print(message)
+    else:
+        print('Done fitting ' + str(progress) + ' of ' + str(total))
 
 
 def show_rois(frame, roi_locations=None, roi_size=None):

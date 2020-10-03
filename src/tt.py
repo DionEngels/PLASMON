@@ -25,6 +25,7 @@ v0.9: Gaussian fitting (with or without background) and three Phasor fitters: 24
 v0.9.1: NaN output instead of leaving out, MATLAB ready output
 v0.9.2: removed minimum pixel requirement
 v1.0: Integrated intensity output for Gaussians: 27/08/2020
+v2.0: part of v2.0: 03/10/2020
 
 """
 # %% Imports
@@ -39,6 +40,7 @@ import src.mbx_fortran as fortran_linalg  # for fast self-made operations for Ga
 import src.mbx_fortran_tools as fortran_tools  # for fast self-made general operations
 from src.class_dataset_roi import Dataset  # base dataset
 from src.tools import change_to_nm
+from src.drift_correction import DriftCorrector
 
 from pyfftw import empty_aligned, FFTW  # for FFT for Phasor
 from math import pi, atan2  # general mathematics
@@ -59,6 +61,7 @@ class TimeTrace(Dataset):
         self.metadata = nd2.get_metadata()
         self.time_axis = self.metadata['timesteps']
         self.slice = None
+        self.drift_corrector = None
         self.n_cores = 1
         self.figure_range = None
 
@@ -122,6 +125,10 @@ class TimeTrace(Dataset):
                 roi.results[self.name_result] = {"type": self.type, "result": roi_results[:, :],
                                                  "raw": roi.get_frame_stack(frames_to_fit,
                                                                             self.fitter.roi_size_1D)}
+        
+        self.experiment.progress_function(message="Starting drift correction")
+        self.drift_corrector = DriftCorrector(self.settings['method'])
+        self.drift_corrector.main(self.active_rois, self.name_result, len(self.time_axis))
 
 
 # %% Gaussian fitter with estimated background
@@ -605,9 +612,7 @@ class Gaussian:
                 tot_fits += n_fits
 
             if frame_index % (round(n_frames / 10, 0)) == 0:
-                dataset.experiment.progress_function(frame_index + 1, n_frames + 1)
-
-        dataset.experiment.progress_function(n_frames + 1, n_frames + 1)
+                dataset.experiment.progress_function(progress=frame_index + 1, total=n_frames)
 
         return self.result
 
@@ -854,10 +859,7 @@ class Phasor:
 
             if len(self.roi_locations) > 10:
                 if roi.index % (round(len(self.roi_locations) / 10, 0)) == 0:
-                    dataset.experiment.progress_function(roi.index + 1, len(self.roi_locations) + 1)
-
-        dataset.experiment.progress_function(len(self.roi_locations) + 1, len(self.roi_locations) + 1)
-
+                    dataset.experiment.progress_function(progress=roi.index + 1, total=len(self.roi_locations))
 
 # %% Dumb phasor ROI loop
 

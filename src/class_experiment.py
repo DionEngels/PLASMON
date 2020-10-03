@@ -22,7 +22,6 @@ from src.roi_finding import RoiFinder
 import src.tt as fitting
 from src.hsm import HSMDataset
 import src.tools as tools
-import src.drift_correction as drift_correction
 import src.figure_making as figuring
 import src.output as outputting
 
@@ -105,7 +104,7 @@ class Experiment:
         self.settings = experiment_settings
 
     def find_rois_dataset(self, settings):
-        self.datasets[-1].find_rois(settings, self.frame_for_rois, self.created_by)
+        self.datasets[-1].find_rois(settings)
 
     def add_to_queue(self, settings):
         self.datasets[-1].prepare_run(settings)
@@ -118,11 +117,12 @@ class Experiment:
         self.save()
 
     def save(self):
+        self.progress_function(message="Starting saving")
         settings = self.settings_to_dict()
         outputting.save_settings(self.directory, settings)
 
         figuring.save_overview(self)
-        #  figuring.individual_figures(self)
+        figuring.individual_figures(self)
 
         tools.convert_to_matlab(self)
         results = self.rois_to_dict()
@@ -155,4 +155,3 @@ class Experiment:
             settings_dict[dataset.name]['Offset'] = dataset.roi_offset
 
         return settings_dict
-
