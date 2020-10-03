@@ -105,7 +105,7 @@ class TimeTrace(Dataset):
 
             for roi in self.active_rois:
                 roi_results = results[results[:, 1] == roi.index, :]
-                roi.results[self.name] = {"result": roi_results[:, np.arange(results.shape[1]) != 1],
+                roi.results[self.name] = {"result": roi_results[:, 1:],
                                           "raw": roi.get_frame_stack(frames_to_fit, self.fitter.roi_size_1D)}
 
 
@@ -547,8 +547,8 @@ class Gaussian:
             if success == 1:
                 self.params[roi.index, :] = result[3:5]
 
-                frame_result[roi.index, 0] = frame_index + start_frame
-                frame_result[roi.index, 1] = roi.index
+                frame_result[roi.index, 0] = roi.index
+                frame_result[roi.index, 1] = frame_index + start_frame
                 # start position plus from center in ROI + half for indexing of pixels
                 frame_result[roi.index, 2] = result[1] + roi.y - self.roi_size_1D + 0.5  # y
                 frame_result[roi.index, 3] = result[2] + roi.x - self.roi_size_1D + 0.5  # x
@@ -559,8 +559,8 @@ class Gaussian:
                 frame_result[roi.index, 8] = its
             else:
                 frame_result[roi.index, :] = np.nan
-                frame_result[roi.index, 0] = frame_index + start_frame
-                frame_result[roi.index, 1] = roi.index
+                frame_result[roi.index, 0] = roi.index
+                frame_result[roi.index, 1] = frame_index + start_frame
 
         return frame_result
 
@@ -662,8 +662,8 @@ class GaussianBackground(Gaussian):
             if success == 1:
                 self.params[roi.index, :] = result[3:5]
 
-                frame_result[roi.index, 0] = frame_index + start_frame
-                frame_result[roi.index, 1] = roi.index
+                frame_result[roi.index, 0] = roi.index
+                frame_result[roi.index, 1] = frame_index + start_frame
                 # start position plus from center in ROI + half for indexing of pixels
                 frame_result[roi.index, 2] = result[1] + roi.y - self.roi_size_1D + 0.5  # y
                 frame_result[roi.index, 3] = result[2] + roi.x - self.roi_size_1D + 0.5  # x
@@ -674,8 +674,8 @@ class GaussianBackground(Gaussian):
                 frame_result[roi.index, 8] = its
             else:
                 frame_result[roi.index, :] = np.nan
-                frame_result[roi.index, 0] = frame_index + start_frame
-                frame_result[roi.index, 1] = roi.index
+                frame_result[roi.index, 0] = roi.index
+                frame_result[roi.index, 1] = frame_index + start_frame
 
         return frame_result
 
