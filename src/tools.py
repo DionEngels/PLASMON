@@ -58,28 +58,30 @@ def change_to_nm(results, metadata, method):
 def convert_to_matlab(experiment):
 
     for dataset in experiment.datasets:
-        dataset.roi_offset = offset_to_matlab(dataset.roi_offset, experiment.frame_for_rois.shape[0])
+        dataset.roi_offset = offset_to_matlab(dataset.roi_offset)
         for roi in dataset.active_rois:
             if dataset.type == "TT":
-                roi.results[dataset.name]['results'] = result_to_matlab(roi.results[dataset.name]['results'],
-                                                                        dataset.frames.shape[1],
-                                                                        dataset.settings['method'],
-                                                                        dataset.settings['nm_or_pixels'],
-                                                                        dataset.metadata)
+                roi.results[dataset.name]['result'] = result_to_matlab(roi.results[dataset.name]['result'],
+                                                                       dataset.frame_for_rois.shape[0],
+                                                                       dataset.settings['method'],
+                                                                       dataset.settings['pixels_or_nm'],
+                                                                       dataset.metadata)
             elif dataset.type == "HSM":
                 roi.results[dataset.name] = hsm_to_matlab(roi.results[dataset.name])
             else:
                 pass
 
     for roi in experiment.rois:
-        roi.y = roi_to_matlab(roi, experiment.frame_for_rois.shape[0])
+        roi.y, roi.index = roi_to_matlab(roi, experiment.frame_for_rois.shape[0])
 
 
-def offset_to_matlab(offset, height):
-    offset = switch_axis(offset)
-    offset[1] = height - offset[1]
+def offset_to_matlab(offset):
+    new = offset
+    new[1] = offset[0]
+    new[0] = offset[1]
+    new[1] = -new[1]
 
-    return offset
+    return new
 
 
 def roi_to_matlab(roi, height):
@@ -97,7 +99,7 @@ def roi_to_matlab(roi, height):
     """
     roi.y = height - roi.y
 
-    return roi.y
+    return roi.y, roi.index + 1
 
 
 def result_to_matlab(results, height, method, nm_or_pixels, metadata):
