@@ -33,11 +33,12 @@ DPI = 400
 N_TICKS = 4
 
 
-def plot_rois(frame, roi_locations, roi_size):
+def plot_rois(ax, frame, roi_locations=None, roi_size=None, font_size=None):
     """
 
     Parameters
     ----------
+    ax: axis to plot to
     frame : frame to plot
     roi_locations : locations to draw box around
     roi_size : Size of boxes to draw
@@ -47,18 +48,17 @@ def plot_rois(frame, roi_locations, roi_size):
     None.
 
     """
-    fig, ax = plt.subplots(1)
     ax.imshow(frame, extent=[0, frame.shape[1], frame.shape[0], 0], aspect='auto')
     roi_size_1d = int((roi_size - 1) / 2)
 
-    for roi in roi_locations:
+    if roi_locations is not None and roi_size is not None:
+        for roi in roi_locations:
 
-        rect = patches.Rectangle((roi.x-roi_size_1d, roi.y-roi_size_1d), roi_size, roi_size,
-                                 linewidth=0.5, edgecolor='r', facecolor='none')
-        ax.add_patch(rect)
-
-    plt.title("ROI locations")
-    plt.show()
+            rect = patches.Rectangle((roi.x-roi_size_1d, roi.y-roi_size_1d), roi_size, roi_size,
+                                     linewidth=0.5, edgecolor='r', facecolor='none')
+            ax.add_patch(rect)
+            if font_size is not None:
+                ax.text(roi.x, roi.y, str(roi.index + 1), color='red', fontsize=font_size)
 
 
 def find_range(results_drift, roi_locations):
@@ -89,6 +89,49 @@ def find_range(results_drift, roi_locations):
         max_range = ceil(max_range / 10) * 10
 
     return max_range
+
+
+def save_overview(experiment):
+    path = experiment.directory + "/Graphs"
+    mkdir(path)
+
+    figure_length = 6
+    first_hsm = True
+    for dataset in experiment.datasets:
+        if dataset.type == "TT":
+            figure_length += 1
+        elif dataset.type == "HSM":
+            if first_hsm:
+                pass
+            else:
+                figure_length += 1
+
+    fig = plt.figure(constrained_layout=True, figsize=(16, figure_length*4), dpi=DPI)
+    widths = [1] * 4
+    heights = [1] * figure_length
+    gs = GridSpec(figure_length, 4, figure=fig, width_ratios=widths, height_ratios=heights)
+    ax_overview = fig.add_subplot(gs[0:4, :])
+    ax_sigma = fig.add_subplot(gs[4:6, :2])
+    ax_int = fig.add_subplot(gs[4:6, 2:])
+
+    plot_rois(ax_overview, experiment.frame_for_rois, roi_locations=experiment.rois, roi_size=7, font_size='large')
+    ax_overview.set_xlabel('x (pixels)')
+    ax_overview.set_ylabel('y (pixels)')
+    ax_overview.set_title('Full first frame')
+
+    ax_int.hist(experiment.roi_finder.int_list, bins=100)
+    ax_int.set_xlabel('Integrated intensity (counts)')
+    ax_int.set_ylabel('Occurrence')
+    ax_int.set_title('Integrated intensity occurrence')
+
+    ax_sigma.hist(experiment.roi_finder.sigma_list, bins=50)
+    ax_sigma.set_xlabel('Sigma (pixels)')
+    ax_sigma.set_ylabel('Occurrence')
+    ax_sigma.set_title('Sigmas occurrence')
+
+    name = path + "/" + "_Overview.png"
+    plt.tight_layout()
+    fig.savefig(name, bbox_inches='tight')
 
 
 def save_graphs(frames, results, results_drift, roi_locations, method, nm_or_pixels, figures_option, path,

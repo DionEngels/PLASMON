@@ -33,7 +33,7 @@ __self_made__ = True
 
 class Experiment:
 
-    def __init__(self, created_by, filename, proceed_question, progress_function):
+    def __init__(self, created_by, filename, proceed_question, progress_function, show_rois):
         self.created_by = created_by
         self.directory = filename
         self.name = None
@@ -41,6 +41,7 @@ class Experiment:
         self.settings = None
         self.proceed_question = proceed_question
         self.progress_function = progress_function
+        self.show_rois_func = show_rois
 
         nd2 = ND2ReaderSelf(filename)
 
@@ -69,10 +70,10 @@ class Experiment:
 
     def show_rois(self, experiment_or_dataset):
         if experiment_or_dataset == "Experiment":
-            figuring.plot_rois(self.frame_for_rois, self.rois, self.roi_finder.roi_size)
+            self.show_rois_func(self.frame_for_rois, roi_locations=self.rois, roi_size=self.roi_finder.roi_size)
         elif experiment_or_dataset == "Dataset":
-            figuring.plot_rois(self.datasets[-1].frame_for_rois, self.datasets[-1].active_rois,
-                               self.roi_finder.roi_size)
+            self.show_rois_func(self.datasets[-1].frame_for_rois, roi_locations=self.datasets[-1].active_rois,
+                                roi_size=self.roi_finder.roi_size)
 
     def finalize_rois(self, name, experiment_settings):
         self.name = name
@@ -117,19 +118,17 @@ class Experiment:
         self.save()
 
     def save(self):
-
-        tools.convert_to_matlab(self)
-
-        results = self.rois_to_dict()
-        metadata = self.metadata_to_dict()
         settings = self.settings_to_dict()
-
-        outputting.save_to_mat(self.directory, "Results", results)
-        outputting.save_to_mat(self.directory, "Metadata", metadata)
         outputting.save_settings(self.directory, settings)
 
         figuring.save_overview(self)
-        figuring.individual_figures(self)
+        #  figuring.individual_figures(self)
+
+        tools.convert_to_matlab(self)
+        results = self.rois_to_dict()
+        metadata = self.metadata_to_dict()
+        outputting.save_to_mat(self.directory, "Results", results)
+        outputting.save_to_mat(self.directory, "Metadata", metadata)
 
     def rois_to_dict(self):
         result_dict = {}

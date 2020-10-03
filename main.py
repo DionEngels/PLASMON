@@ -39,10 +39,12 @@ import sys
 
 # Numpy and matplotlib, for linear algebra and plotting respectively
 import numpy as np
+import matplotlib.pylab as plt
 
 # v2
 
 from src.class_experiment import Experiment
+import src.figure_making as figuring
 
 __self_made__ = True
 
@@ -60,7 +62,7 @@ fit_options = ["Gaussian - Fit bg", "Gaussian - Estimate bg",
                "Phasor + Intensity", "Phasor + Sum", "Phasor"]
 
 ALL_FIGURES = True
-METHOD = "Phasor + Intensity"
+METHOD = "Gaussian - Fit bg"
 THRESHOLD_METHOD = "Loose"  # "Loose", or "None"
 CORRECTION = "SN_objTIRF_PFS_510-800"  # "Matej_670-890"
 NM_OR_PIXELS = "nm"
@@ -82,11 +84,17 @@ def progress_function(progress, total):
     print('Done fitting ' + str(progress) + ' of ' + str(total))
 
 
+def show_rois(frame, roi_locations=None, roi_size=None):
+    fig, ax = plt.subplots(1)
+    figuring.plot_rois(ax, frame, roi_locations, roi_size)
+    plt.show()
+
 # %% Main loop cell
+
 
 for name in filenames:
 
-    experiment = Experiment("TT", name, proceed_question, progress_function)
+    experiment = Experiment("TT", name, proceed_question, progress_function, show_rois)
 
     experiment.show_rois("Experiment")
 
