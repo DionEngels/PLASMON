@@ -118,13 +118,40 @@ class Experiment:
 
     def save(self):
 
-        tools.convert_to_matlab(self.rois)
+        tools.convert_to_matlab(self)
 
-        results = self.rois.to_dict()
+        results = self.rois_to_dict()
+        metadata = self.metadata_to_dict()
+        settings = self.settings_to_dict()
 
-        outputting.save_results(self.dir, results)
-        outputting.save_roi_pos(self.dir, self.rois)
-        outputting.save_datasets(self.dir, self.datasets)
+        outputting.save_to_mat(self.directory, "Results", results)
+        outputting.save_to_mat(self.directory, "Metadata", metadata)
+        outputting.save_settings(self.directory, settings)
 
-        figuring.save_overview(self.dir, self.rois)
-        figuring.individual_figures(self.dir, self.rois, self.datasets)
+        figuring.save_overview(self)
+        figuring.individual_figures(self)
+
+    def rois_to_dict(self):
+        result_dict = {}
+        for roi in self.rois:
+            result_dict["ROI {}".format(roi.index)] = roi.results
+
+        return result_dict
+
+    def metadata_to_dict(self):
+        metadata_dict = {}
+        for dataset in self.datasets:
+            metadata_dict[dataset.name] = dataset.metadata
+
+        return metadata_dict
+
+    def settings_to_dict(self):
+        settings_dict = {'Experiment': self.settings, 'ROIs': self.roi_finder.get_settings()}
+
+        for dataset in self.datasets:
+            settings_dict[dataset.name] = dataset.settings
+            settings_dict[dataset.name]['Type'] = dataset.type
+            settings_dict[dataset.name]['Offset'] = dataset.roi_offset
+
+        return settings_dict
+
