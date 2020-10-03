@@ -38,7 +38,7 @@ class Experiment:
         self.directory = filename
         self.name = None
         self.datasets = []
-        self.experiment_settings = None
+        self.settings = None
         self.proceed_question = proceed_question
         self.progress_function = progress_function
 
@@ -101,13 +101,20 @@ class Experiment:
                     file_dir = file_dir[:-4]
                     file_dir += "_%03d" % directory_try
         self.directory = file_dir
-        self.experiment_settings = experiment_settings
+        self.settings = experiment_settings
 
     def find_rois_dataset(self, settings):
         self.datasets[-1].find_rois(settings, self.frame_for_rois, self.created_by)
 
     def add_to_queue(self, settings):
         self.datasets[-1].prepare_run(settings)
+
+    def run(self):
+
+        for dataset in self.datasets:
+            dataset.run()
+
+        self.save()
 
     def save(self):
 
@@ -121,10 +128,3 @@ class Experiment:
 
         figuring.save_overview(self.dir, self.rois)
         figuring.individual_figures(self.dir, self.rois, self.datasets)
-
-    def run(self):
-
-        for dataset in self.datasets:
-            dataset.run()
-
-        self.save()

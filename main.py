@@ -60,7 +60,7 @@ fit_options = ["Gaussian - Fit bg", "Gaussian - Estimate bg",
                "Phasor + Intensity", "Phasor + Sum", "Phasor"]
 
 ALL_FIGURES = True
-METHOD = "Gaussian - Estimate bg"
+METHOD = "Phasor + Intensity"
 THRESHOLD_METHOD = "Loose"  # "Loose", or "None"
 CORRECTION = "SN_objTIRF_PFS_510-800"  # "Matej_670-890"
 NM_OR_PIXELS = "nm"
@@ -79,7 +79,7 @@ def proceed_question(option1, option2, title, text):
 
 
 def progress_function(progress, total):
-    print('Done fitting frame ' + str(progress) + ' of ' + str(total))
+    print('Done fitting ' + str(progress) + ' of ' + str(total))
 
 
 # %% Main loop cell

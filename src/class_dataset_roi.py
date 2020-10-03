@@ -56,6 +56,7 @@ class Roi:
 
 class Dataset:
     def __init__(self, experiment, name):
+        self.type = "Dataset"
         self.experiment = experiment
         self.name = name
         self.frames = None
@@ -64,6 +65,7 @@ class Dataset:
         self.fitter = None
         self.drift_corrector = None
         self.roi_offset = None
+        self.settings = None
         self.active_rois = []
 
     @staticmethod

@@ -46,54 +46,61 @@ def change_to_nm(results, metadata, method):
 
     """
     pixelsize_nm = metadata['pixel_microns'] * 1000
-    results[:, 2] *= pixelsize_nm  # y position to nm
-    results[:, 3] *= pixelsize_nm  # x position to nm
+    results[:, 1] *= pixelsize_nm  # y position to nm
+    results[:, 2] *= pixelsize_nm  # x position to nm
     if "Gaussian" in method:
-        results[:, 5] *= pixelsize_nm  # sigma y to nm
-        results[:, 6] *= pixelsize_nm  # sigma x to nm
+        results[:, 4] *= pixelsize_nm  # sigma y to nm
+        results[:, 5] *= pixelsize_nm  # sigma x to nm
 
     return results
 
 
-def roi_to_matlab_coordinates(roi_locs, height):
+def convert_to_matlab(experiment):
+
+    for dataset in experiment.datasets:
+        dataset.roi_offset = offset_to_matlab(dataset.roi_offset, experiment.frame_for_rois.shape[0])
+        for roi in dataset.active_rois:
+            if dataset.type == "TT":
+                roi.results[dataset.name]['results'] = result_to_matlab(roi.results[dataset.name]['results'],
+                                                                        dataset.frames.shape[1],
+                                                                        dataset.settings['method'],
+                                                                        dataset.settings['nm_or_pixels'],
+                                                                        dataset.metadata)
+            elif dataset.type == "HSM":
+                roi.results[dataset.name] = hsm_to_matlab(roi.results[dataset.name])
+            else:
+                pass
+
+    for roi in experiment.rois:
+        roi.y = roi_to_matlab(roi, experiment.frame_for_rois.shape[0])
+
+
+def offset_to_matlab(offset, height):
+    offset = switch_axis(offset)
+    offset[1] = height - offset[1]
+
+    return offset
+
+
+def roi_to_matlab(roi, height):
     """
     Change from Python to MATLAB coordinates for ROI locations
 
     Parameters
     -----------------
-    roi_locs: ROI locations
+    roi: a single ROI
     height: Height of microscope view
 
     Returns
     ------------------
-    results: the roi locations switched to MATLAB coordinates
+    results: the roi.y coordinate switched to MATLAB coordinates
     """
-    roi_locs = switch_axis(roi_locs)
-    roi_locs[:, 1] = height - roi_locs[:, 1]
+    roi.y = height - roi.y
 
-    return roi_locs
-
-
-def roi_to_python_coordinates(roi_locs, height):
-    """
-    Change from MATLAB to Python coordinates for ROI locations
-
-    Parameters
-    -----------------
-    roi_locs: ROI locations
-    height: Height of microscope view
-
-    Returns
-    ------------------
-    results: the roi locations switched to MATLAB coordinates
-    """
-    roi_locs[:, 1] = height - roi_locs[:, 1]
-    roi_locs = switch_axis(roi_locs)
-
-    return roi_locs
+    return roi.y
 
 
-def switch_results_to_matlab_coordinates(results, height, method, nm_or_pixels, metadata):
+def result_to_matlab(results, height, method, nm_or_pixels, metadata):
     """
     Change from Python to MATLAB coordinates for results
 
@@ -110,12 +117,11 @@ def switch_results_to_matlab_coordinates(results, height, method, nm_or_pixels, 
     results: the results switched to MATLAB coordinates
     """
     results[:, 0] += 1  # add one to frame counting
-    results[:, 1] += 1  # add one to ROI counting
 
-    results[:, 2:4] = switch_axis_to_matlab_coordinates(results[:, 2:4], height, nm_or_pixels, metadata)  # switch x-y
+    results[:, 1:3] = switch_axis_to_matlab_coordinates(results[:, 1:3], height, nm_or_pixels, metadata)  # switch x-y
 
     if "Gaussian" in method:
-        results[:, 5:7] = switch_axis(results[:, 5:7])  # switch sigma x-y if Gaussian
+        results[:, 4:6] = switch_axis(results[:, 4:6])  # switch sigma x-y if Gaussian
 
     return results
 
@@ -164,12 +170,41 @@ def switch_axis(array):
     return new
 
 
-def switch_to_matlab_hsm(hsm_result, hsm_raw, hsm_intensity):
+def hsm_to_matlab(result):
     """
     Adds on to some axis of HSM for MATLAB counting
     """
+    hsm_result = result['result']
+    hsm_intensity = result['intensities']
+    hsm_raw = result['fit_parameters']
+
     hsm_result[:, 0] += 1  # +1 for MATLAB
     hsm_intensity[:, 0] = hsm_intensity[:, 0] + 1  # +1 for MATLAB
     hsm_raw[:, 0] += 1  # +1 for MATLAB
 
-    return hsm_result, hsm_raw, hsm_intensity
+    result['result'] = hsm_result
+    result['intensities'] = hsm_intensity
+    result['fit_parameters'] = hsm_raw
+
+    return result
+
+# OLD
+
+
+def roi_to_python_coordinates(roi_locs, height):
+    """
+    Change from MATLAB to Python coordinates for ROI locations
+
+    Parameters
+    -----------------
+    roi_locs: ROI locations
+    height: Height of microscope view
+
+    Returns
+    ------------------
+    results: the roi locations switched to MATLAB coordinates
+    """
+    roi_locs[:, 1] = height - roi_locs[:, 1]
+    roi_locs = switch_axis(roi_locs)
+
+    return roi_locs

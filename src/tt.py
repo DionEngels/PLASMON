@@ -31,7 +31,6 @@ v1.0: Integrated intensity output for Gaussians: 27/08/2020
 from __future__ import division, print_function, absolute_import
 
 import numpy as np  # general mathematics + arrays
-from pims import Frame  # for converting ND2 generator to one numpy array
 
 from scipy.optimize import _minpack, OptimizeResult  # for Gaussian fitter
 from scipy.ndimage import median_filter  # for correlation with experiment
@@ -39,6 +38,7 @@ from scipy.ndimage import median_filter  # for correlation with experiment
 import src.mbx_fortran as fortran_linalg  # for fast self-made operations for Gaussian fitter
 import src.mbx_fortran_tools as fortran_tools  # for fast self-made general operations
 from src.class_dataset_roi import Dataset  # base dataset
+from src.tools import change_to_nm
 
 from pyfftw import empty_aligned, FFTW  # for FFT for Phasor
 from math import pi, atan2  # general mathematics
@@ -52,11 +52,11 @@ __self_made__ = True
 class TimeTrace(Dataset):
     def __init__(self, experiment, nd2, name):
         super().__init__(experiment, name)
+        self.type = "TT"
         self.frames = nd2
         background = median_filter(np.asarray(nd2[0]), size=9)
         self.frame_for_rois = np.asarray(nd2[0]).astype('float') - background
         self.metadata = nd2.get_metadata()
-        self.pixels_or_nm = None
         self.slice = None
         self.n_cores = 1
 
@@ -77,8 +77,8 @@ class TimeTrace(Dataset):
         # TO WRITE FUNCTION FOR
         max_its = 300
         self.n_cores = settings['#cores']
-        self.pixels_or_nm = settings['pixels_or_nm']
         self.slice, _ = self.parse_start_end(settings['frame_begin'], settings['frame_end'])
+        self.settings = settings
 
         if settings['method'] == "Phasor + Intensity":
             self.fitter = Phasor(settings)
@@ -86,16 +86,23 @@ class TimeTrace(Dataset):
             self.fitter = PhasorDumb(settings)
         elif settings['method'] == "Gaussian - Fit bg":
             self.fitter = GaussianBackground(settings, max_its, 6)
+            self.settings['max_its'] = max_its
         elif settings['method'] == "Gaussian - Estimate bg":
             self.fitter = Gaussian(settings, max_its, 5)
+            self.settings['max_its'] = max_its
         else:
             self.fitter = PhasorSum(settings)
 
     def run(self):
         frames_to_fit = np.asarray(self.frames[self.slice])
 
-        if "Phasor" in self.fitter.__name__:
+        if "Phasor" in self.settings['method']:
             self.fitter.run(self, frames_to_fit, 0)
+
+            for roi in self.active_rois:
+                if self.settings['pixels_or_nm'] == "nm":
+                    roi.results[self.name]['result'] = change_to_nm(roi.results[self.name]['result'],
+                                                                    self.metadata, self.settings['method'])
         else:
             results = np.array(1)
             if self.n_cores > 1:
@@ -104,8 +111,12 @@ class TimeTrace(Dataset):
                 results = self.fitter.run(self, frames_to_fit, 0)
 
             for roi in self.active_rois:
-                roi_results = results[results[:, 1] == roi.index, :]
-                roi.results[self.name] = {"result": roi_results[:, 1:],
+                roi_results = results[results[:, 0] == roi.index, 1:]
+                if self.settings['pixels_or_nm'] == "nm":
+                    roi_results = change_to_nm(roi_results, self.metadata, self.settings['method'])
+
+                roi.results[self.name] = {"type": self.type,
+                                          "result": roi_results[:, :],
                                           "raw": roi.get_frame_stack(frames_to_fit, self.fitter.roi_size_1D)}
 
 
@@ -833,7 +844,7 @@ class Phasor:
             frame_stack = roi.get_frame_stack(frames, self.roi_size_1D)
             roi_result = self.phasor_fit_stack(frame_stack, roi.index, roi.y, roi.x)
 
-            result_dict = {"result": roi_result, "raw": frame_stack}
+            result_dict = {"type": dataset.type, "result": roi_result, "raw": frame_stack}
             roi.results[dataset.name] = result_dict
             tot_fits += roi_result.shape[0]
 
