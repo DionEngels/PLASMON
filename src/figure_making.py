@@ -42,6 +42,7 @@ def plot_rois(ax, frame, roi_locations=None, roi_size=None, font_size=None):
     frame : frame to plot
     roi_locations : locations to draw box around
     roi_size : Size of boxes to draw
+    font_size: size of font of roi number
 
     Returns
     -------
@@ -108,7 +109,7 @@ def plot_hsm(ax, result):
     ax_hsm.set_title('HSM Result ROI {}'.format(str(roi_index + 1)))
 
 
-def make_tt_scatter(ax, result, event_or_not_boolean):
+def make_tt_scatter(ax, result, event_or_not_boolean, dataset):
     y_pos = result[:, 1]
     x_pos = result[:, 2]
 
@@ -117,11 +118,28 @@ def make_tt_scatter(ax, result, event_or_not_boolean):
     ax.axis('equal')
     ax.legend()
 
+    if dataset.settings['pixels_or_nm'] == 'nm':
+        ax.set_xlabel('x-position (nm)')
+        ax.set_ylabel('y-position (nm)')
+    else:
+        ax.set_xlabel('x-position (pixels)')
+        ax.set_ylabel('y-position (pixels)')
+    set_range_and_ticks(ax, dataset.figure_range)
 
-def make_tt(ax, time_axis, result):
+
+def make_tt(ax, time_axis, result, method):
     linewidth = 1 / (2 ** (floor(len(time_axis) / 1500) - 1))
     intensities = result[:, 3]
     ax.plot(time_axis, intensities, linewidth=linewidth)
+
+    if "Gaussian" in method:
+        ax.set_xlabel('Time (s)')
+        ax.set_ylabel('Integrated intensity (counts)')
+        ax.set_title('Time trace ROI ' + str(roi.index + 1))
+    else:
+        ax.set_xlabel('Time (s)')
+        ax.set_ylabel('Summed intensity (counts)')
+        ax.set_title('Time trace ROI ' + str(roi.index + 1))
 
 
 def set_range_and_ticks(ax, max_range):
@@ -210,114 +228,62 @@ def save_overview(experiment):
             method = experiment.datasets[n_dataset].settings['method']
             ax_tt_scatter = fig.add_subplot(gs[row + len(hsm) + n_dataset, column])
             make_tt_scatter(ax_tt_scatter, roi.results[experiment.datasets[n_dataset].name_result]['result'],
-                            roi.results[experiment.datasets[n_dataset].name_result]['event_or_not'])
-            if experiment.datasets[n_dataset].settings['pixels_or_nm'] == 'nm':
-                ax_tt_scatter.set_xlabel('x-position (nm)')
-                ax_tt_scatter.set_ylabel('y-position (nm)')
-            else:
-                ax_tt_scatter.set_xlabel('x-position (pixels)')
-                ax_tt_scatter.set_ylabel('y-position (pixels)')
+                            roi.results[experiment.datasets[n_dataset].name_result]['event_or_not'],
+                            experiment.datasets[n_dataset])
             ax_tt_scatter.set_title('Scatter ROI ' + str(roi.index + 1) + " post drift corr")
-            set_range_and_ticks(ax_tt_scatter, experiment.datasets[n_dataset].figure_range)
 
             if "Gaussian" in method or "Sum" in method:
                 ax_tt = fig.add_subplot(gs[row + len(hsm) + n_dataset, column + 1])
                 make_tt(ax_tt, experiment.datasets[n_dataset].time_axis,
-                        roi.results[experiment.datasets[n_dataset].name_result]['result'])
-                if "Gaussian" in method:
-                    ax_tt.set_xlabel('Time (s)')
-                    ax_tt.set_ylabel('Integrated intensity (counts)')
-                    ax_tt.set_title('Time trace ROI ' + str(roi.index + 1))
-                else:
-                    ax_tt.set_xlabel('Time (s)')
-                    ax_tt.set_ylabel('Summed intensity (counts)')
-                    ax_tt.set_title('Time trace ROI ' + str(roi.index + 1))
+                        roi.results[experiment.datasets[n_dataset].name_result]['result'], method)
 
     name = path + "/" + "_Overview.png"
     plt.tight_layout()
     fig.savefig(name, bbox_inches='tight')
 
 
-def
+def individual_figures(experiment):
+    path = experiment.directory + "/Graphs"
 
-    if figures_option == "All":
+    tt = []
+    hsm = []
+    for n_dataset, dataset in enumerate(experiment.datasets):
+        if dataset.type == "TT":
+            tt.append(n_dataset)
+        elif dataset.type == "HSM":
+            hsm.append(n_dataset)
 
-        max_range = find_range(results_drift, roi_locations)
+    per_roi_length = len(tt) + (len(hsm) - 1)
 
-        for roi_index in range(roi_locations.shape[0]):
-            fig = plt.figure(figsize=(8, 8), dpi=DPI)
+    for roi in experiment.rois:
+        fig = plt.figure(figsize=(8, 4*per_roi_length), dpi=DPI)
 
-            y = int(roi_locations[roi_index, 0])
-            x = int(roi_locations[roi_index, 1])
-            event_or_not_roi = event_or_not[:, roi_index]
-            frame_index = [frame_index for frame_index, true_false in enumerate(event_or_not_roi) if not true_false][0]
-            frame = asarray(frames[frame_index])
-            my_roi = frame[y - roi_size_1d:y + roi_size_1d + 1, x - roi_size_1d:x + roi_size_1d + 1]
+        ax_frame = fig.add_subplot(2, per_roi_length, 1)
+        plot_rois(ax_frame, roi.get_roi(experiment.frame_for_rois))
+        ax_frame.set_xlabel('x (pixels)')
+        ax_frame.set_ylabel('y (pixels)')
+        ax_frame.set_title('Zoom-in ROI ' + str(roi.index + 1))
 
-            ax_frame = fig.add_subplot(2, 2, 1)
-            ax_frame.imshow(my_roi, extent=[0, my_roi.shape[1], my_roi.shape[0], 0], aspect='auto')
-            ax_frame.set_xlabel('x (pixels)')
-            ax_frame.set_ylabel('y (pixels)')
-            ax_frame.set_title('Zoom-in ROI ' + str(roi_index + 1))
+        for n_dataset in hsm:
+            ax_hsm = fig.add_subplot(2, per_roi_length, 1 + n_dataset * 2)
+            plot_hsm(ax_hsm, roi.results[experiment.datasets[n_dataset].name_result])
+            ax_hsm.set_xlabel('wavelength (nm)')
+            ax_hsm.set_ylabel('intensity (arb. units)')
+            ax_hsm.set_title('HSM Result ROI {}'.format(str(roi.index + 1)))
 
-            if "Gaussian" in method:
-                ax_tt = fig.add_subplot(2, 2, 2)
-                intensities = results[results[:, 1] == roi_index, 4]
-                ax_tt.plot(time_axis, intensities, linewidth=linewidth)
-                ax_tt.set_xlabel('Time (s)')
-                ax_tt.set_ylabel('Integrated intensity (counts)')
-                ax_tt.set_title('Time trace ROI ' + str(roi_index + 1))
-            elif "Sum" in method:
-                ax_tt = fig.add_subplot(2, 2, 2)
-                intensities = results[results[:, 1] == roi_index, 4]
-                ax_tt.plot(time_axis, intensities, linewidth=linewidth)
-                ax_tt.set_xlabel('Time (s)')
-                ax_tt.set_ylabel('Summed intensity (counts)')
-                ax_tt.set_title('Time trace ROI ' + str(roi_index + 1))
+        for n_dataset in tt:
+            method = experiment.datasets[n_dataset].settings['method']
+            ax_tt_scatter = fig.add_subplot(2, per_roi_length, 3 + n_dataset * 2 + (len(hsm) - 1) * 2)
+            make_tt_scatter(ax_tt_scatter, roi.results[experiment.datasets[n_dataset].name_result]['result'],
+                            roi.results[experiment.datasets[n_dataset].name_result]['event_or_not'],
+                            experiment.datasets[n_dataset])
+            ax_tt_scatter.set_title('Scatter ROI ' + str(roi.index + 1) + " post drift corr")
 
-            x_positions = results_drift[results_drift[:, 1] == roi_index, 2]
-            y_positions = results_drift[results_drift[:, 1] == roi_index, 3]
+            if "Gaussian" in method or "Sum" in method:
+                ax_tt = fig.add_subplot(2, per_roi_length, 4 + n_dataset * 2 + (len(hsm) - 1) * 2)
+                make_tt(ax_tt, experiment.datasets[n_dataset].time_axis,
+                        roi.results[experiment.datasets[n_dataset].name_result]['result'], method)
 
-            ax_loc_drift = fig.add_subplot(2, 2, 3)
-            ax_loc_drift.scatter(x_positions[invert(event_or_not_roi)], y_positions[invert(event_or_not_roi)],
-                                 label='non-events')
-            ax_loc_drift.scatter(x_positions[event_or_not_roi], y_positions[event_or_not_roi], label='events')
-            if nm_or_pixels == 'nm':
-                ax_loc_drift.set_xlabel('x-position (nm)')
-                ax_loc_drift.set_ylabel('y-position (nm)')
-            else:
-                ax_loc_drift.set_xlabel('x-position (pixels)')
-                ax_loc_drift.set_ylabel('y-position (pixels)')
-            ax_loc_drift.set_title('Scatter ROI ' + str(roi_index + 1) + " post drift")
-            ax_loc_drift.axis('equal')
-            ax_loc_drift.legend()
-
-            y_min, y_max = ax_loc_drift.get_ylim()
-            x_min, x_max = ax_loc_drift.get_xlim()
-            y_center = (y_max + y_min) / 2
-            x_center = (x_max + x_min) / 2
-            ax_loc_drift.set_xlim(x_center - max_range / 2, x_center + max_range / 2)
-            ax_loc_drift.set_ylim(y_center - max_range / 2, y_center + max_range / 2)
-            ax_loc_drift.xaxis.set_major_locator(plt.MaxNLocator(N_TICKS))
-            ax_loc_drift.yaxis.set_major_locator(plt.MaxNLocator(N_TICKS))
-
-            if hsm_result is None:
-                pass
-            else:
-                ax_hsm = fig.add_subplot(2, 2, 4)
-                hsm_intensities = hsm_intensity[hsm_intensity[:, 0] == roi_index, 1:]
-                ax_hsm.scatter(hsm_wavelengths, hsm_intensities)
-                hsm_params = hsm_raw[hsm_raw[:, 0] == roi_index, 1:]
-                try:
-                    hsm_fit = lorentzian(hsm_params.flatten(), hsm_wavelengths_ev)
-                    ax_hsm.plot(1248 / hsm_wavelengths_ev, hsm_fit, 'r--')
-                except:
-                    pass
-                ax_hsm.set_xlabel('wavelength (nm)')
-                ax_hsm.set_ylabel('intensity (arb. units)')
-                ax_hsm.set_xlim(np_min(hsm_wavelengths) - 30, np_max(hsm_wavelengths) + 30)
-                ax_hsm.set_title('HSM Result ROI {}'.format(str(roi_index + 1)))
-
-            name = path + "/" + "ROI" + str(roi_index+1)+".png"
-            plt.tight_layout()
-            fig.savefig(name, bbox_inches='tight')
+        name = path + "/" + "ROI" + str(roi.index+1)+".png"
+        plt.tight_layout()
+        fig.savefig(name, bbox_inches='tight')
