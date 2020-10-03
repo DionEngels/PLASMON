@@ -94,15 +94,19 @@ class TimeTrace(Dataset):
     def run(self):
         frames_to_fit = np.asarray(self.frames[self.slice])
 
-        results = []
-        if self.n_cores > 1:
-            pass
+        if "Phasor" in self.fitter.__name__:
+            self.fitter.run(self, frames_to_fit, 0)
         else:
-            results = self.fitter.run(self, frames_to_fit, 0)
+            results = np.array(1)
+            if self.n_cores > 1:
+                pass
+            else:
+                results = self.fitter.run(self, frames_to_fit, 0)
 
-        for roi in self.active_rois:
-            roi.results[self.name] = results[results[:, 1] == roi.index, :]
-            roi.results[self.name + "_raw_data"] = roi.get_frame_stack(frames_to_fit, self.fitter.roi_size_1D)
+            for roi in self.active_rois:
+                roi_results = results[results[:, 1] == roi.index, :]
+                roi.results[self.name] = {"result": roi_results[:, np.arange(results.shape[1]) != 1],
+                                          "raw": roi.get_frame_stack(frames_to_fit, self.fitter.roi_size_1D)}
 
 
 # %% Gaussian fitter with estimated background
@@ -783,7 +787,7 @@ class Phasor:
         roi_result : Result of all the frames of the current ROI
 
         """
-        roi_result = np.zeros([frame_stack.shape[0], 6])
+        roi_result = np.zeros([frame_stack.shape[0], 5])
 
         roi_bb = empty_aligned(frame_stack.shape, dtype='float64')
         roi_bf = empty_aligned((frame_stack.shape[0], self.roi_size, self.roi_size_1D + 1), dtype='complex128')
@@ -809,60 +813,98 @@ class Phasor:
 
             if success == 1:
                 roi_result[frame_index, 0] = frame_index
-                roi_result[frame_index, 1] = roi_index
                 # start position plus from center in ROI + half for indexing of pixels
-                roi_result[frame_index, 2] = y + pos_y - self.roi_size_1D  # y
-                roi_result[frame_index, 3] = x + pos_x - self.roi_size_1D  # x
-                roi_result[frame_index, 4] = frame_max - my_frame_bg  # returns max peak
-                roi_result[frame_index, 5] = my_frame_bg  # background
+                roi_result[frame_index, 1] = y + pos_y - self.roi_size_1D  # y
+                roi_result[frame_index, 2] = x + pos_x - self.roi_size_1D  # x
+                roi_result[frame_index, 3] = frame_max - my_frame_bg  # returns max peak
+                roi_result[frame_index, 4] = my_frame_bg  # background
             else:
                 roi_result[frame_index, :] = np.nan
                 roi_result[frame_index, 0] = frame_index
-                roi_result[frame_index, 1] = roi_index
 
         return roi_result
 
     def run(self, dataset, frames, _):
         self.roi_locations = dataset.active_rois
 
-        frame_stack_total = np.asarray(frames)
-
         tot_fits = 0
-        created = 0
 
         for roi in self.roi_locations:
-            frame_stack = roi.get_frame_stack(frame_stack_total, self.roi_size_1D)
+            frame_stack = roi.get_frame_stack(frames, self.roi_size_1D)
             roi_result = self.phasor_fit_stack(frame_stack, roi.index, roi.y, roi.x)
 
-            if created == 0:
-                n_fits = roi_result.shape[0]
-                width = roi_result.shape[1]
-                height = len(frames) * len(self.roi_locations)
-                self.result = np.zeros((height, width))
-                created = 1
-                self.result[tot_fits:tot_fits + n_fits, :] = roi_result
-                tot_fits += n_fits
-            else:
-                n_fits = roi_result.shape[0]
-                self.result[tot_fits:tot_fits + n_fits, :] = roi_result
-                tot_fits += n_fits
+            result_dict = {"result": roi_result, "raw": frame_stack}
+            roi.results[dataset.name] = result_dict
+            tot_fits += roi_result.shape[0]
 
             if len(self.roi_locations) > 10:
                 if roi.index % (round(len(self.roi_locations) / 10, 0)) == 0:
-                    dataset.experiment.progess_function(roi.index + 1, len(self.roi_locations) + 1)
+                    dataset.experiment.progress_function(roi.index + 1, len(self.roi_locations) + 1)
 
-        dataset.experiment.progess_function(len(self.roi_locations) + 1, len(self.roi_locations) + 1)
-
-        return self.result
+        dataset.experiment.progress_function(len(self.roi_locations) + 1, len(self.roi_locations) + 1)
 
 
 # %% Dumb phasor ROI loop
 
 
-# noinspection DuplicatedCode
 class PhasorDumb(Phasor):
     """
     Dumb Phasor. Does not return intensity of found location.
+    """
+
+    def phasor_fit_stack(self, frame_stack, roi_index, y, x):
+        """
+        Applies phasor fitting to an entire stack of frames of one ROI
+
+        Parameters
+        ----------
+        frame_stack : stack of frames of a single ROI
+        roi_index : Index of ROI that is currently being fitted
+        y : y-location with respect to total microscope frame of currently fitted ROI
+        x : x-location with respect to total microscope frame of currently fitted ROI
+
+        Returns
+        -------
+        roi_result : Result of all the frames of the current ROI
+
+        """
+        roi_result = np.zeros([frame_stack.shape[0], 3])
+
+        roi_bb = empty_aligned(frame_stack.shape, dtype='float64')
+        roi_bf = empty_aligned((frame_stack.shape[0], self.roi_size, self.roi_size_1D + 1), dtype='complex128')
+        fft_values_list = FFTW(roi_bb, roi_bf, axes=(1, 2),
+                               flags=('FFTW_MEASURE',),
+                               direction='FFTW_FORWARD')
+        roi_bb = frame_stack
+        fft_values_list = fft_values_list(roi_bb)
+
+        for frame_index, (fft_values, frame) in enumerate(zip(fft_values_list, frame_stack)):
+            success = 1
+            pos_x, pos_y = self.fft_to_pos(fft_values)
+
+            if self.threshold_method != "None" and (pos_x > self.roi_size or pos_x < 0):
+                success = 0
+            if self.threshold_method != "None" and (pos_y > self.roi_size or pos_y < 0):
+                success = 0
+
+            if success == 1:
+                roi_result[frame_index, 0] = frame_index
+                # start position plus from center in ROI + half for indexing of pixels
+                roi_result[frame_index, 1] = y + pos_y - self.roi_size_1D  # y
+                roi_result[frame_index, 2] = x + pos_x - self.roi_size_1D  # x
+            else:
+                roi_result[frame_index, :] = np.nan
+                roi_result[frame_index, 0] = frame_index
+
+        return roi_result
+
+
+# %% Phasor with sum
+
+
+class PhasorSum(Phasor):
+    """
+    Phasor Sum. Also returns summation of entire ROI
     """
 
     def phasor_fit_stack(self, frame_stack, roi_index, y, x):
@@ -893,64 +935,6 @@ class PhasorDumb(Phasor):
 
         for frame_index, (fft_values, frame) in enumerate(zip(fft_values_list, frame_stack)):
             success = 1
-            pos_x, pos_y = self.fft_to_pos(fft_values)
-
-            if self.threshold_method != "None" and (pos_x > self.roi_size or pos_x < 0):
-                success = 0
-            if self.threshold_method != "None" and (pos_y > self.roi_size or pos_y < 0):
-                success = 0
-
-            if success == 1:
-                roi_result[frame_index, 0] = frame_index
-                roi_result[frame_index, 1] = roi_index
-                # start position plus from center in ROI + half for indexing of pixels
-                roi_result[frame_index, 2] = y + pos_y - self.roi_size_1D  # y
-                roi_result[frame_index, 3] = x + pos_x - self.roi_size_1D  # x
-            else:
-                roi_result[frame_index, :] = np.nan
-                roi_result[frame_index, 0] = frame_index
-                roi_result[frame_index, 1] = roi_index
-
-        return roi_result
-
-
-# %% Phasor with sum
-
-
-# noinspection DuplicatedCode
-class PhasorSum(Phasor):
-    """
-    Phasor Sum. Also returns summation of entire ROI
-    """
-
-    def phasor_fit_stack(self, frame_stack, roi_index, y, x):
-        """
-        Applies phasor fitting to an entire stack of frames of one ROI
-
-        Parameters
-        ----------
-        frame_stack : stack of frames of a single ROI
-        roi_index : Index of ROI that is currently being fitted
-        y : y-location with respect to total microscope frame of currently fitted ROI
-        x : x-location with respect to total microscope frame of currently fitted ROI
-
-        Returns
-        -------
-        roi_result : Result of all the frames of the current ROI
-
-        """
-        roi_result = np.zeros([frame_stack.shape[0], 5])
-
-        roi_bb = empty_aligned(frame_stack.shape, dtype='float64')
-        roi_bf = empty_aligned((frame_stack.shape[0], self.roi_size, self.roi_size_1D + 1), dtype='complex128')
-        fft_values_list = FFTW(roi_bb, roi_bf, axes=(1, 2),
-                               flags=('FFTW_MEASURE',),
-                               direction='FFTW_FORWARD')
-        roi_bb = frame_stack
-        fft_values_list = fft_values_list(roi_bb)
-
-        for frame_index, (fft_values, frame) in enumerate(zip(fft_values_list, frame_stack)):
-            success = 1
             frame_sum = np.sum(frame)
 
             pos_x, pos_y = self.fft_to_pos(fft_values)
@@ -964,14 +948,12 @@ class PhasorSum(Phasor):
 
             if success == 1:
                 roi_result[frame_index, 0] = frame_index
-                roi_result[frame_index, 1] = roi_index
                 # start position plus from center in ROI + half for indexing of pixels
-                roi_result[frame_index, 2] = y + pos_y - self.roi_size_1D  # y
-                roi_result[frame_index, 3] = x + pos_x - self.roi_size_1D  # x
-                roi_result[frame_index, 4] = frame_sum  # returns summation
+                roi_result[frame_index, 1] = y + pos_y - self.roi_size_1D  # y
+                roi_result[frame_index, 2] = x + pos_x - self.roi_size_1D  # x
+                roi_result[frame_index, 3] = frame_sum  # returns summation
             else:
                 roi_result[frame_index, :] = np.nan
                 roi_result[frame_index, 0] = frame_index
-                roi_result[frame_index, 1] = roi_index
 
         return roi_result
