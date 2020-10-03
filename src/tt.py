@@ -101,8 +101,9 @@ class TimeTrace(Dataset):
 
             for roi in self.active_rois:
                 if self.settings['pixels_or_nm'] == "nm":
-                    roi.results[self.name]['result'] = change_to_nm(roi.results[self.name]['result'],
-                                                                    self.metadata, self.settings['method'])
+                    roi.results[self.name_result]['result'] = \
+                        change_to_nm(roi.results[self.name_result]['result'],
+                                     self.metadata, self.settings['method'])
         else:
             results = np.array(1)
             if self.n_cores > 1:
@@ -115,9 +116,9 @@ class TimeTrace(Dataset):
                 if self.settings['pixels_or_nm'] == "nm":
                     roi_results = change_to_nm(roi_results, self.metadata, self.settings['method'])
 
-                roi.results[self.name] = {"type": self.type,
-                                          "result": roi_results[:, :],
-                                          "raw": roi.get_frame_stack(frames_to_fit, self.fitter.roi_size_1D)}
+                roi.results[self.name_result] = {"type": self.type, "result": roi_results[:, :],
+                                                 "raw": roi.get_frame_stack(frames_to_fit,
+                                                                            self.fitter.roi_size_1D)}
 
 
 # %% Gaussian fitter with estimated background
@@ -845,7 +846,7 @@ class Phasor:
             roi_result = self.phasor_fit_stack(frame_stack, roi.index, roi.y, roi.x)
 
             result_dict = {"type": dataset.type, "result": roi_result, "raw": frame_stack}
-            roi.results[dataset.name] = result_dict
+            roi.results[dataset.name_result] = result_dict
             tot_fits += roi_result.shape[0]
 
             if len(self.roi_locations) > 10:

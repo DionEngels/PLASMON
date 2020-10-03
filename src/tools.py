@@ -61,11 +61,10 @@ def convert_to_matlab(experiment):
         dataset.roi_offset = offset_to_matlab(dataset.roi_offset)
         for roi in dataset.active_rois:
             if dataset.type == "TT":
-                roi.results[dataset.name]['result'] = result_to_matlab(roi.results[dataset.name]['result'],
-                                                                       dataset.frame_for_rois.shape[0],
-                                                                       dataset.settings['method'],
-                                                                       dataset.settings['pixels_or_nm'],
-                                                                       dataset.metadata)
+                roi.results[dataset.name_result]['result'] = \
+                    result_to_matlab(roi.results[dataset.name_result]['result'],
+                                     dataset.frame_for_rois.shape[0], dataset.settings['method'],
+                                     dataset.settings['pixels_or_nm'], dataset.metadata)
             elif dataset.type == "HSM":
                 roi.results[dataset.name] = hsm_to_matlab(roi.results[dataset.name])
             else:

@@ -59,6 +59,7 @@ class Dataset:
         self.type = "Dataset"
         self.experiment = experiment
         self.name = name
+        self.name_result = 'res_{}'.format(self.name)
         self.frames = None
         self.frame_for_rois = None
         self.metadata = None
