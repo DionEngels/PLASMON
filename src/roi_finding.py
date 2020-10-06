@@ -57,7 +57,7 @@ class RoiFinder:
         """
         self.base_frame = frame
         fitter_settings = {'roi_size': 7, 'method': "Gaussian", 'rejection': "None"}
-        self.fitter = fitting.Gaussian(fitter_settings, 300, 5)
+        self.fitter = fitting.Gaussian(fitter_settings, 300, 5, [0, 0])
 
         self.sigma_list = []
         self.int_list = []
@@ -225,12 +225,12 @@ class RoiFinder:
         remove_list = []
 
         for roi_index, roi in enumerate(self.roi_locations):
-            my_roi = roi.get_roi(roi_boolean, self.side_distance)
+            my_roi = roi.get_roi(roi_boolean, self.side_distance, [0, 0])
             if my_roi.shape != (self.side_distance * 2 + 1, self.side_distance * 2 + 1):
                 remove_list.append(roi_index)  # if this fails, the roi is on the boundary
                 continue
 
-            my_roi = roi.get_roi(roi_boolean, self.roi_distance)
+            my_roi = roi.get_roi(roi_boolean, self.roi_distance, [0, 0])
 
             trues_in_roi = np.transpose(np.where(my_roi == True))
 
@@ -256,7 +256,7 @@ class RoiFinder:
         remove_list = []
 
         for roi_index, roi in enumerate(self.roi_locations):
-            my_roi = roi.get_roi(self.frame_bg, self.roi_size_1d)
+            my_roi = roi.get_roi(self.frame_bg, self.roi_size_1d, [0, 0])
 
             result, its, success = self.fitter.fit_gaussian(my_roi, roi_index)
 
@@ -353,7 +353,7 @@ class RoiFinder:
             y = int(roi[0])
             x = int(roi[1])
 
-            my_roi = roi.get_roi(self.frame_bg, self.roi_size_1d)
+            my_roi = roi.get_roi(self.frame_bg, self.roi_size_1d, [0, 0])
             result, its, success = self.fitter.fit_gaussian(my_roi, roi_index)
 
             int_list.append(result[0])

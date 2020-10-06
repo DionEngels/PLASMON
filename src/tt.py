@@ -86,17 +86,17 @@ class TimeTrace(Dataset):
         self.settings = settings
 
         if settings['method'] == "Phasor + Intensity":
-            self.fitter = Phasor(settings, self)
+            self.fitter = Phasor(settings, self.roi_offset)
         elif settings['method'] == "Phasor":
-            self.fitter = PhasorDumb(settings, self)
+            self.fitter = PhasorDumb(settings, self.roi_offset)
         elif settings['method'] == "Gaussian - Fit bg":
-            self.fitter = GaussianBackground(settings, max_its, 6, self)
+            self.fitter = GaussianBackground(settings, max_its, 6, self.roi_offset)
             self.settings['max_its'] = max_its
         elif settings['method'] == "Gaussian - Estimate bg":
-            self.fitter = Gaussian(settings, max_its, 5, self)
+            self.fitter = Gaussian(settings, max_its, 5, self.roi_offset)
             self.settings['max_its'] = max_its
         else:
-            self.fitter = PhasorSum(settings, self)
+            self.fitter = PhasorSum(settings, self.roi_offset)
 
     def run(self):
         frames_to_fit = np.asarray(self.frames[self.slice])
@@ -125,7 +125,7 @@ class TimeTrace(Dataset):
                 roi.results[self.name_result] = {"type": self.type, "result": roi_results[:, :],
                                                  "raw": roi.get_frame_stack(frames_to_fit,
                                                                             self.fitter.roi_size_1D,
-                                                                            self.parent.roi_offset)}
+                                                                            self.roi_offset)}
         
         self.experiment.progress_function(message="Starting drift correction")
         self.drift_corrector = DriftCorrector(self.settings['method'])
@@ -164,7 +164,7 @@ class Gaussian:
     Gaussian fitter with estimated background, build upon Scipy Optimize Least-Squares
     """
 
-    def __init__(self, settings, max_its, num_fit_params, dataset):
+    def __init__(self, settings, max_its, num_fit_params, roi_offset):
         """
 
         Parameters
@@ -178,7 +178,6 @@ class Gaussian:
         None.
 
         """
-        self.parent = dataset
         self.result = []
         self.roi_locations = []
         self.roi_size = settings['roi_size']
@@ -186,6 +185,7 @@ class Gaussian:
         self.init_sig = 1.2  # Slightly on the high side probably
         self.threshold_method = settings['rejection']
         self.__name__ = settings['method']
+        self.roi_offset = roi_offset
 
         self.num_fit_params = num_fit_params
         self.params = np.zeros((1000, 2))
@@ -550,7 +550,7 @@ class Gaussian:
         frame_result = np.zeros([len(self.roi_locations), 9])
 
         for roi in self.roi_locations:
-            my_roi = roi.get_roi(frame, self.roi_size_1D, self.parent.roi_offset)
+            my_roi = roi.get_roi(frame, self.roi_size_1D, self.roi_offset)
             my_roi_bg = self.fun_calc_bg(my_roi)
             my_roi = my_roi - my_roi_bg
 
@@ -666,7 +666,7 @@ class GaussianBackground(Gaussian):
         frame_result = np.zeros([len(self.roi_locations), 9])
 
         for roi in self.roi_locations:
-            my_roi = roi.get_roi(frame, self.roi_size_1D, self.parent.roi_offset)
+            my_roi = roi.get_roi(frame, self.roi_size_1D, self.roi_offset)
             result, its, success = self.fit_gaussian(my_roi, roi.index)
 
             if self.threshold_method == "None":
@@ -710,7 +710,7 @@ class Phasor:
     Phasor fitting using Fourier Transform. Also returns intensity of pixel in which Phasor position is found.
     """
 
-    def __init__(self, settings, dataset):
+    def __init__(self, settings, roi_offset):
         """
         Parameters
         ----------
@@ -721,13 +721,13 @@ class Phasor:
         None.
 
         """
-        self.parent = dataset
         self.result = []
         self.roi_locations = []
         self.roi_size = settings['roi_size']
         self.roi_size_1D = int((self.roi_size - 1) / 2)
         self.threshold_method = settings['rejection']
         self.__name__ = settings['method']
+        self.roi_offset = roi_offset
 
     def fun_find_max(self, roi):
         """
@@ -853,7 +853,7 @@ class Phasor:
         tot_fits = 0
 
         for roi in self.roi_locations:
-            frame_stack = roi.get_frame_stack(frames, self.roi_size_1D, self.parent.roi_offset)
+            frame_stack = roi.get_frame_stack(frames, self.roi_size_1D, self.roi_offset)
             roi_result = self.phasor_fit_stack(frame_stack, roi.index, roi.y, roi.x)
 
             result_dict = {"type": dataset.type, "result": roi_result, "raw": frame_stack}

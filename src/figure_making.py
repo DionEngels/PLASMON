@@ -33,7 +33,7 @@ DPI = 400
 N_TICKS = 4
 
 
-def plot_rois(ax, frame, roi_locations=None, roi_size=None, font_size=None):
+def plot_rois(ax, frame, roi_locations=None, roi_size=None, roi_offset=[0, 0], font_size=None):
     """
 
     Parameters
@@ -54,11 +54,12 @@ def plot_rois(ax, frame, roi_locations=None, roi_size=None, font_size=None):
         roi_size_1d = int((roi_size - 1) / 2)
         for roi in roi_locations:
 
-            rect = patches.Rectangle((roi.x-roi_size_1d, roi.y-roi_size_1d), roi_size, roi_size,
-                                     linewidth=0.5, edgecolor='r', facecolor='none')
+            rect = patches.Rectangle((roi.x - roi_size_1d + roi_offset[1], roi.y + roi_offset[0] - roi_size_1d),
+                                     roi_size, roi_size, linewidth=0.5, edgecolor='r', facecolor='none')
             ax.add_patch(rect)
             if font_size is not None:
-                ax.text(roi.x-roi_size_1d, roi.y-roi_size_1d, str(roi.index + 1), color='red', fontsize=font_size)
+                ax.text(roi.x + roi_offset[1] - roi_size_1d, roi.y + roi_offset[0] - roi_size_1d, str(roi.index + 1),
+                        color='red', fontsize=font_size)
 
 
 def find_range(dataset_name, rois):
@@ -172,7 +173,7 @@ def save_overview(experiment):
         elif dataset.type == "HSM":
             hsm.append(n_dataset)
 
-    per_roi_length = len(tt) + max(len(hsm) - 1, 0)
+    per_roi_length = len(tt) + max(len(hsm), 1)
     total_length = figure_length_base + 2 * per_roi_length
 
     fig = plt.figure(constrained_layout=True, figsize=(16, total_length*4), dpi=DPI)
@@ -217,28 +218,28 @@ def save_overview(experiment):
         column = (n_roi % 2) * 2
 
         ax_frame = fig.add_subplot(gs[row, column])
-        plot_rois(ax_frame, roi.get_roi(experiment.frame_for_rois, 7))
+        plot_rois(ax_frame, roi.get_roi(experiment.frame_for_rois, 7, [0, 0]))
         ax_frame.set_xlabel('x (pixels)')
         ax_frame.set_ylabel('y (pixels)')
         ax_frame.set_title('Zoom-in ROI ' + str(roi.index + 1))
 
-        for n_dataset in hsm:
-            ax_hsm = fig.add_subplot(gs[row + n_dataset, column + 1])
+        for index_dataset, n_dataset in enumerate(hsm):
+            ax_hsm = fig.add_subplot(gs[row + index_dataset, column + 1])
             plot_hsm(ax_hsm, roi.results[experiment.datasets[n_dataset].name_result])
             ax_hsm.set_xlabel('wavelength (nm)')
             ax_hsm.set_ylabel('intensity (arb. units)')
             ax_hsm.set_title('HSM Result ROI {}'.format(str(roi.index + 1)))
 
-        for n_dataset in tt:
+        for index_dataset, n_dataset in enumerate(tt):
             method = experiment.datasets[n_dataset].settings['method']
-            ax_tt_scatter = fig.add_subplot(gs[row + len(hsm) + n_dataset, column])
+            ax_tt_scatter = fig.add_subplot(gs[row + max(len(hsm), 1) + index_dataset, column])
             make_tt_scatter(ax_tt_scatter, roi.results[experiment.datasets[n_dataset].name_result]['result_post_drift'],
                             roi.results[experiment.datasets[n_dataset].name_result]['event_or_not'],
                             experiment.datasets[n_dataset])
             ax_tt_scatter.set_title('Scatter ROI ' + str(roi.index + 1) + " post drift corr")
 
             if "Gaussian" in method or "Sum" in method:
-                ax_tt = fig.add_subplot(gs[row + len(hsm) + n_dataset, column + 1])
+                ax_tt = fig.add_subplot(gs[row + max(len(hsm), 1) + index_dataset, column + 1])
                 make_tt(ax_tt, experiment.datasets[n_dataset].time_axis,
                         roi.results[experiment.datasets[n_dataset].name_result]['result'], method, roi.index)
 
@@ -258,34 +259,34 @@ def individual_figures(experiment):
         elif dataset.type == "HSM":
             hsm.append(n_dataset)
 
-    per_roi_length = len(tt) + max(len(hsm) - 1, 0)
+    per_roi_length = len(tt) + max(len(hsm), 1)
 
     for roi in experiment.rois:
         fig = plt.figure(figsize=(8, 4*per_roi_length), dpi=DPI)
 
-        ax_frame = fig.add_subplot(per_roi_length, 2 , 1)
-        plot_rois(ax_frame, roi.get_roi(experiment.frame_for_rois, 7))
+        ax_frame = fig.add_subplot(per_roi_length, 2, 1)
+        plot_rois(ax_frame, roi.get_roi(experiment.frame_for_rois, 7, [0, 0]))
         ax_frame.set_xlabel('x (pixels)')
         ax_frame.set_ylabel('y (pixels)')
         ax_frame.set_title('Zoom-in ROI ' + str(roi.index + 1))
 
-        for n_dataset in hsm:
-            ax_hsm = fig.add_subplot(per_roi_length, 2, 1 + n_dataset * 2)
+        for index_dataset, n_dataset in enumerate(hsm):
+            ax_hsm = fig.add_subplot(per_roi_length, 2, 2 + index_dataset * 2)
             plot_hsm(ax_hsm, roi.results[experiment.datasets[n_dataset].name_result])
             ax_hsm.set_xlabel('wavelength (nm)')
             ax_hsm.set_ylabel('intensity (arb. units)')
             ax_hsm.set_title('HSM Result ROI {}'.format(str(roi.index + 1)))
 
-        for n_dataset in tt:
+        for index_dataset, n_dataset in enumerate(tt):
             method = experiment.datasets[n_dataset].settings['method']
-            ax_tt_scatter = fig.add_subplot(per_roi_length, 2, 3 + n_dataset * 2 + (len(hsm) - 1) * 2)
+            ax_tt_scatter = fig.add_subplot(per_roi_length, 2, 1 + index_dataset * 2 + max(len(hsm), 1) * 2)
             make_tt_scatter(ax_tt_scatter, roi.results[experiment.datasets[n_dataset].name_result]['result_post_drift'],
                             roi.results[experiment.datasets[n_dataset].name_result]['event_or_not'],
                             experiment.datasets[n_dataset])
             ax_tt_scatter.set_title('Scatter ROI ' + str(roi.index + 1) + " post drift corr")
 
             if "Gaussian" in method or "Sum" in method:
-                ax_tt = fig.add_subplot(per_roi_length, 2, 4 + n_dataset * 2 + (len(hsm) - 1) * 2)
+                ax_tt = fig.add_subplot(per_roi_length, 2, 2 + index_dataset * 2 + max(len(hsm), 1) * 2)
                 make_tt(ax_tt, experiment.datasets[n_dataset].time_axis,
                         roi.results[experiment.datasets[n_dataset].name_result]['result'], method, roi.index)
 

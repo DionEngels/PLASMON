@@ -48,6 +48,7 @@ __self_made__ = True
 class HSMDataset(Dataset):
     def __init__(self, experiment, nd2, name):
         super().__init__(experiment, name)
+        self.type = "HSM"
         self.frames = np.asarray(nd2)
         self.metadata = nd2.get_metadata()
         self.wavelengths = None
@@ -95,6 +96,7 @@ class HSMDataset(Dataset):
 
             return np.asarray(wavelength_list)
 
+        self.settings = settings
         self.correction_file = settings['correction_file']
         path = os.getcwd()
         path += ("/spectral_corrections/" + settings['correction_file'] + ".mat")
@@ -208,12 +210,9 @@ class HSMDataset(Dataset):
         shape = np.asarray([find_nearest(self.spec_wavelength, self.spec_shape, nu) for nu in self.wavelengths])
         if verbose:
             fig, ax = plt.subplots(1)
-            ax.imshow(self.frame_for_rois, extent=[0, self.frame_for_rois.shape[1], self.frame_for_rois.shape[0], 0],
-                      aspect='auto')
-            plt.title("Merged frame")
+            figuring.plot_rois(ax, self.frame_for_rois, roi_locations=self.active_rois, roi_size=9,
+                               roi_offset=self.roi_offset)
             plt.show()
-
-            figuring.plot_rois(self.frame_for_rois, self.active_rois, self.roi_offset, 9)
 
         # prep for fitting
         roi_size = 9
@@ -251,22 +250,22 @@ class HSMDataset(Dataset):
                     raw_intensity[frame_index] = 2 * np.pi * result[0] * result[3] * result[4]
                     intensity[frame_index] = raw_intensity[frame_index] / shape[frame_index]
 
-                # %% Fit the total intensity of a single ROI over all frames with Lorentzian
-                if verbose:
-                    fig, ax = plt.subplots(1)
-                    ax.plot(self.wavelengths, intensity[:])
-                    ax.set_title('Result ROI #{}'.format(roi.index))
-                    plt.show()
+            # %% Fit the total intensity of a single ROI over all frames with Lorentzian
+            if verbose:
+                fig, ax = plt.subplots(1)
+                ax.plot(self.wavelengths, intensity)
+                ax.set_title('Result ROI #{}'.format(roi.index))
+                plt.show()
 
-                result, r_squared = self.fit_lorentzian(intensity[:], self.wavelengths, verbose=verbose)
+            result, r_squared = self.fit_lorentzian(intensity, self.wavelengths, verbose=verbose)
 
-                hsm_result[0] = 1248 / result[2]  # SP lambda
-                hsm_result[1] = 1000 * result[3]  # linewidth
-                hsm_result[2] = r_squared
+            hsm_result[0] = 1248 / result[2]  # SP lambda
+            hsm_result[1] = 1000 * result[3]  # linewidth
+            hsm_result[2] = r_squared
 
-                result_dict = {"type": self.type, "result": hsm_result, "fit_parameters": result,
-                               "raw_intensity": raw_intensity, "intensity": intensity, "raw": frame_stack}
-                roi.results[self.name_result] = result_dict
+            result_dict = {"type": self.type, "result": hsm_result, "fit_parameters": result,
+                           "raw_intensity": raw_intensity, "intensity": intensity, "raw": frame_stack}
+            roi.results[self.name_result] = result_dict
 
     def fit_lorentzian(self, scattering, wavelength, split=False, verbose=False):
         """

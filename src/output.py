@@ -30,7 +30,8 @@ TRANSLATOR_DICT = {'int_max': 'Maximum Intensity', 'int_min': 'Minimum Intensity
                    'rejection': "Rejection method", '#cores': "Number of cores used",
                    'pixels_or_nm': "Pixels or nanometer output",
                    'frame_begin': "First frame fitted", 'frame_end': 'Last frame fitted', 'Type': "Type of dataset",
-                   'Offset': "Offset compared to ROI finding frame"}
+                   'Offset': "Offset compared to ROI finding frame", 'correction_file': "HSM spectral correction",
+                   'wavelengths': "HSM wavelengths"}
 
 
 def save_to_mat(directory, name, to_save):
