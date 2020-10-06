@@ -244,10 +244,9 @@ class HSMDataset(Dataset):
                 result, _, success = fitter.fit_gaussian(my_roi, roi.index)
                 if success == 0 or \
                         result[2] < pos_min or result[2] > pos_max or result[1] < pos_min or result[1] > pos_max \
-                        or result[3] < sig_min or result[3] > sig_max or result[4] < sig_min or result[
-                    4] > sig_max:
-                    raw_intensity[roi.index, frame_index] = np.nan
-                    intensity[roi.index, frame_index] = np.nan
+                        or result[3] < sig_min or result[3] > sig_max or result[4] < sig_min or result[4] > sig_max:
+                    raw_intensity[frame_index] = np.nan
+                    intensity[frame_index] = np.nan
                 else:
                     raw_intensity[frame_index] = 2 * np.pi * result[0] * result[3] * result[4]
                     intensity[frame_index] = raw_intensity[frame_index] / shape[frame_index]
