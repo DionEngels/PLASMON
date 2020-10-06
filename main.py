@@ -61,7 +61,7 @@ NAME = "test_v2"
 fit_options = ["Gaussian - Fit bg", "Gaussian - Estimate bg",
                "Phasor + Intensity", "Phasor + Sum", "Phasor"]
 
-ALL_FIGURES = True
+ALL_FIGURES = False
 METHOD = "Gaussian - Fit bg"
 THRESHOLD_METHOD = "Loose"  # "Loose", or "None"
 CORRECTION = "SN_objTIRF_PFS_510-800"  # "Matej_670-890"
@@ -73,7 +73,7 @@ FRAME_END = 10  # number or "Leave empty for end"
 
 
 def proceed_question(option1, option2, title, text):
-    answer = input(title + "\n" + text + "\n" + option1 + "/" + option2 + "\n")
+    answer = input(title + "\n" + text + "\n" + option1 + "/" + option2)
     if answer == option1:
         return True
     else:

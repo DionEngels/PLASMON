@@ -66,7 +66,7 @@ def convert_to_matlab(experiment):
                                      dataset.frame_for_rois.shape[0], dataset.settings['method'],
                                      dataset.settings['pixels_or_nm'], dataset.metadata)
             elif dataset.type == "HSM":
-                roi.results[dataset.name] = hsm_to_matlab(roi.results[dataset.name])
+                pass  # no correction needed for HSM
             else:
                 pass
 
@@ -169,25 +169,6 @@ def switch_axis(array):
     new[:, 1] = array[:, 0]
     new[:, 0] = array[:, 1]
     return new
-
-
-def hsm_to_matlab(result):
-    """
-    Adds on to some axis of HSM for MATLAB counting
-    """
-    hsm_result = result['result']
-    hsm_intensity = result['intensities']
-    hsm_raw = result['fit_parameters']
-
-    hsm_result[:, 0] += 1  # +1 for MATLAB
-    hsm_intensity[:, 0] = hsm_intensity[:, 0] + 1  # +1 for MATLAB
-    hsm_raw[:, 0] += 1  # +1 for MATLAB
-
-    result['result'] = hsm_result
-    result['intensities'] = hsm_intensity
-    result['fit_parameters'] = hsm_raw
-
-    return result
 
 # OLD
 

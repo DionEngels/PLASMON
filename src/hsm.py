@@ -28,16 +28,14 @@ import numpy as np
 from scipy.io import loadmat
 import mat73
 
-# A lot of scipy for signal processing
+# Scipy for signal processing
 from scipy.ndimage import median_filter
 from scipy.optimize import leastsq
 
-
 # Own code
-from src.nd2_reading import ND2ReaderSelf
 import src.tt as fitting
 import src.figure_making as figuring
-from src.class_dataset_roi import Dataset, normxcorr2, normxcorr2_large
+from src.class_dataset_roi import Dataset, normxcorr2
 
 import matplotlib.pyplot as plt
 __self_made__ = True

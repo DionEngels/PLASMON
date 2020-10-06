@@ -88,25 +88,27 @@ def find_range(dataset_name, rois):
     return max_range
 
 
-def plot_hsm(ax, result):
+def plot_hsm(ax, result, wavelengths):
     def lorentzian(params, x):
         return params[0] + params[1] / ((x - params[2]) ** 2 + (0.5 * params[3]) ** 2)
 
-    return
-
-    ax_hsm = fig.add_subplot(gs[row + 1, column + 1])
-    hsm_intensities = hsm_intensity[hsm_intensity[:, 0] == roi_index, 1:]
-    ax_hsm.scatter(hsm_wavelengths, hsm_intensities)
-    hsm_params = hsm_raw[hsm_raw[:, 0] == roi_index, 1:]
+    ax.scatter(wavelengths, result['intensity'])
     try:
-        hsm_fit = lorentzian(hsm_params.flatten(), hsm_wavelengths_ev)
-        ax_hsm.plot(1248 / hsm_wavelengths_ev, hsm_fit, 'r--')
+        wavelengths_ev = 1248 / linspace(np_min(wavelengths), np_max(wavelengths), num=50)
+        hsm_fit = lorentzian(result['fit_parameters'], wavelengths_ev)
+        ax.plot(1248 / wavelengths_ev, hsm_fit, 'r--')
     except:
         pass
-    ax_hsm.set_xlabel('wavelength (nm)')
-    ax_hsm.set_ylabel('intensity (arb. units)')
-    ax_hsm.set_xlim(np_min(hsm_wavelengths) - 30, np_max(hsm_wavelengths) + 30)
-    ax_hsm.set_title('HSM Result ROI {}'.format(str(roi_index + 1)))
+    ax.set_xlim(np_min(wavelengths) - 30, np_max(wavelengths) + 30)
+    try:
+        text = '\n'.join((r'SPR (nm)=%.1f' % (result['result'][0],),
+                          r'linewidth (meV)=%.1f' % (result['result'][1],),
+                          r'r^2=%.1f' % (result['result'][2],)))
+        props = dict(boxstyle='round', facecolor='white', alpha=0.5)
+        ax.text(0.05, 0.95, text, transform=ax.transAxes, fontsize=12,
+                verticalalignment='top', bbox=props)
+    except:
+        pass
 
 
 def make_tt_scatter(ax, result, event_or_not_boolean, dataset):
@@ -225,7 +227,8 @@ def save_overview(experiment):
 
         for index_dataset, n_dataset in enumerate(hsm):
             ax_hsm = fig.add_subplot(gs[row + index_dataset, column + 1])
-            plot_hsm(ax_hsm, roi.results[experiment.datasets[n_dataset].name_result])
+            plot_hsm(ax_hsm, roi.results[experiment.datasets[n_dataset].name_result],
+                     experiment.datasets[n_dataset].wavelengths)
             ax_hsm.set_xlabel('wavelength (nm)')
             ax_hsm.set_ylabel('intensity (arb. units)')
             ax_hsm.set_title('HSM Result ROI {}'.format(str(roi.index + 1)))
@@ -272,7 +275,8 @@ def individual_figures(experiment):
 
         for index_dataset, n_dataset in enumerate(hsm):
             ax_hsm = fig.add_subplot(per_roi_length, 2, 2 + index_dataset * 2)
-            plot_hsm(ax_hsm, roi.results[experiment.datasets[n_dataset].name_result])
+            plot_hsm(ax_hsm, roi.results[experiment.datasets[n_dataset].name_result],
+                     experiment.datasets[n_dataset].wavelengths)
             ax_hsm.set_xlabel('wavelength (nm)')
             ax_hsm.set_ylabel('intensity (arb. units)')
             ax_hsm.set_title('HSM Result ROI {}'.format(str(roi.index + 1)))
