@@ -34,13 +34,13 @@ class Roi:
     def set_index(self, index):
         self.index = index
 
-    def get_roi(self, frame, roi_size_1d):
-        return frame[self.y - roi_size_1d:self.y + roi_size_1d + 1,
-                     self.x - roi_size_1d:self.x + roi_size_1d + 1]
+    def get_roi(self, frame, roi_size_1d, offset):
+        return frame[self.y + offset[0] - roi_size_1d:self.y + offset[0] + roi_size_1d + 1,
+                     self.x + offset[1] - roi_size_1d:self.x + offset[1] + roi_size_1d + 1]
 
-    def get_frame_stack(self, frames, roi_size_1d):
-        return frames[:, self.y - roi_size_1d:self.y + roi_size_1d + 1,
-                      self.x - roi_size_1d:self.x + roi_size_1d + 1]
+    def get_frame_stack(self, frames, roi_size_1d, offset):
+        return frames[:, self.y + offset[0] - roi_size_1d:self.y + offset[0] + roi_size_1d + 1,
+                      self.x + offset[1] - roi_size_1d:self.x + offset[1] + roi_size_1d + 1]
 
     def in_frame(self, shape, offset):
         if self.x + offset[1] < 0 or self.x + offset[1] > shape[1]:
