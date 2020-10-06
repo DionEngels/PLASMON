@@ -151,7 +151,8 @@ class Experiment:
 
         for dataset in self.datasets:
             settings_dict[dataset.name] = dataset.settings
-            settings_dict[dataset.name]['Type'] = dataset.type
+            # add type at the front
+            settings_dict[dataset.name] = {**{'Type': dataset.type}, **settings_dict[dataset.name]}
             settings_dict[dataset.name]['Offset'] = dataset.roi_offset
 
         return settings_dict
