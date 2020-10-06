@@ -55,12 +55,12 @@ class Experiment:
 
     def init_new_hsm(self, filename):
         nd2 = ND2ReaderSelf(filename)
-        hsm_object = HSMDataset(self, nd2, self.directory.split(".")[0].split("/")[-1])
+        hsm_object = HSMDataset(self, nd2, filename.split(".")[0].split("/")[-1])
         self.datasets.append(hsm_object)
 
     def init_new_tt(self, filename):
         nd2 = ND2ReaderSelf(filename)
-        time_trace_object = fitting.TimeTrace(self, nd2, self.directory.split(".")[0].split("/")[-1])
+        time_trace_object = fitting.TimeTrace(self, nd2, filename.split(".")[0].split("/")[-1])
         self.datasets.append(time_trace_object)
 
     def change_rois(self, settings):

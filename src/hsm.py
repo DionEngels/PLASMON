@@ -48,89 +48,56 @@ __self_made__ = True
 class HSMDataset(Dataset):
     def __init__(self, experiment, nd2, name):
         super().__init__(experiment, name)
-        self.frames = nd2
+        self.frames = np.asarray(nd2)
         self.metadata = nd2.get_metadata()
+        self.wavelengths = None
+        self.correction_file = None
+        self.spec_wavelength = None
+        self.spec_shape = None
 
-        self.corrected_merged, self.corrected = self.hsm_drift()
-        self.frame_for_rois = self.corrected_merged
+        self.frame_for_rois, self.corrected = self.hsm_drift(verbose=False)
 
     def prepare_run(self, settings):
-        self.hsm_object.change_settings(settings)
+        def check_correct_chars(string):
+            chars = set(string)
 
-    def run(self):
-        self.hsm_object.run(self)
+            for i in range(0, 10):
+                chars.discard(str(i))
 
-    def hsm_drift(self):
-        x =1
-        y= 1
-        return x, y
+            chars.discard('[')
+            chars.discard(']')
+            chars.discard('.')
+            chars.discard(',')
+            chars.discard(':')
+            chars.discard(' ')
 
-# %% HSM Dataset v1
+            if len(chars) > 0:
+                return False
+            else:
+                return True
 
+        def parse_string_to_numpy_array(string):
+            wavelength_list = []
+            string = string.replace('[', '')
+            string = string.replace(']', '')
 
-class HSM:
-    """
-    Class for HSM of MBx Python
-    """
+            split_string = string.split(',')
 
-    def __init__(self, directory, frame_zero, roi_locations, metadata, correction):
-        """
-        Initializer of HSM. Takes directory, frame_zero, roi locations, metadata and correction file and prepares
-        Saves wavelengths and nd2 files that are to be loaded in
-
-        :param directory: directory to load HSM frame in from
-        :param frame_zero: first frame of laser video
-        :param roi_locations: ROI locations
-        :param metadata: metadata for reference
-        :param correction: HSM correction file to be used
-        """
-        def only_ints(list_to_check):
-            new_list = []
-            for string in list_to_check:
+            for split in split_string:
+                split = split.replace(' ', '')
                 try:
-                    int(string[:-4])
-                    new_list.append(string)
+                    split_int = int(split)
+                    wavelength_list.append(split_int)
                 except ValueError:
-                    pass
+                    range_split = split.split(':')
+                    range_split = list(map(int, range_split))
+                    wavelength_list.extend(np.arange(range_split[0], range_split[2] + range_split[1], range_split[1]))
 
-            return new_list
+            return np.asarray(wavelength_list)
 
-        self.roi_locations = roi_locations
-        self.hsm_result = np.zeros((roi_locations.shape[0], 4))
-        bg = median_filter(frame_zero, size=9)
-        self.frame_zero = frame_zero.astype(np.int16) - bg
-        self.metadata = metadata
-        self.frame_merge = None
-        self.wavelength = None
-
-        # load in nd2 frames
-
-        self.nd2_dir = directory[0]
-        nd2_dir_files = os.listdir(self.nd2_dir)
-        self.nd2_files = [nd2 for nd2 in nd2_dir_files if nd2.endswith('.nd2')]
-
-        if 'Merged Documents.nd2' in self.nd2_files:
-            self.merged = [nd2 for nd2 in self.nd2_files if nd2.__contains__('Merged')]
-            self.nd2_files = [nd2 for nd2 in self.nd2_files if not nd2.__contains__('Merged')]
-            self.merged = ''.join(self.merged)
-            nd2 = ND2ReaderSelf(self.nd2_dir + "/" + self.merged)
-            self.frames = np.asarray(nd2, dtype=np.uint16).copy()
-            nd2.close()
-        else:
-            self.nd2_files = only_ints(self.nd2_files)
-            for nd2_index, nd2_name in enumerate(self.nd2_files):
-                nd2 = ND2ReaderSelf(self.nd2_dir + "/" + nd2_name)
-                frame = np.asarray(nd2, dtype=np.uint16).copy()
-                if nd2_index == 0:
-                    self.frames = np.zeros((len(self.nd2_files), frame.shape[1], frame.shape[2]), dtype=np.uint16)
-                self.frames[nd2_index, :, :] = frame
-                nd2.close()
-
-        # load in spectral correction
-
+        self.correction_file = settings['correction_file']
         path = os.getcwd()
-        path += ("/spectral_corrections/" + correction + ".mat")
-        self.correction_path = path
+        path += ("/spectral_corrections/" + settings['correction_file'] + ".mat")
         try:  # for new MATLAB versions
             correction = loadmat(path)
             self.spec_wavelength = correction['SpectralCorrection'][0][0][0][0]
@@ -140,155 +107,10 @@ class HSM:
             self.spec_wavelength = correction['SpectralCorrection']['Lambda']
             self.spec_shape = correction['SpectralCorrection']['SpecShape']
 
-    # %% Main
-    def main(self, verbose=False):
-        """
-        Main of HSM. Does all the work.
-
-        :param verbose: True if you want figures
-        :return: self.hsm_result: the actual result. An array with ROI index, Lorentzian results and r-squared
-        :return: intensity_result: All the intensities per ROI used to fit the lorentzian
-        """
-        def find_nearest(match_array, value_array, match_index):
-            """
-            Finds and returns the nearest match in another array
-            """
-            idx = (np.abs(match_array - match_index)).argmin()
-            return value_array[idx]
-
-        def to_int(list_to_int):
-            """
-            Converts a list of strings of nd2 filenames to a list of integers.
-            Example: 740.nd2 -> 740
-            """
-            new_list = []
-            for string in list_to_int:
-                try:
-                    int(string[:-4])
-                    new_list.append(int(string[:-4]))
-                except ValueError:
-                    pass
-
-            new_list = np.asarray(new_list, dtype=np.uint16)
-            return new_list
-
-        # find correct shape for wavelength
-
-        wavelength = to_int(self.nd2_files)
-        self.wavelength = wavelength.copy()
-        shape = np.asarray([find_nearest(self.spec_wavelength, self.spec_shape, nu) for nu in wavelength])
-
-        # correct frames for drift
-
-        self.frames, self.frame_merge = self.hsm_drift(verbose=False)
-
-        # correct ROI locations for drift in HSM images
-
-        size_laser_frame = np.asarray(self.frame_zero.shape, dtype=int)
-
-        corr = normxcorr2_large(self.frame_zero, self.frame_merge)
-        maxima = np.transpose(np.asarray(np.where(corr == np.amax(corr))))[0]
-        offset = maxima - np.asarray(self.frame_zero.shape) + np.asarray([1, 1])
-        self.roi_locations += offset
-
-        if verbose:
-            fig, ax = plt.subplots(1)
-            ax.imshow(self.frame_merge, extent=[0, self.frame_merge.shape[1], self.frame_merge.shape[0], 0],
-                      aspect='auto')
-            plt.title("Merged frame")
-            plt.show()
-
-            fig, ax = plt.subplots(1)
-            ax.imshow(self.frame_zero, extent=[0, self.frame_zero.shape[1], self.frame_zero.shape[0], 0],
-                      aspect='auto')
-            plt.title("Frame zero")
-            plt.show()
-
-            fig, ax = plt.subplots(1)
-            frame_670 = np.where(wavelength == 670)[0][0]
-            cutout_670 = self.frames[frame_670, offset[0]:offset[0] + size_laser_frame[0],
-                                     offset[1]:offset[1] + size_laser_frame[1]]
-            ax.imshow(cutout_670, extent=[0, cutout_670.shape[1], cutout_670.shape[0], 0], aspect='auto')
-            plt.title("Frame 670 nm")
-            plt.show()
-
-            figuring.plot_rois(self.frame_merge, self.roi_locations, 9)
-
-            figuring.plot_rois(self.frames[frame_670, :, :], self.roi_locations, 9)
-
-        # prep for fitting
-
-        hsm_raw = np.zeros((self.roi_locations.shape[0], 5))
-        raw_intensity = np.zeros((self.roi_locations.shape[0], self.frames.shape[0]))
-        intensity = np.zeros((self.roi_locations.shape[0], self.frames.shape[0]))
-        roi_size = 9
-        roi_size_1d = int((roi_size - 1) / 2)
-        fitter = fitting.GaussianBackground(roi_size, {}, "None", "GaussianBackground", 6, 500)
-
-        pos_max = roi_size
-        pos_min = 0
-        sig_min = 0
-        sig_max = roi_size_1d + 1
-
-        # %% Fit every ROI for every frame
-
-        for roi_index, roi in enumerate(self.roi_locations):
-            y = int(roi[0])
-            x = int(roi[1])
-
-            if x < roi_size_1d or y < roi_size_1d or \
-                    x > self.frames.shape[1] - roi_size_1d or y > self.frames.shape[2] - roi_size_1d:
-                raw_intensity[roi_index, :] = np.nan
-                intensity[roi_index, :] = np.nan
-
-                hsm_raw[roi_index, 0] = roi_index
-                hsm_raw[roi_index, 1:] = np.nan
-
-                self.hsm_result[roi_index, 0] = roi_index
-                self.hsm_result[roi_index, 1:] = np.nan
-            else:
-
-                for frame_index, frame in enumerate(self.frames):
-                    my_roi = frame[y - roi_size_1d:y + roi_size_1d + 1, x - roi_size_1d:x + roi_size_1d + 1]
-                    if verbose:
-                        fig, ax = plt.subplots(1)
-                        ax.imshow(my_roi, extent=[0, my_roi.shape[1], my_roi.shape[0], 0], aspect='auto')
-                        ax.set_xlabel('x (pixels)')
-                        ax.set_ylabel('y (pixels)')
-                        ax.set_title('Zoom-in ROI #{}, frame #{}'.format(roi_index, frame_index))
-                        plt.show()
-                    result, _, success = fitter.fit_gaussian(my_roi, roi_index)
-                    if success == 0 or \
-                            result[2] < pos_min or result[2] > pos_max or result[1] < pos_min or result[1] > pos_max \
-                            or result[3] < sig_min or result[3] > sig_max or result[4] < sig_min or result[4] > sig_max:
-                        raw_intensity[roi_index, frame_index] = np.nan
-                        intensity[roi_index, frame_index] = np.nan
-                    else:
-                        raw_intensity[roi_index, frame_index] = 2 * np.pi * result[0] * result[3] * result[4]
-                        intensity[roi_index, frame_index] = raw_intensity[roi_index, frame_index] / shape[frame_index]
-
-                # %% Fit the total intensity of a single ROI over all frames with Lorentzian
-
-                if verbose:
-                    fig, ax = plt.subplots(1)
-                    ax.plot(wavelength, intensity[roi_index, :])
-                    ax.set_title('Result ROI #{}'.format(roi_index))
-                    plt.show()
-
-                result, r_squared = self.fit_lorentzian(intensity[roi_index, :], wavelength, verbose=verbose)
-
-                hsm_raw[roi_index, 0] = roi_index
-                hsm_raw[roi_index, 1:] = result
-
-                self.hsm_result[roi_index, 0] = roi_index
-                self.hsm_result[roi_index, 1] = 1248 / result[2]  # SP lambda
-                self.hsm_result[roi_index, 2] = 1000 * result[3]  # linewidth
-                self.hsm_result[roi_index, 3] = r_squared
-
-        intensity_result = np.concatenate((np.array(range(self.roi_locations.shape[0]))[:, np.newaxis], intensity),
-                                          axis=1)
-
-        return self.hsm_result, hsm_raw, intensity_result
+        if check_correct_chars(settings['wavelengths']):
+            self.wavelengths = parse_string_to_numpy_array(settings['wavelengths'])
+        else:
+            raise ValueError("wavelengths not numbers")
 
     # %% Correct for drift between frames
     def hsm_drift(self, verbose=False):
@@ -347,14 +169,14 @@ class HSM:
             helper_image = np.zeros(helper_size, dtype=np.int32)
             helper_image[max_offset - shift_dist[-2]:size_frame[-2] + max_offset - shift_dist[-2],
                          max_offset - shift_dist[-1]:size_frame[-1] + max_offset - shift_dist[-1]] = \
-                data_merged_helper[frame_index, :, :]
-            data_merged += helper_image[max_offset:size_frame[-2] + max_offset,
-                                        max_offset:size_frame[-1] + max_offset]
+            data_merged_helper[frame_index, :, :]
+            data_merged += helper_image[max_offset:size_frame[-2] + max_offset, max_offset:size_frame[-1] + max_offset]
 
             if verbose:
                 fig, ax = plt.subplots(1)
                 ax.imshow(data_output[frame_index, :, :],
-                          extent=[0, data_output[frame_index, :, :].shape[1], data_output[frame_index, :, :].shape[0],
+                          extent=[0, data_output[frame_index, :, :].shape[1],
+                                  data_output[frame_index, :, :].shape[0],
                                   0], aspect='auto')
                 plt.title("Frame {} shifted final".format(frame_index))
                 plt.show()
@@ -367,6 +189,86 @@ class HSM:
 
         return data_output, data_merged
 
+    # %% Run
+    def run(self, verbose=False):
+        """
+        Main of HSM. Does all the work.
+
+        :param verbose: True if you want figures
+        :return: self.hsm_result: the actual result. An array with ROI index, Lorentzian results and r-squared
+        :return: intensity_result: All the intensities per ROI used to fit the lorentzian
+        """
+        def find_nearest(match_array, value_array, match_index):
+            """
+            Finds and returns the nearest match in another array
+            """
+            idx = (np.abs(match_array - match_index)).argmin()
+            return value_array[idx]
+        # find correct shape for wavelength
+        shape = np.asarray([find_nearest(self.spec_wavelength, self.spec_shape, nu) for nu in self.wavelengths])
+        if verbose:
+            fig, ax = plt.subplots(1)
+            ax.imshow(self.frame_for_rois, extent=[0, self.frame_for_rois.shape[1], self.frame_for_rois.shape[0], 0],
+                      aspect='auto')
+            plt.title("Merged frame")
+            plt.show()
+
+            figuring.plot_rois(self.frame_for_rois, self.active_rois, self.roi_offset, 9)
+
+        # prep for fitting
+        roi_size = 9
+        roi_size_1d = int((roi_size - 1) / 2)
+        fitter = fitting.GaussianBackground({'roi_size': roi_size, 'rejection': 'Loose', 'method': "Gaussian - Fit bg"},
+                                            600, 6)
+
+        pos_max = roi_size
+        pos_min = 0
+        sig_min = 0
+        sig_max = roi_size_1d + 1
+
+        # %% Fit every ROI for every frame
+
+        for roi in self.active_rois:
+            raw_intensity = np.zeros(self.frames.shape[0])
+            intensity = np.zeros(self.frames.shape[0])
+            hsm_result = np.zeros(3)
+            frame_stack = roi.get_frame_stack(self.corrected, roi_size_1d)
+            for frame_index, my_roi in enumerate(frame_stack):
+                if verbose:
+                    fig, ax = plt.subplots(1)
+                    ax.imshow(my_roi, extent=[0, my_roi.shape[1], my_roi.shape[0], 0], aspect='auto')
+                    ax.set_xlabel('x (pixels)')
+                    ax.set_ylabel('y (pixels)')
+                    ax.set_title('Zoom-in ROI #{}, frame #{}'.format(roi.index, frame_index))
+                    plt.show()
+                result, _, success = fitter.fit_gaussian(my_roi, roi.index)
+                if success == 0 or \
+                        result[2] < pos_min or result[2] > pos_max or result[1] < pos_min or result[1] > pos_max \
+                        or result[3] < sig_min or result[3] > sig_max or result[4] < sig_min or result[
+                    4] > sig_max:
+                    raw_intensity[roi.index, frame_index] = np.nan
+                    intensity[roi.index, frame_index] = np.nan
+                else:
+                    raw_intensity[frame_index] = 2 * np.pi * result[0] * result[3] * result[4]
+                    intensity[frame_index] = raw_intensity[frame_index] / shape[frame_index]
+
+                # %% Fit the total intensity of a single ROI over all frames with Lorentzian
+                if verbose:
+                    fig, ax = plt.subplots(1)
+                    ax.plot(self.wavelengths, intensity[:])
+                    ax.set_title('Result ROI #{}'.format(roi.index))
+                    plt.show()
+
+                result, r_squared = self.fit_lorentzian(intensity[:], self.wavelengths, verbose=verbose)
+
+                hsm_result[0] = 1248 / result[2]  # SP lambda
+                hsm_result[1] = 1000 * result[3]  # linewidth
+                hsm_result[2] = r_squared
+
+                result_dict = {"type": self.type, "result": hsm_result, "fit_parameters": result,
+                               "raw_intensity": raw_intensity, "intensity": intensity, "raw": frame_stack}
+                roi.results[self.name_result] = result_dict
+
     def fit_lorentzian(self, scattering, wavelength, split=False, verbose=False):
         """
         Function to fit a lorentzian to the found intensities
@@ -378,6 +280,7 @@ class HSM:
         :return: result: resulting Lorentzian parameters
         :return r_squared: the r-squared of this fit
         """
+
         def lorentzian(params, x):
             return params[0] + params[1] / ((x - params[2]) ** 2 + (0.5 * params[3]) ** 2)
 
@@ -431,7 +334,8 @@ class HSM:
         # if bad fit, try standard values
         if r_squared < 0.9:
             result_std, cov_x_std, res_dict_std, mesg_std, ier_std = leastsq(error_func,
-                                                                             [-10, 100, 1248 / wavelength_ev[idx_max],
+                                                                             [-10, 100,
+                                                                              1248 / wavelength_ev[idx_max],
                                                                               0.15],
                                                                              args=(wavelength_ev, scattering),
                                                                              full_output=True)
