@@ -42,10 +42,10 @@ class Roi:
         return frames[:, self.y + offset[0] - roi_size_1d:self.y + offset[0] + roi_size_1d + 1,
                       self.x + offset[1] - roi_size_1d:self.x + offset[1] + roi_size_1d + 1]
 
-    def in_frame(self, shape, offset):
-        if self.x + offset[1] < 0 or self.x + offset[1] > shape[1]:
+    def in_frame(self, shape, offset, margin):
+        if self.x + offset[1] < margin or self.x + offset[1] > shape[1] - margin:
             in_frame_boolean = False
-        elif self.y + offset[0] < 0 or self.y + offset[0] > shape[0]:
+        elif self.y + offset[0] < margin or self.y + offset[0] > shape[0] - margin:
             in_frame_boolean = False
         else:
             in_frame_boolean = True
@@ -117,7 +117,9 @@ class Dataset:
     def find_rois(self, settings):
         self.roi_offset = self.correlate(settings)
         self.active_rois = [roi for roi in self.experiment.rois if roi.in_frame(self.frame_for_rois.shape,
-                                                                                self.roi_offset)]
+                                                                                self.roi_offset,
+                                                                                self.experiment.
+                                                                                roi_finder.side_distance)]
 
 # %% correlation
 

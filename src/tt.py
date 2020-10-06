@@ -86,17 +86,17 @@ class TimeTrace(Dataset):
         self.settings = settings
 
         if settings['method'] == "Phasor + Intensity":
-            self.fitter = Phasor(settings)
+            self.fitter = Phasor(settings, self)
         elif settings['method'] == "Phasor":
-            self.fitter = PhasorDumb(settings)
+            self.fitter = PhasorDumb(settings, self)
         elif settings['method'] == "Gaussian - Fit bg":
-            self.fitter = GaussianBackground(settings, max_its, 6)
+            self.fitter = GaussianBackground(settings, max_its, 6, self)
             self.settings['max_its'] = max_its
         elif settings['method'] == "Gaussian - Estimate bg":
-            self.fitter = Gaussian(settings, max_its, 5)
+            self.fitter = Gaussian(settings, max_its, 5, self)
             self.settings['max_its'] = max_its
         else:
-            self.fitter = PhasorSum(settings)
+            self.fitter = PhasorSum(settings, self)
 
     def run(self):
         frames_to_fit = np.asarray(self.frames[self.slice])
@@ -124,7 +124,8 @@ class TimeTrace(Dataset):
 
                 roi.results[self.name_result] = {"type": self.type, "result": roi_results[:, :],
                                                  "raw": roi.get_frame_stack(frames_to_fit,
-                                                                            self.fitter.roi_size_1D)}
+                                                                            self.fitter.roi_size_1D,
+                                                                            self.parent.roi_offset)}
         
         self.experiment.progress_function(message="Starting drift correction")
         self.drift_corrector = DriftCorrector(self.settings['method'])
@@ -163,7 +164,7 @@ class Gaussian:
     Gaussian fitter with estimated background, build upon Scipy Optimize Least-Squares
     """
 
-    def __init__(self, settings, max_its, num_fit_params):
+    def __init__(self, settings, max_its, num_fit_params, dataset):
         """
 
         Parameters
@@ -177,6 +178,7 @@ class Gaussian:
         None.
 
         """
+        self.parent = dataset
         self.result = []
         self.roi_locations = []
         self.roi_size = settings['roi_size']
@@ -548,7 +550,7 @@ class Gaussian:
         frame_result = np.zeros([len(self.roi_locations), 9])
 
         for roi in self.roi_locations:
-            my_roi = roi.get_roi(frame, self.roi_size_1D)
+            my_roi = roi.get_roi(frame, self.roi_size_1D, self.parent.roi_offset)
             my_roi_bg = self.fun_calc_bg(my_roi)
             my_roi = my_roi - my_roi_bg
 
@@ -664,7 +666,7 @@ class GaussianBackground(Gaussian):
         frame_result = np.zeros([len(self.roi_locations), 9])
 
         for roi in self.roi_locations:
-            my_roi = roi.get_roi(frame, self.roi_size_1D)
+            my_roi = roi.get_roi(frame, self.roi_size_1D, self.parent.roi_offset)
             result, its, success = self.fit_gaussian(my_roi, roi.index)
 
             if self.threshold_method == "None":
@@ -708,7 +710,7 @@ class Phasor:
     Phasor fitting using Fourier Transform. Also returns intensity of pixel in which Phasor position is found.
     """
 
-    def __init__(self, settings):
+    def __init__(self, settings, dataset):
         """
         Parameters
         ----------
@@ -719,6 +721,7 @@ class Phasor:
         None.
 
         """
+        self.parent = dataset
         self.result = []
         self.roi_locations = []
         self.roi_size = settings['roi_size']
@@ -850,7 +853,7 @@ class Phasor:
         tot_fits = 0
 
         for roi in self.roi_locations:
-            frame_stack = roi.get_frame_stack(frames, self.roi_size_1D)
+            frame_stack = roi.get_frame_stack(frames, self.roi_size_1D, self.parent.roi_offset)
             roi_result = self.phasor_fit_stack(frame_stack, roi.index, roi.y, roi.x)
 
             result_dict = {"type": dataset.type, "result": roi_result, "raw": frame_stack}
