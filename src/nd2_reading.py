@@ -61,31 +61,41 @@ class ND2ReaderForMetadata(ND2Reader):
         metadata_dict.pop('frames', None)
         metadata_dict.pop('date', None)
 
-        metadata_dict['pfs_status'] = self._parser._raw_metadata.pfs_status
-        metadata_dict['pfs_offset'] = self._parser._raw_metadata.pfs_offset
-
-        metadata_dict['timesteps'] = self.timesteps
-        metadata_dict['frame_rate'] = self.frame_rate
-
-        info_to_parse = self.parser._raw_metadata.image_text_info
-        metadata_text_dict = self.parse_text_info(info_to_parse)
-
-        metadata_dict = {**metadata_dict, **metadata_text_dict}
-
-        info_to_parse = self.parser._raw_metadata.image_metadata_sequence
-        metadata_dict_sequence = self.parse_sequence_info(info_to_parse)
         try:
-            metadata_dict['EnableGainMultiplier'] = metadata_dict_sequence.pop('EnableGainMultiplier')
-            metadata_dict['GainMultiplier'] = metadata_dict.pop('Multiplier')
-            metadata_dict['Conversion_Gain'] = metadata_dict.pop('Conversion_Gain')
+            metadata_dict['pfs_status'] = self._parser._raw_metadata.pfs_status
+            metadata_dict['pfs_offset'] = self._parser._raw_metadata.pfs_offset
+        except Exception:
+            pass
+
+        try:
+            metadata_dict['timesteps'] = self.timesteps
+            metadata_dict['frame_rate'] = self.frame_rate
+        except Exception:
+            pass
+
+        try:
+            info_to_parse = self.parser._raw_metadata.image_text_info
+            metadata_text_dict = self.parse_text_info(info_to_parse)
+            metadata_dict = {**metadata_dict, **metadata_text_dict}
+        except Exception:
+            pass
+
+        try:
+            info_to_parse = self.parser._raw_metadata.image_metadata_sequence
+            metadata_dict_sequence = self.parse_sequence_info(info_to_parse)
+            try:
+                metadata_dict['EnableGainMultiplier'] = metadata_dict_sequence.pop('EnableGainMultiplier')
+                metadata_dict['GainMultiplier'] = metadata_dict.pop('Multiplier')
+                metadata_dict['Conversion_Gain'] = metadata_dict.pop('Conversion_Gain')
+            except Exception:
+                pass
+            metadata_dict['Others'] = metadata_dict_sequence
         except Exception:
             pass
 
         for key, value in metadata_dict.items(): # prevent None values by making None string
             if value is None:
                 metadata_dict[key] = str(value)
-
-        metadata_dict['Others'] = metadata_dict_sequence
 
         return metadata_dict
 
