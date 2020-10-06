@@ -122,7 +122,8 @@ class Experiment:
         outputting.save_settings(self.directory, settings)
 
         figuring.save_overview(self)
-        figuring.individual_figures(self)
+        if self.settings['All Figures'] is True:
+            figuring.individual_figures(self)
 
         tools.convert_to_matlab(self)
         results = self.rois_to_dict()

@@ -105,8 +105,7 @@ def plot_hsm(ax, result, wavelengths):
                           r'linewidth (meV)=%.1f' % (result['result'][1],),
                           r'r^2=%.1f' % (result['result'][2],)))
         props = dict(boxstyle='round', facecolor='white', alpha=0.5)
-        ax.text(0.05, 0.95, text, transform=ax.transAxes, fontsize=12,
-                verticalalignment='top', bbox=props)
+        ax.text(0.05, 0.95, text, transform=ax.transAxes, verticalalignment='top', bbox=props)
     except:
         pass
 
