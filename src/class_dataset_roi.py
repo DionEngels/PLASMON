@@ -102,11 +102,11 @@ class Dataset:
         # test offset crop
         if frame_shape[0] > experiment_frame_shape[0] and frame_shape[1] > experiment_frame_shape[1]:
             small_frame = self.experiment.frame_for_rois
-            cropped_frame = self.frame_for_rois(y_slice, x_slice)
+            cropped_frame = self.frame_for_rois[y_slice, x_slice]
             offset = self.correlate_frames(small_frame, cropped_frame) - offset_crop
         elif frame_shape[0] < experiment_frame_shape[0] and frame_shape[1] < experiment_frame_shape[1]:
             small_frame = self.frame_for_rois
-            cropped_frame = self.experiment.frame_for_rois(y_slice, x_slice)
+            cropped_frame = self.experiment.frame_for_rois[y_slice, x_slice]
             offset = self.correlate_frames(cropped_frame, small_frame) + offset_crop
         else:
             old_frame = self.experiment.frame_for_rois

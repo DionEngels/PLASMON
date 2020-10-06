@@ -55,7 +55,7 @@ class HSMDataset(Dataset):
         self.spec_wavelength = None
         self.spec_shape = None
 
-        self.frame_for_rois, self.corrected = self.hsm_drift(verbose=False)
+        self.corrected, self.frame_for_rois = self.hsm_drift(verbose=False)
 
     def prepare_run(self, settings):
         def check_correct_chars(string):
