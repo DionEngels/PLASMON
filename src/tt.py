@@ -38,7 +38,7 @@ from scipy.ndimage import median_filter  # for correlation with experiment
 
 import src.mbx_fortran as fortran_linalg  # for fast self-made operations for Gaussian fitter
 import src.mbx_fortran_tools as fortran_tools  # for fast self-made general operations
-from src.class_others import Dataset  # base dataset
+from src.class_dataset_and_class_roi import Dataset  # base dataset
 from src.tools import change_to_nm
 from src.drift_correction import DriftCorrector
 

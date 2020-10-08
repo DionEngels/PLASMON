@@ -52,51 +52,6 @@ class Roi:
 
         return in_frame_boolean
 
-# %% Progress updater non-GUI
-
-
-class ProgressUpdater:
-    def __init__(self):
-        self.current_type = None
-        self.current_dataset = None
-        self.total_datasets = None
-        self.progress = None
-        self.total = None
-        self.message_bool = False
-        self.message_string = None
-
-    def start(self, n_datasets):
-        self.current_type = None
-        self.current_dataset = 0
-        self.total_datasets = n_datasets
-
-    def new_dataset(self, new_type):
-        self.message_bool = False
-        self.current_type = new_type
-        self.current_dataset += 1
-        self.update(True)
-
-    def status(self, progress, total):
-        self.message_bool = False
-        self.progress = progress + 1
-        self.total = total
-        self.update(False)
-
-    def message(self, message_string):
-        self.message_bool = True
-        self.message_string = message_string
-        self.update(False)
-
-    def update(self, new_dataset):
-        if new_dataset:
-            print('Starting dataset {} of {}. Type: {}'.format(self.current_dataset, self.total_datasets,
-                                                              self.current_type))
-        elif self.message_bool:
-            print(self.message_string)
-        else:
-            print('{} of {} of current dataset done'.format(self.progress, self.total))
-
-
 # %% Dataset
 
 

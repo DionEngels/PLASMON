@@ -35,7 +35,7 @@ from scipy.optimize import leastsq
 # Own code
 import src.tt as fitting
 import src.figure_making as figuring
-from src.class_others import Dataset, normxcorr2
+from src.class_dataset_and_class_roi import Dataset, normxcorr2
 
 import matplotlib.pyplot as plt
 __self_made__ = True
