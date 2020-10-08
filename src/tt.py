@@ -38,7 +38,7 @@ from scipy.ndimage import median_filter  # for correlation with experiment
 
 import src.mbx_fortran as fortran_linalg  # for fast self-made operations for Gaussian fitter
 import src.mbx_fortran_tools as fortran_tools  # for fast self-made general operations
-from src.class_dataset_roi import Dataset  # base dataset
+from src.class_others import Dataset  # base dataset
 from src.tools import change_to_nm
 from src.drift_correction import DriftCorrector
 
@@ -67,7 +67,8 @@ class TimeTrace(Dataset):
 
     def prepare_run(self, settings):
         check = self.experiment.proceed_question("OK", "Cancel", "Are you sure?",
-                                                 "Fitting may take a while. Are you sure everything is set up correctly?")
+                                                 "You cannot change settings later. "
+                                                 "Are you sure everything is set up correctly?")
         if not check:
             return
 
@@ -127,7 +128,7 @@ class TimeTrace(Dataset):
                                                                             self.fitter.roi_size_1D,
                                                                             self.roi_offset)}
         
-        self.experiment.progress_function(message="Starting drift correction")
+        self.experiment.progress_updater.message("Starting drift correction")
         self.drift_corrector = DriftCorrector(self.settings['method'])
         self.drift_corrector.main(self.active_rois, self.name_result, len(self.time_axis))
 
@@ -418,9 +419,6 @@ class Gaussian:
         if f0.ndim != 1:
             raise ValueError("`fun` must return at most 1-d array_like.")
 
-        # if not np.all(np.isfinite(f0)):
-        #     raise ValueError("Residuals are not finite in the initial point.")
-
         result = self.call_minpack(fun_wrapped, x0, data, ftol, xtol, gtol,
                                    max_nfev, self.x_scale)
 
@@ -614,7 +612,7 @@ class Gaussian:
                 tot_fits += n_fits
 
             if frame_index % (round(n_frames / 10, 0)) == 0:
-                dataset.experiment.progress_function(progress=frame_index + 1, total=n_frames)
+                dataset.experiment.progress_updater.status(frame_index, n_frames)
 
         return self.result
 
@@ -862,7 +860,7 @@ class Phasor:
 
             if len(self.roi_locations) > 10:
                 if roi.index % (round(len(self.roi_locations) / 10, 0)) == 0:
-                    dataset.experiment.progress_function(progress=roi.index + 1, total=len(self.roi_locations))
+                    dataset.experiment.progress_updater.status(roi.index, len(self.roi_locations))
 
 # %% Dumb phasor ROI loop
 

@@ -35,7 +35,7 @@ from scipy.optimize import leastsq
 # Own code
 import src.tt as fitting
 import src.figure_making as figuring
-from src.class_dataset_roi import Dataset, normxcorr2
+from src.class_others import Dataset, normxcorr2
 
 import matplotlib.pyplot as plt
 __self_made__ = True
@@ -93,6 +93,12 @@ class HSMDataset(Dataset):
                     wavelength_list.extend(np.arange(range_split[0], range_split[2] + range_split[1], range_split[1]))
 
             return np.asarray(wavelength_list)
+
+        check = self.experiment.proceed_question("OK", "Cancel", "Are you sure?",
+                                                 "You cannot change settings later. "
+                                                 "Are you sure everything is set up correctly?")
+        if not check:
+            return
 
         self.settings = settings
         self.correction_file = settings['correction_file']
@@ -225,7 +231,7 @@ class HSMDataset(Dataset):
 
         # %% Fit every ROI for every frame
 
-        for roi in self.active_rois:
+        for roi_index, roi in enumerate(self.active_rois):
             raw_intensity = np.zeros(self.frames.shape[0])
             intensity = np.zeros(self.frames.shape[0])
             hsm_result = np.zeros(3)
@@ -264,6 +270,9 @@ class HSMDataset(Dataset):
             result_dict = {"type": self.type, "result": hsm_result, "fit_parameters": result,
                            "raw_intensity": raw_intensity, "intensity": intensity, "raw": frame_stack}
             roi.results[self.name_result] = result_dict
+
+            if roi_index % (round(len(self.active_rois) / 5, 0)) == 0:
+                self.experiment.progress_updater.status(roi_index, len(self.active_rois))
 
     def fit_lorentzian(self, scattering, wavelength, split=False, verbose=False):
         """

@@ -44,6 +44,7 @@ import matplotlib.pylab as plt
 # v2
 
 from src.class_experiment import Experiment
+from src.class_others import ProgressUpdater
 import src.figure_making as figuring
 
 __self_made__ = True
@@ -95,7 +96,7 @@ def show_rois(frame, roi_locations=None, roi_size=None):
 # %% Main loop cell
 
 
-experiment = Experiment("TT", tt_name, proceed_question, progress_function, show_rois)
+experiment = Experiment("TT", tt_name, proceed_question, ProgressUpdater(), show_rois)
 
 experiment.show_rois("Experiment")
 

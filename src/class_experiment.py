@@ -32,14 +32,14 @@ __self_made__ = True
 
 class Experiment:
 
-    def __init__(self, created_by, filename, proceed_question, progress_function, show_rois):
+    def __init__(self, created_by, filename, proceed_question, progress_updater, show_rois):
         self.created_by = created_by
         self.directory = filename
         self.name = None
         self.datasets = []
         self.settings = None
         self.proceed_question = proceed_question
-        self.progress_function = progress_function
+        self.progress_updater = progress_updater
         self.show_rois_func = show_rois
 
         nd2 = ND2ReaderSelf(filename)
@@ -111,23 +111,30 @@ class Experiment:
 
     def run(self):
 
+        self.progress_updater.start(len(self.datasets))
+
         for dataset in self.datasets:
+            self.progress_updater.new_dataset(dataset.type)
             dataset.run()
 
         self.save()
 
     def save(self):
-        self.progress_function(message="Starting saving")
+        self.progress_updater.message("Starting saving")
         settings = self.settings_to_dict()
         outputting.save_settings(self.directory, settings)
 
+        self.progress_updater.message("Saving overview")
         figuring.save_overview(self)
         if self.settings['All Figures'] is True:
+            self.progress_updater.message("Saving individual figures")
             figuring.individual_figures(self)
 
+        self.progress_updater.message("Converting to MATLAB coordinate system")
         tools.convert_to_matlab(self)
         results = self.rois_to_dict()
         metadata = self.metadata_to_dict()
+        self.progress_updater.message("Saving to .mat")
         outputting.save_to_mat(self.directory, "Results", results)
         outputting.save_to_mat(self.directory, "Metadata", metadata)
 
