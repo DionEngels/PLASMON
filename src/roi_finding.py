@@ -25,7 +25,7 @@ v1.2: find max_its
 
 """
 import src.tt as fitting
-from src.class_dataset_roi import Roi
+from src.class_others import Roi
 
 import numpy as np  # for linear algebra
 from scipy.signal import convolve2d
