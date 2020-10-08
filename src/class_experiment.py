@@ -117,6 +117,14 @@ class Experiment:
             self.progress_updater.new_dataset(dataset.type)
             dataset.run()
 
+            # clear memory
+            try:
+                dataset.frames.close()
+            except:
+                pass
+            dataset.frames = None
+
+
         self.save()
 
     def save(self):
