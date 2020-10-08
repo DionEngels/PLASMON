@@ -51,6 +51,17 @@ class Roi:
             in_frame_boolean = True
 
         return in_frame_boolean
+
+# %% Progress updater non-GUI
+
+
+class ProgressUpdater:
+    def __init__(self):
+        self.current_type = None
+        self.current_dataset = None
+        self.total_
+
+
 # %% Dataset
 
 
@@ -59,7 +70,7 @@ class Dataset:
         self.type = "Dataset"
         self.experiment = experiment
         self.name = name
-        self.name_result = 'res_{}'.format(self.name)
+        self.name_result = 'res_{}'.format(self.name.replace(' ', '_'))
         self.frames = None
         self.frame_for_rois = None
         self.metadata = None
