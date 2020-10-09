@@ -61,7 +61,7 @@ NAME = "test_v2"
 fit_options = ["Gaussian - Fit bg", "Gaussian - Estimate bg",
                "Phasor + Intensity", "Phasor + Sum", "Phasor"]
 
-ALL_FIGURES = False
+ALL_FIGURES = True
 METHOD = "Gaussian - Fit bg"
 THRESHOLD_METHOD = "Loose"  # "Loose", or "None"
 CORRECTION = "SN_objTIRF_PFS_510-800"  # "Matej_670-890"
@@ -164,7 +164,7 @@ settings_runtime = {'method': METHOD, 'rejection': THRESHOLD_METHOD, '#cores': 1
                     'frame_begin': FRAME_BEGIN, 'frame_end': FRAME_END}
 
 status = experiment.add_to_queue(settings_runtime)
-if not status:
+if status is False:
     sys.exit("Did not pass check")
 
 # %% Add HSM
@@ -179,7 +179,7 @@ experiment.find_rois_dataset(settings_correlation_hsm)
 settings_runtime_hsm = {'correction_file': CORRECTION, 'wavelengths': '[510:10:740]'}
 
 experiment.add_to_queue(settings_runtime_hsm)
-if not status:
+if status is False:
     sys.exit("Did not pass check")
 
 experiment.run()
