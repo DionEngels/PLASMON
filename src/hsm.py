@@ -33,7 +33,7 @@ import mat73
 
 # Scipy for signal processing
 from scipy.ndimage import median_filter
-from scipy.optimize import leastsq
+from scipy.optimize import least_squares
 
 # Own code
 import src.tt as fitting
@@ -335,24 +335,31 @@ class HSMDataset(Dataset):
         init_1w = abs(2 / (np.pi * max_sca) * np.trapz(scattering, wavelength_ev))
         init_guess = [min_sca, min_sca * init_1w / (2 * np.pi), wavelength_ev[idx_max], init_1w]
 
-        result, cov_x, res_dict, mesg, ier = leastsq(error_func, init_guess, args=(wavelength_ev, scattering),
-                                                     full_output=True)
+        result_full = least_squares(error_func, init_guess, args=(wavelength_ev, scattering))
+        result = result_full.x
         result[3] = abs(result[3])
         r_squared = find_r_squared(lorentzian, result, wavelength_ev, scattering)
 
         # if bad fit, try standard values
         if r_squared < 0.9:
-            result_std, cov_x_std, res_dict_std, mesg_std, ier_std = leastsq(error_func,
-                                                                             [-10, 100,
-                                                                              1248 / wavelength_ev[idx_max],
-                                                                              0.15],
-                                                                             args=(wavelength_ev, scattering),
-                                                                             full_output=True)
+            result_full_std = least_squares(error_func, [-10, 100, 1248 / wavelength_ev[idx_max], 0.15],
+                                            args=(wavelength_ev, scattering))
+            result_std = result_full_std.x
             result_std[3] = abs(result_std[3])
             r_squared_std = find_r_squared(lorentzian, result_std, wavelength_ev, scattering)
             if r_squared_std > r_squared:
                 result = result_std
                 r_squared = r_squared_std
+
+        # random try if bad fit
+        if r_squared < 0.9:
+            result_full_base = least_squares(error_func, [0, 1, 600, 1], args=(wavelength_ev, scattering))
+            result_base = result_full_base.x
+            result_base[3] = abs(result_base[3])
+            r_squared_base = find_r_squared(lorentzian, result_base, wavelength_ev, scattering)
+            if r_squared_base > r_squared:
+                result = result_base
+                r_squared = r_squared_base
 
         # if r_squared is too low, split
         if r_squared < 0.9 and split is False:
