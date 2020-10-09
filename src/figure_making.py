@@ -26,6 +26,7 @@ from math import ceil, floor
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+from matplotlib.lines import Line2D
 from matplotlib.gridspec import GridSpec
 
 __self_made__ = True
@@ -38,11 +39,12 @@ def plot_rois(ax, frame, roi_locations=None, roi_size=None, roi_offset=[0, 0], f
 
     Parameters
     ----------
-    ax: axis to plot to
-    frame : frame to plot
-    roi_locations : locations to draw box around
-    roi_size : Size of boxes to draw
-    font_size: size of font of roi number
+    :param ax: axis to plot to
+    :param frame : frame to plot
+    :param roi_locations : locations to draw box around
+    :param roi_size : Size of boxes to draw
+    :param roi_offset: offset of the dataset compared to experiment ROIs
+    :param font_size: size of font of roi number
 
     Returns
     -------
@@ -118,12 +120,17 @@ def make_tt_scatter(ax, result, event_or_not_boolean, dataset):
     x_pos_event = result[event_or_not_boolean, 2]
 
     if len(y_pos_event) != 0:
-        ax.scatter(x_pos_event, y_pos_event, label='events')
+        ax.scatter(x_pos_event, y_pos_event, color='red')
     if len(y_pos) != 0:
-        ax.scatter(x_pos, y_pos, label='non-events')
+        ax.scatter(x_pos, y_pos, color='#1f77b4')
+
+    legend_events = Line2D([0], [0], marker='o', color='w', label='events',
+                           markerfacecolor='red', markersize=10)
+    legend_non_events = Line2D([0], [0], marker='o', color='w', label='non-events',
+                               markerfacecolor='#1f77b4', markersize=10)
 
     ax.axis('equal')
-    ax.legend()
+    ax.legend(handles=[legend_events, legend_non_events])
 
     if dataset.settings['pixels_or_nm'] == 'nm':
         ax.set_xlabel('x-position (nm)')
