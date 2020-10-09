@@ -35,6 +35,7 @@ import numpy as np  # general mathematics + arrays
 
 from scipy.optimize import _minpack, OptimizeResult  # for Gaussian fitter
 from scipy.ndimage import median_filter  # for correlation with experiment
+from scipy.stats import norm
 
 import src.mbx_fortran as fortran_linalg  # for fast self-made operations for Gaussian fitter
 import src.mbx_fortran_tools as fortran_tools  # for fast self-made general operations
@@ -80,11 +81,10 @@ class TimeTrace(Dataset):
                 return False
             settings['#cores'] = 1
 
-        # TO WRITE FUNCTION FOR
-        max_its = 300
         self.n_cores = settings['#cores']
         self.slice, _ = self.parse_start_end(settings['frame_begin'], settings['frame_end'])
         self.settings = settings
+        max_its = self.find_max_its()
 
         if settings['method'] == "Phasor + Intensity":
             self.fitter = Phasor(settings, self.roi_offset)
@@ -98,6 +98,31 @@ class TimeTrace(Dataset):
             self.settings['max_its'] = max_its
         else:
             self.fitter = PhasorSum(settings, self.roi_offset)
+
+    def find_max_its(self):
+        first_frame_index = self.slice.indices(3)[0]
+        first_frame = np.asarray(self.frames[first_frame_index])
+
+        fitter_tmp = GaussianBackground({'roi_size': 7, 'rejection': 'Loose', 'method': "Gaussian - Fit bg"},
+                                        400, 6, self.roi_offset)
+        int_list = []
+
+        for roi in self.active_rois:
+            my_roi = roi.get_roi(first_frame, 3, self.roi_offset)
+            result, its, success = fitter_tmp.fit_gaussian(my_roi, roi.index)
+            int_list.append(result[0])
+
+        mu, std = norm.fit(int_list)
+        intensity_list2 = np.asarray(int_list)[int_list < mu]
+        mu, std = norm.fit(intensity_list2)
+
+        if mu >= 2000:
+            max_its = 100
+        else:
+            int_under_which_more_its_are_needed = 2000
+            max_its = np.ceil((int_under_which_more_its_are_needed - mu) / 1000) * 100 + 100
+
+        return max_its
 
     def run(self):
         frames_to_fit = np.asarray(self.frames[self.slice])
