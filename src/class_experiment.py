@@ -124,7 +124,6 @@ class Experiment:
                 pass
             dataset.frames = None
 
-
         self.save()
 
     def save(self):

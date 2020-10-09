@@ -255,6 +255,8 @@ def save_overview(experiment):
     name = path + "/" + "_Overview.png"
     plt.tight_layout()
     fig.savefig(name, bbox_inches='tight')
+    fig.clear()
+    plt.close(fig)
 
 
 def individual_figures(experiment):
@@ -303,3 +305,5 @@ def individual_figures(experiment):
         name = path + "/" + "ROI" + str(roi.index+1)+".png"
         plt.tight_layout()
         fig.savefig(name, bbox_inches='tight')
+        fig.clear()
+        plt.close(fig)
