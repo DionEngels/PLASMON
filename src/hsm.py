@@ -24,6 +24,9 @@ v1.0: Working as desired and as in SPectrA: 29/09/2020
 import os
 import numpy as np
 
+from warnings import warn
+from src.warnings import InputWarning
+
 # I/O
 from scipy.io import loadmat
 import mat73
@@ -116,7 +119,8 @@ class HSMDataset(Dataset):
         if check_correct_chars(settings['wavelengths']):
             self.wavelengths = parse_string_to_numpy_array(settings['wavelengths'])
         else:
-            raise ValueError("wavelengths not numbers")
+            warn("Wavelengths input not valid", InputWarning)
+            return False
 
     # %% Correct for drift between frames
     def hsm_drift(self, verbose=False):

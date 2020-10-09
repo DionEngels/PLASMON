@@ -15,7 +15,8 @@ v1.0: split from tools and new version with only nd2reader and no longer nd2_rea
 v1.1: None prevention: 10/08/2020
 
 """
-
+from warnings import warn
+from src.warnings import DataWarning
 from pims_nd2 import ND2_Reader
 from nd2reader import ND2Reader
 from nd2reader.parser import Parser
@@ -57,7 +58,7 @@ class ND2ReaderForMetadata(ND2Reader):
             metadata_dict['z_levels'] = list(metadata_dict.pop('z_levels'))
             metadata_dict['z_coordinates'] = metadata_dict.pop('z_coordinates')
         except Exception:
-            pass
+            warn("Z-levels missing from metadata", DataWarning)
         metadata_dict.pop('frames', None)
         metadata_dict.pop('date', None)
 
@@ -65,20 +66,20 @@ class ND2ReaderForMetadata(ND2Reader):
             metadata_dict['pfs_status'] = self._parser._raw_metadata.pfs_status
             metadata_dict['pfs_offset'] = self._parser._raw_metadata.pfs_offset
         except Exception:
-            pass
+            warn("PFS data missing from metadata", DataWarning)
 
         try:
             metadata_dict['timesteps'] = self.timesteps
             metadata_dict['frame_rate'] = self.frame_rate
         except Exception:
-            pass
+            warn("Timestep data missing from metadata", DataWarning)
 
         try:
             info_to_parse = self.parser._raw_metadata.image_text_info
             metadata_text_dict = self.parse_text_info(info_to_parse)
             metadata_dict = {**metadata_dict, **metadata_text_dict}
         except Exception:
-            pass
+            warn("Detailed metadata missing", DataWarning)
 
         try:
             info_to_parse = self.parser._raw_metadata.image_metadata_sequence
@@ -91,7 +92,7 @@ class ND2ReaderForMetadata(ND2Reader):
                 pass
             metadata_dict['Others'] = metadata_dict_sequence
         except Exception:
-            pass
+            warn("Raw metadata missing", DataWarning)
 
         for key, value in metadata_dict.items(): # prevent None values by making None string
             if value is None:

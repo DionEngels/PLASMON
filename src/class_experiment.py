@@ -15,6 +15,8 @@ The experiment class of v2 of the program. Holds several datasets.
 from os import mkdir  # to get standard usage
 import numpy as np
 
+from warnings import warn
+
 # OWN CODE
 
 from src.nd2_reading import ND2ReaderSelf
@@ -131,11 +133,18 @@ class Experiment:
         settings = self.settings_to_dict()
         outputting.save_settings(self.directory, settings)
 
-        self.progress_updater.message("Saving overview")
-        figuring.save_overview(self)
+        try:
+            self.progress_updater.message("Saving overview")
+            figuring.save_overview(self)
+        except:
+            warn("Overview figure creation failed", RuntimeWarning)
+
         if self.settings['All Figures'] is True:
-            self.progress_updater.message("Saving individual figures")
-            figuring.individual_figures(self)
+            try:
+                self.progress_updater.message("Saving individual figures")
+                figuring.individual_figures(self)
+            except:
+                warn("Individual figure creation failed", RuntimeWarning)
 
         self.progress_updater.message("Converting to MATLAB coordinate system")
         tools.convert_to_matlab(self)

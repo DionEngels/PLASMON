@@ -36,6 +36,7 @@ v1.0: bugfixes and release: 07/08/2020
 # GENERAL IMPORTS
 import time  # for timekeeping
 import sys
+import warnings  # for warning diversion
 
 # Numpy and matplotlib, for linear algebra and plotting respectively
 import numpy as np
@@ -45,6 +46,7 @@ import matplotlib.pylab as plt
 
 from src.class_experiment import Experiment
 import src.figure_making as figuring
+from src.warnings import InputWarning
 
 __self_made__ = True
 
@@ -69,7 +71,7 @@ NM_OR_PIXELS = "nm"
 FRAME_BEGIN = "Leave empty for start"  # number or "Leave empty for start"
 FRAME_END = 10  # number or "Leave empty for end"
 
-# %% GUI-less specific
+# %% Proceed question
 
 
 def proceed_question(option1, option2, title, text):
@@ -124,6 +126,54 @@ class ProgressUpdater:
         else:
             print('{} of {} of current dataset done'.format(self.progress, self.total))
 
+# %% Divert errors
+
+
+class DivertError:
+    def error(self, *_):
+        traceback_details = self.extract_error()
+        self.show(True, traceback_details)
+
+    def warning(self, message, category, filename, lineno, file=None, line=None):
+        if category == InputWarning:
+            message = "Your input is shit"
+        else:
+            message = warnings.formatwarning(message, category, filename, lineno)
+            message = '\n'.join(message.split('\n')[:-2])
+        self.show(False, message)
+
+    @staticmethod
+    def extract_error():
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        while True:
+            try:
+                self_made = exc_traceback.tb_next.tb_frame.f_globals['__self_made__']
+            except:
+                self_made = None
+            if self_made is None:
+                break
+            elif self_made:
+                exc_traceback = exc_traceback.tb_next
+            else:
+                break
+        traceback_details = {
+            'filename': exc_traceback.tb_frame.f_code.co_filename,
+            'lineno': exc_traceback.tb_lineno,
+            'name': exc_traceback.tb_frame.f_code.co_name,
+            'type': exc_type.__name__,
+            'message': exc_value
+        }
+        return traceback_details
+
+    @staticmethod
+    def show(error, traceback_details):
+        if error:
+            print("\033[91m {}\033[00m".format(traceback_details))
+        else:
+            print("\033[93m {}\033[00m".format(traceback_details))
+
+# %% General plot
+
 
 def show_rois(frame, roi_locations=None, roi_size=None):
     fig, ax = plt.subplots(1)
@@ -132,6 +182,9 @@ def show_rois(frame, roi_locations=None, roi_size=None):
 
 # %% Main loop cell
 
+
+divertor = DivertError()
+warnings.showwarning = divertor.warning
 
 experiment = Experiment("TT", tt_name, proceed_question, ProgressUpdater(), show_rois)
 
