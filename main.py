@@ -120,7 +120,7 @@ class ProgressUpdater:
     def update(self, new_dataset):
         if new_dataset:
             print('Starting dataset {} of {}. Type: {}'.format(self.current_dataset, self.total_datasets,
-                                                              self.current_type))
+                                                               self.current_type))
         elif self.message_bool:
             print(self.message_string)
         else:
@@ -137,6 +137,8 @@ class DivertError:
     def warning(self, message, category, filename, lineno, file=None, line=None):
         if category == InputWarning:
             message = "Your input is shit"
+        elif "Z-levels details missing in metadata" in str(message):
+            return  # Only called by metadata loader, which is annoying, thus, not show
         else:
             message = warnings.formatwarning(message, category, filename, lineno)
             message = '\n'.join(message.split('\n')[:-2])
@@ -229,9 +231,9 @@ settings_correlation_hsm = {'x_min': "Leave empty for start", 'x_max': "Leave em
 
 experiment.find_rois_dataset(settings_correlation_hsm)
 
-settings_runtime_hsm = {'correction_file': CORRECTION, 'wavelengths': '[510:10:740]'}
+settings_runtime_hsm = {'correction_file': CORRECTION, 'wavelengths': '[q510:10:740]'}
 
-experiment.add_to_queue(settings_runtime_hsm)
+status = experiment.add_to_queue(settings_runtime_hsm)
 if status is False:
     sys.exit("Did not pass check")
 
