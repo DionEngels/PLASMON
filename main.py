@@ -163,7 +163,9 @@ settings_runtime = {'method': METHOD, 'rejection': THRESHOLD_METHOD, '#cores': 1
                     'roi_size': ROI_SIZE,
                     'frame_begin': FRAME_BEGIN, 'frame_end': FRAME_END}
 
-experiment.add_to_queue(settings_runtime)
+status = experiment.add_to_queue(settings_runtime)
+if not status:
+    sys.exit("Did not pass check")
 
 # %% Add HSM
 
@@ -177,5 +179,7 @@ experiment.find_rois_dataset(settings_correlation_hsm)
 settings_runtime_hsm = {'correction_file': CORRECTION, 'wavelengths': '[510:10:740]'}
 
 experiment.add_to_queue(settings_runtime_hsm)
+if not status:
+    sys.exit("Did not pass check")
 
 experiment.run()

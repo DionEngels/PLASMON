@@ -70,14 +70,14 @@ class TimeTrace(Dataset):
                                                  "You cannot change settings later. "
                                                  "Are you sure everything is set up correctly?")
         if not check:
-            return
+            return False
 
         if settings['#cores'] > 1 and "Phasor" in settings['method']:
             cores_check = self.experiment.proceed_question("ok_cancel", "Just a heads up",
                                                            """Phasor will be used with one core since the
             overhead only slows it down""")
             if not cores_check:
-                return
+                return False
             settings['#cores'] = 1
 
         # TO WRITE FUNCTION FOR

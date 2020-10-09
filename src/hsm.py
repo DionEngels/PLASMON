@@ -98,7 +98,7 @@ class HSMDataset(Dataset):
                                                  "You cannot change settings later. "
                                                  "Are you sure everything is set up correctly?")
         if not check:
-            return
+            return False
 
         self.settings = settings
         self.correction_file = settings['correction_file']
