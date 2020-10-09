@@ -109,7 +109,9 @@ class Experiment:
         self.datasets[-1].find_rois(settings)
 
     def add_to_queue(self, settings):
-        self.datasets[-1].prepare_run(settings)
+        status = self.datasets[-1].prepare_run(settings)
+        if status is False:
+            return status
 
     def run(self):
 

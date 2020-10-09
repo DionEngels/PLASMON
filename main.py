@@ -63,7 +63,7 @@ NAME = "test_v2"
 fit_options = ["Gaussian - Fit bg", "Gaussian - Estimate bg",
                "Phasor + Intensity", "Phasor + Sum", "Phasor"]
 
-ALL_FIGURES = True
+ALL_FIGURES = False
 METHOD = "Gaussian - Fit bg"
 THRESHOLD_METHOD = "Loose"  # "Loose", or "None"
 CORRECTION = "SN_objTIRF_PFS_510-800"  # "Matej_670-890"
@@ -231,7 +231,7 @@ settings_correlation_hsm = {'x_min': "Leave empty for start", 'x_max': "Leave em
 
 experiment.find_rois_dataset(settings_correlation_hsm)
 
-settings_runtime_hsm = {'correction_file': CORRECTION, 'wavelengths': '[q510:10:740]'}
+settings_runtime_hsm = {'correction_file': CORRECTION, 'wavelengths': '[510:10:740]'}
 
 status = experiment.add_to_queue(settings_runtime_hsm)
 if status is False:
