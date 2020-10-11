@@ -81,8 +81,9 @@ class TimeTrace(Dataset):
                 return False
             settings['#cores'] = 1
 
+        new_name = settings.pop('name', self.name)
+        self.set_name(new_name)
         self.settings = settings
-        self.set_name(settings['name'])
 
         self.n_cores = settings['#cores']
         self.slice, _ = self.parse_start_end(settings['frame_begin'], settings['frame_end'])

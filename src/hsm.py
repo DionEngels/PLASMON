@@ -103,8 +103,10 @@ class HSMDataset(Dataset):
         if not check:
             return False
 
+        new_name = settings.pop('name', self.name)
+        self.set_name(new_name)
         self.settings = settings
-        self.set_name(settings['name'])
+
         self.correction_file = settings['correction_file']
         path = os.getcwd()
         path += ("/spectral_corrections/" + settings['correction_file'] + ".mat")
