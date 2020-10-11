@@ -175,7 +175,7 @@ class Experiment:
         for dataset in self.datasets:
             settings_dict[dataset.name] = dataset.settings
             # add type, filename to the front
-            settings_dict[dataset.name] = {**{'Type': dataset.type}, **{'Type': dataset.filename},
+            settings_dict[dataset.name] = {**{'Type': dataset.type}, **{'filename': dataset.filename},
                                            **settings_dict[dataset.name]}
             settings_dict[dataset.name]['Offset'] = dataset.roi_offset
 
