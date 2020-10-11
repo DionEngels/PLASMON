@@ -217,7 +217,7 @@ experiment.find_rois_dataset(settings_correlation)
 experiment.show_rois("Dataset")
 
 settings_runtime = {'method': METHOD, 'rejection': THRESHOLD_METHOD, '#cores': 1, "pixels_or_nm": NM_OR_PIXELS,
-                    'roi_size': ROI_SIZE,
+                    'roi_size': ROI_SIZE, 'name': '1nMimager_newGNRs_100mW_TT',
                     'frame_begin': FRAME_BEGIN, 'frame_end': FRAME_END}
 
 status = experiment.add_to_queue(settings_runtime)
@@ -235,7 +235,8 @@ experiment.find_rois_dataset(settings_correlation_hsm)
 
 experiment.show_rois("Dataset")
 
-settings_runtime_hsm = {'correction_file': CORRECTION, 'wavelengths': '[510:10:740]'}
+settings_runtime_hsm = {'correction_file': CORRECTION, 'wavelengths': '[510:10:740]',
+                        'name': '1nMimager_newGNRs_100mW_HSM'}
 
 status = experiment.add_to_queue(settings_runtime_hsm)
 if status is False:

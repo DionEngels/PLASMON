@@ -128,6 +128,10 @@ class Dataset:
                                                                                 self.experiment.
                                                                                 roi_finder.side_distance)]
 
+    def set_name(self, new_name):
+        self.name = new_name
+        self.name_result = 'res_{}'.format(self.name.replace(' ', '_'))
+
 # %% correlation
 
 

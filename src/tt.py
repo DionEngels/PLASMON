@@ -81,9 +81,11 @@ class TimeTrace(Dataset):
                 return False
             settings['#cores'] = 1
 
+        self.settings = settings
+        self.set_name(settings['name'])
+
         self.n_cores = settings['#cores']
         self.slice, _ = self.parse_start_end(settings['frame_begin'], settings['frame_end'])
-        self.settings = settings
         max_its = self.find_max_its()
 
         if settings['method'] == "Phasor + Intensity":
