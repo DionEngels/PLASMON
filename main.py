@@ -186,60 +186,60 @@ def show_rois(frame, roi_locations=None, roi_size=None, roi_offset=None):
 
 # %% Main loop cell
 
+if __name__ == '__main__':
+    divertor = DivertError()
+    warnings.showwarning = divertor.warning
 
-divertor = DivertError()
-warnings.showwarning = divertor.warning
+    experiment = Experiment("TT", tt_name, proceed_question, ProgressUpdater(), show_rois)
 
-experiment = Experiment("TT", tt_name, proceed_question, ProgressUpdater(), show_rois)
+    experiment.show_rois("Experiment")
 
-experiment.show_rois("Experiment")
+    defaults = experiment.roi_finder.get_settings()
 
-defaults = experiment.roi_finder.get_settings()
+    settings_rois = {'int_max': np.inf, 'int_min': 0,
+                     'sigma_min': 0, 'sigma_max': int((ROI_SIZE - 1) / 2),
+                     'corr_min': 0.05, 'roi_size': ROI_SIZE, 'filter_size': 9,
+                     'roi_side': 11, 'inter_roi': 9}
 
-settings_rois = {'int_max': np.inf, 'int_min': 0,
-                 'sigma_min': 0, 'sigma_max': int((ROI_SIZE - 1) / 2),
-                 'corr_min': 0.05, 'roi_size': ROI_SIZE, 'filter_size': 9,
-                 'roi_side': 11, 'inter_roi': 9}
+    experiment.change_rois(settings_rois)
 
-experiment.change_rois(settings_rois)
+    experiment.show_rois("Experiment")
 
-experiment.show_rois("Experiment")
+    settings_experiment = {'All Figures': ALL_FIGURES}
 
-settings_experiment = {'All Figures': ALL_FIGURES}
+    experiment.finalize_rois(NAME, settings_experiment)
 
-experiment.finalize_rois(NAME, settings_experiment)
-
-settings_correlation = {'x_min': "Leave empty for start", 'x_max': "Leave empty for end",
-                        'y_min': "Leave empty for start", 'y_max': "Leave empty for end"}
-
-experiment.find_rois_dataset(settings_correlation)
-
-experiment.show_rois("Dataset")
-
-settings_runtime = {'method': METHOD, 'rejection': THRESHOLD_METHOD, '#cores': 1, "pixels_or_nm": NM_OR_PIXELS,
-                    'roi_size': ROI_SIZE, 'name': '1nMimager_newGNRs_100mW_TT',
-                    'frame_begin': FRAME_BEGIN, 'frame_end': FRAME_END}
-
-status = experiment.add_to_queue(settings_runtime)
-if status is False:
-    sys.exit("Did not pass check")
-
-# %% Add HSM
-
-experiment.init_new_hsm(hsm_name)
-
-settings_correlation_hsm = {'x_min': "Leave empty for start", 'x_max': "Leave empty for end",
+    settings_correlation = {'x_min': "Leave empty for start", 'x_max': "Leave empty for end",
                             'y_min': "Leave empty for start", 'y_max': "Leave empty for end"}
 
-experiment.find_rois_dataset(settings_correlation_hsm)
+    experiment.find_rois_dataset(settings_correlation)
 
-experiment.show_rois("Dataset")
+    experiment.show_rois("Dataset")
 
-settings_runtime_hsm = {'correction_file': CORRECTION, 'wavelengths': '[510:10:740]',
-                        'name': '1nMimager_newGNRs_100mW_HSM'}
+    settings_runtime = {'method': METHOD, 'rejection': THRESHOLD_METHOD, '#cores': 1, "pixels_or_nm": NM_OR_PIXELS,
+                        'roi_size': ROI_SIZE, 'name': '1nMimager_newGNRs_100mW_TT',
+                        'frame_begin': FRAME_BEGIN, 'frame_end': FRAME_END}
 
-status = experiment.add_to_queue(settings_runtime_hsm)
-if status is False:
-    sys.exit("Did not pass check")
+    status = experiment.add_to_queue(settings_runtime)
+    if status is False:
+        sys.exit("Did not pass check")
 
-experiment.run()
+    # %% Add HSM
+
+    experiment.init_new_hsm(hsm_name)
+
+    settings_correlation_hsm = {'x_min': "Leave empty for start", 'x_max': "Leave empty for end",
+                                'y_min': "Leave empty for start", 'y_max': "Leave empty for end"}
+
+    experiment.find_rois_dataset(settings_correlation_hsm)
+
+    experiment.show_rois("Dataset")
+
+    settings_runtime_hsm = {'correction_file': CORRECTION, 'wavelengths': '[510:10:740]',
+                            'name': '1nMimager_newGNRs_100mW_HSM'}
+
+    status = experiment.add_to_queue(settings_runtime_hsm)
+    if status is False:
+        sys.exit("Did not pass check")
+
+    experiment.run()
