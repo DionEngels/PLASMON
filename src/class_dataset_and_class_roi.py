@@ -60,6 +60,7 @@ class Dataset:
         self.type = "Dataset"
         self.experiment = experiment
         self.name = name
+        self.filename = name
         self.name_result = 'res_{}'.format(self.name.replace(' ', '_'))
         self.frames = None
         self.frame_for_rois = None

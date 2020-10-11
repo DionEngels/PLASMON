@@ -13,6 +13,8 @@ warnings
 Holds some warnings I can raise during runtime
 """
 
+__self_made__ = True
+
 
 class InputWarning(UserWarning):  # class for input warnings, when the user inputs something stupid
     pass
