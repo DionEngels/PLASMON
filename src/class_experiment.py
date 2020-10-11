@@ -44,14 +44,11 @@ class Experiment:
         self.progress_updater = progress_updater
         self.show_rois_func = show_rois
 
-        nd2 = ND2ReaderSelf(filename)
-
         if created_by == 'HSM':
             self.init_new_hsm(filename)
-            self.frame_for_rois = np.asarray(self.datasets[-1].corrected_merged)
         elif created_by == 'TT':
             self.init_new_tt(filename)
-            self.frame_for_rois = np.asarray(nd2[0])
+        self.frame_for_rois = self.datasets[-1].frame_for_rois
         self.roi_finder = RoiFinder(self.frame_for_rois)
         self.rois = self.roi_finder.main()
 
@@ -74,7 +71,7 @@ class Experiment:
             self.show_rois_func(self.frame_for_rois, roi_locations=self.rois, roi_size=self.roi_finder.roi_size)
         elif experiment_or_dataset == "Dataset":
             self.show_rois_func(self.datasets[-1].frame_for_rois, roi_locations=self.datasets[-1].active_rois,
-                                roi_size=self.roi_finder.roi_size)
+                                roi_size=self.roi_finder.roi_size, roi_offset=self.datasets[-1].roi_offset)
 
     def finalize_rois(self, name, experiment_settings):
         self.name = name

@@ -82,11 +82,17 @@ class Dataset:
 
     @staticmethod
     def correlate_frames(frame_old, frame_new):
+        # if same matrix
+        if np.array_equal(frame_new, frame_old):
+            return [0, 0]
+
+        # if same size
         if frame_old.shape == frame_new.shape:
             corr = normxcorr2(frame_old, frame_new)
             maxima = np.transpose(np.asarray(np.where(corr == np.amax(corr))))[0]
             offset = maxima - np.asarray(frame_old.shape) + np.asarray([1, 1])
         else:
+            # if not same size
             corr = normxcorr2_large(frame_old, frame_new)
             maxima = np.transpose(np.asarray(np.where(corr == np.amax(corr))))[0]
             offset = maxima - np.asarray(frame_old.shape) + np.asarray([1, 1])

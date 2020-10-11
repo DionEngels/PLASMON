@@ -58,7 +58,7 @@ class TimeTrace(Dataset):
         self.type = "TT"
         self.frames = nd2
         background = median_filter(np.asarray(nd2[0]), size=9)
-        self.frame_for_rois = np.asarray(nd2[0]).astype('float') - background
+        self.frame_for_rois = np.asarray(nd2[0]).astype(np.int32) - background
         self.metadata = nd2.get_metadata()
         self.time_axis = self.metadata['timesteps']
         self.slice = None

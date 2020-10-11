@@ -34,7 +34,7 @@ DPI = 400
 N_TICKS = 4
 
 
-def plot_rois(ax, frame, roi_locations=None, roi_size=None, roi_offset=[0, 0], font_size=None):
+def plot_rois(ax, frame, roi_locations=None, roi_size=None, roi_offset=None, font_size=None):
     """
 
     Parameters
@@ -51,6 +51,8 @@ def plot_rois(ax, frame, roi_locations=None, roi_size=None, roi_offset=[0, 0], f
     None.
 
     """
+    if roi_offset is None:
+        roi_offset = [0, 0]
     ax.imshow(frame, extent=[0, frame.shape[1], frame.shape[0], 0], aspect='auto')
     if roi_locations is not None and roi_size is not None:
         roi_size_1d = int((roi_size - 1) / 2)

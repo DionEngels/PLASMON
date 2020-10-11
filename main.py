@@ -177,9 +177,11 @@ class DivertError:
 # %% General plot
 
 
-def show_rois(frame, roi_locations=None, roi_size=None):
+def show_rois(frame, roi_locations=None, roi_size=None, roi_offset=None):
+    if roi_offset is None:
+        roi_offset = [0, 0]
     fig, ax = plt.subplots(1)
-    figuring.plot_rois(ax, frame, roi_locations, roi_size)
+    figuring.plot_rois(ax, frame, roi_locations, roi_size, roi_offset)
     plt.show()
 
 # %% Main loop cell
@@ -230,6 +232,8 @@ settings_correlation_hsm = {'x_min': "Leave empty for start", 'x_max': "Leave em
                             'y_min': "Leave empty for start", 'y_max': "Leave empty for end"}
 
 experiment.find_rois_dataset(settings_correlation_hsm)
+
+experiment.show_rois("Dataset")
 
 settings_runtime_hsm = {'correction_file': CORRECTION, 'wavelengths': '[510:10:740]'}
 
