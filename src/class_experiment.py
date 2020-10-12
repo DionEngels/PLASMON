@@ -68,9 +68,11 @@ class Experiment:
 
     def show_rois(self, experiment_or_dataset):
         if experiment_or_dataset == "Experiment":
-            self.show_rois_func(self.frame_for_rois, roi_locations=self.rois, roi_size=self.roi_finder.roi_size)
+            self.show_rois_func(experiment_or_dataset, self.frame_for_rois, roi_locations=self.rois,
+                                roi_size=self.roi_finder.roi_size)
         elif experiment_or_dataset == "Dataset":
-            self.show_rois_func(self.datasets[-1].frame_for_rois, roi_locations=self.datasets[-1].active_rois,
+            self.show_rois_func(experiment_or_dataset, self.datasets[-1].frame_for_rois,
+                                roi_locations=self.datasets[-1].active_rois,
                                 roi_size=self.roi_finder.roi_size, roi_offset=self.datasets[-1].roi_offset)
 
     def finalize_rois(self, name, experiment_settings):
