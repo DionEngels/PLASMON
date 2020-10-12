@@ -62,9 +62,10 @@ def convert_to_matlab(experiment):
         for roi in dataset.active_rois:
             if dataset.type == "TT":
                 roi.results[dataset.name_result]['result'] = \
-                    result_to_matlab(roi.results[dataset.name_result]['result'],
-                                     dataset.frame_for_rois.shape[0], dataset.settings['method'],
-                                     dataset.settings['pixels_or_nm'], dataset.metadata)
+                    result_to_matlab(roi.results[dataset.name_result]['result'], dataset.settings['method'])
+                roi.results[dataset.name_result]['result_post_drift'] = \
+                    result_to_matlab(roi.results[dataset.name_result]['result_post_drift'], dataset.settings['method'])
+                roi.results[dataset.name_result]['drift'] = switch_axis(roi.results[ dataset.name_result]['drift'])
                 roi.results[ dataset.name_result]['raw'] = raw_to_matlab(roi.results[ dataset.name_result]['raw'])
             elif dataset.type == "HSM":
                 roi.results[ dataset.name_result]['raw'] = raw_to_matlab(roi.results[ dataset.name_result]['raw'])
@@ -79,8 +80,6 @@ def offset_to_matlab(offset):
     new = offset
     new[1] = offset[0]
     new[0] = offset[1]
-    new[1] = -new[1]
-
     return new
 
 
@@ -102,17 +101,14 @@ def roi_to_matlab(roi, height):
     return roi.y, roi.index + 1
 
 
-def result_to_matlab(results, height, method, nm_or_pixels, metadata):
+def result_to_matlab(results, method):
     """
     Change from Python to MATLAB coordinates for results
 
     Parameters
     -----------------
     results: the results in Python coordinates
-    height: Height of microscope view
     method: to check whether or not sigmas also need to be changed
-    nm_or_pixels: whether or not the results are in pixels or nm
-    metadata: to get pixelsize
 
     Returns
     ------------------
@@ -120,7 +116,7 @@ def result_to_matlab(results, height, method, nm_or_pixels, metadata):
     """
     results[:, 0] += 1  # add one to frame counting
 
-    results[:, 1:3] = switch_axis_to_matlab_coordinates(results[:, 1:3], height, nm_or_pixels, metadata)  # switch x-y
+    results[:, 1:3] = switch_axis(results[:, 1:3])  # switch x-y
 
     if "Gaussian" in method:
         results[:, 4:6] = switch_axis(results[:, 4:6])  # switch sigma x-y if Gaussian
@@ -133,31 +129,6 @@ def raw_to_matlab(raw):
         raw = moveaxis(raw, 0, -1)
 
     return raw
-
-
-def switch_axis_to_matlab_coordinates(array, height, nm_or_pixels="pixels", metadata=None):
-    """
-    Change from Python to MATLAB coordinates for an x,y system
-
-    Parameters
-    -----------------
-    array: the array to be switched
-    height: Height of microscope view
-    nm_or_pixels: whether or not the results are in pixels or nm
-    metadata: to get pixelsize
-
-    Returns
-    ------------------
-    array: the array to MATLAB coordinates
-    """
-    array = switch_axis(array)
-    if nm_or_pixels == "nm":
-        pixelsize_nm = metadata['pixel_microns'] * 1000
-        array[:, 1] = height*pixelsize_nm - array[:, 1]
-    else:
-        array[:, 1] = height - array[:, 1]
-
-    return array
 
 
 def switch_axis(array):
@@ -177,24 +148,3 @@ def switch_axis(array):
     new[:, 1] = array[:, 0]
     new[:, 0] = array[:, 1]
     return new
-
-# OLD
-
-
-def roi_to_python_coordinates(roi_locs, height):
-    """
-    Change from MATLAB to Python coordinates for ROI locations
-
-    Parameters
-    -----------------
-    roi_locs: ROI locations
-    height: Height of microscope view
-
-    Returns
-    ------------------
-    results: the roi locations switched to MATLAB coordinates
-    """
-    roi_locs[:, 1] = height - roi_locs[:, 1]
-    roi_locs = switch_axis(roi_locs)
-
-    return roi_locs
