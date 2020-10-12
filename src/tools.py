@@ -25,7 +25,7 @@ v1.0.1: metadata goldmine found, to be implemented
 v1.1: emptied out: 09/08/2020
 
 """
-from numpy import zeros
+from numpy import zeros, moveaxis
 
 __self_made__ = True
 
@@ -65,8 +65,9 @@ def convert_to_matlab(experiment):
                     result_to_matlab(roi.results[dataset.name_result]['result'],
                                      dataset.frame_for_rois.shape[0], dataset.settings['method'],
                                      dataset.settings['pixels_or_nm'], dataset.metadata)
+                roi.results[ dataset.name_result]['raw'] = raw_to_matlab(roi.results[ dataset.name_result]['raw'])
             elif dataset.type == "HSM":
-                pass  # no correction needed for HSM
+                roi.results[ dataset.name_result]['raw'] = raw_to_matlab(roi.results[ dataset.name_result]['raw'])
             else:
                 pass
 
@@ -125,6 +126,13 @@ def result_to_matlab(results, height, method, nm_or_pixels, metadata):
         results[:, 4:6] = switch_axis(results[:, 4:6])  # switch sigma x-y if Gaussian
 
     return results
+
+
+def raw_to_matlab(raw):
+    if raw.ndim > 2:
+        raw = moveaxis(raw, 0, -1)
+
+    return raw
 
 
 def switch_axis_to_matlab_coordinates(array, height, nm_or_pixels="pixels", metadata=None):
