@@ -92,7 +92,6 @@ class ProgressUpdater:
         self.total_datasets = None
         self.progress = None
         self.total = None
-        self.message_bool = False
         self.message_string = None
 
     def start(self, n_datasets):
@@ -101,27 +100,24 @@ class ProgressUpdater:
         self.total_datasets = n_datasets
 
     def new_dataset(self, new_type):
-        self.message_bool = False
         self.current_type = new_type
         self.current_dataset += 1
-        self.update(True)
+        self.update(True, False)
 
     def status(self, progress, total):
-        self.message_bool = False
         self.progress = progress + 1
         self.total = total
-        self.update(False)
+        self.update(False, False)
 
     def message(self, message_string):
-        self.message_bool = True
         self.message_string = message_string
-        self.update(False)
+        self.update(False, True)
 
-    def update(self, new_dataset):
+    def update(self, new_dataset, message_bool):
         if new_dataset:
             print('Starting dataset {} of {}. Type: {}'.format(self.current_dataset, self.total_datasets,
                                                                self.current_type))
-        elif self.message_bool:
+        elif message_bool:
             print(self.message_string)
         else:
             print('{} of {} of current dataset done'.format(self.progress, self.total))
@@ -177,7 +173,7 @@ class DivertError:
 # %% General plot
 
 
-def show_rois(frame, roi_locations=None, roi_size=None, roi_offset=None):
+def show_rois(_, frame, roi_locations=None, roi_size=None, roi_offset=None):
     if roi_offset is None:
         roi_offset = [0, 0]
     fig, ax = plt.subplots(1)
@@ -185,6 +181,7 @@ def show_rois(frame, roi_locations=None, roi_size=None, roi_offset=None):
     plt.show()
 
 # %% Main loop cell
+
 
 if __name__ == '__main__':
     divertor = DivertError()
