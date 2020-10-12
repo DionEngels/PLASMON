@@ -46,7 +46,7 @@ from tkinter import ttk  # GUI styling
 from tkinter.filedialog import askopenfilename, askdirectory  # for popup that asks to select .nd2's or folders
 
 # Own code v2
-from main import DivertError
+from main import DivertError, ProgressUpdater
 from src.class_experiment import Experiment
 import src.figure_making as figuring
 from src.warnings import InputWarning
@@ -139,7 +139,6 @@ class FigureFrame(tk.Frame):
     """
     Frame in which Figure sits.
     """
-
     def __init__(self, parent, height=None, width=None, dpi=DPI):
         tk.Frame.__init__(self, parent, height=height + 40, width=width,
                           highlightbackground="black", highlightthickness=2)
@@ -160,7 +159,7 @@ class FigureFrame(tk.Frame):
         self.toolbar.update()
         self.toolbar.configure(background="White")
 
-    def updater(self, frame, roi_locations=None, roi_size=None):
+    def updater(self, frame, roi_locations=None, roi_size=None, roi_offset=None):
         """
         Updater. Takes existing frame with figure and places new figure in it
 
@@ -169,25 +168,18 @@ class FigureFrame(tk.Frame):
         frame : New frame to be shown
         roi_locations : optional, possible ROI locations to be highlighted. The default is None.
         roi_size : optional, ROI size in case ROIs are highlighted. The default is None.
+        roi_offset: offset compared to ROI frame
 
         Returns
         -------
         Updated figure.
 
         """
+        if roi_offset is None:
+            roi_offset = [0, 0]
         self.fig.clear()
         fig_sub = self.fig.add_subplot(111)
-        fig_sub.imshow(frame, extent=[0, frame.shape[1], frame.shape[0], 0], aspect='auto')
-
-        if roi_locations is not None and roi_size is not None:
-            roi_locations_temp = roi_locations - roi_size
-
-            for roi_index, roi in enumerate(roi_locations_temp):
-                rect = patches.Rectangle((roi[1], roi[0]), roi_size * 2 + 1, roi_size * 2 + 1,
-                                         linewidth=0.5, edgecolor='r', facecolor='none')
-                fig_sub.add_patch(rect)
-                fig_sub.text(roi[1], roi[0], str(roi_index+1), color='red', fontsize='small')
-
+        figuring.plot_rois(fig_sub, frame, roi_locations, roi_size, roi_offset)
         self.canvas.draw()
         self.toolbar.update()
 
@@ -326,6 +318,73 @@ class NormalLabel:
             text = self.text
         self._label['text'] = text
 
+# %% Progress Updater
+
+
+class ProgressUpdaterGUI(ProgressUpdater):
+    def __init__(self, gui, progress_task_status, progress_overall_status, current_task_status, time_done_status):
+        super().__init__()
+        self.gui = gui
+        self.progress_task_status = progress_task_status
+        self.progress_overall_status = progress_overall_status
+        self.current_task_status = current_task_status
+        self.time_done_status = time_done_status
+        self.start_time = time.time()
+
+    def update(self, new_dataset, message_bool):
+        if new_dataset:
+            self.progress_task_status.updater(text="0%")
+            self.progress_overall_status.updater(text="{}%".format(int((self.current_dataset - 1)/self.total_datasets)))
+
+            self.current_task_status.updater(text="Task #{}: {}".format(self.current_dataset, self.current_type))
+        elif message_bool:
+            self.current_task_status.updater(text=self.message_string)
+        else:
+            progress_percent = self.progress / self.total
+            progress_percent_overall = progress_percent + (self.current_dataset - 1) * 100 / self.total_datasets
+            self.progress_task_status.updater(text="{}%".format(int(progress_percent*100)))
+            self.progress_overall_status.updater(text="{}%".format(int(progress_percent_overall*100)))
+
+            time_taken = time.time() - self.start_time
+            time_done_estimate = time_taken * 1 / progress_percent + self.start_time
+            tr = time.localtime(time_done_estimate)
+            time_text = "{:02d}:{:02d}:{:02d} {:02d}/{:02d}".format(tr[3], tr[4], tr[5], tr[2], tr[1])
+            self.time_done_status.updater(text=time_text)
+
+        self.gui.update()
+
+# %% Footer
+
+
+class FooterBase(tk.Frame):
+    def __init__(self, controller):
+        tk.Frame.__init__(self, controller)
+        self.configure(bg='white')
+        self.controller = controller
+
+        label_version = tk.Label(self, text="MBx Python, version: " + __version__, font=FONT_LABEL, bg='white',
+                                 anchor='w')
+        label_version.grid(row=0, column=0, columnspan=20, sticky='EW', padx=PAD_SMALL)
+
+        button_quit = ttk.Button(self, text="Quit", command=lambda: quit_gui(self.controller))
+        button_quit.grid(row=0, column=44, columnspan=4, sticky='EW', padx=PAD_SMALL)
+
+        for i in range(48):
+            self.grid_columnconfigure(i, weight=1)
+
+
+class Footer(FooterBase):
+    def __init__(self, controller):
+        super().__init__(controller)
+
+        button_cancel = ttk.Button(self, text="Cancel", command=lambda: self.cancel())
+        button_cancel.grid(row=0, column=40, columnspan=4, sticky='EW', padx=PAD_SMALL)
+
+        for i in range(48):
+            self.grid_columnconfigure(i, weight=1)
+
+    def cancel(self):
+        self.controller.show_page(MainPage)
 
 # %% Controller
 
@@ -335,7 +394,7 @@ class MbxPython(tk.Tk):
     Controller of GUI. This container calls the page we need
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, proceed_question=None, *args, **kwargs):
         tk.Tk.__init__(self, *args, **kwargs)
 
         tk.Tk.wm_title(self, "MBx Python")
@@ -343,122 +402,154 @@ class MbxPython(tk.Tk):
 
         container.pack(side="top", fill="both", expand=True)
 
+        self.footer = FooterBase(self)
+        self.footer.pack(side="bottom", fill="both")
+
         container.grid_rowconfigure(0, weight=1)
         container.grid_columnconfigure(0, weight=1)
 
-        self.frames = {}
+        self.dataset_figure = FigureFrame(self, height=GUI_WIDTH * 0.4, width=GUI_WIDTH * 0.4, dpi=DPI)
 
-        frame_tuple = (MainPage, LoadPage, ROIPage, TTPage, HSMPage)
+        self.pages = {}
 
-        for to_load_frame in frame_tuple:
-            frame = to_load_frame(container, self)
-            self.frames[to_load_frame] = frame
-            frame.grid(row=0, column=0, sticky="nsew")
+        page_tuple = (MainPage, LoadPage, ROIPage, TTPage, HSMPage)
+
+        for to_load_page in page_tuple:
+            page = to_load_page(container, self)
+            self.pages[to_load_page] = page
+            page.grid(row=0, column=0, sticky="nsew")
+
+        self.experiment_figure = self.pages[ROIPage].figure
 
         self.show_page(MainPage)
 
+        self.proceed_question = proceed_question
+        self.progress_updater = None
         self.experiments = []
         self.list_of_datasets = []
         self.experiment_to_link_name = None
 
+        self.additional_settings()
+
+    def show_rois(self, experiment_or_dataset, frame, roi_locations=None, roi_size=None, roi_offset=None):
+        if experiment_or_dataset == "Experiment":
+            self.experiment_figure.updater(frame, roi_locations=roi_locations, roi_size=roi_size, roi_offset=roi_offset)
+        elif experiment_or_dataset == "Dataset":
+            self.dataset_figure.updater(frame, roi_locations=roi_locations, roi_size=roi_size, roi_offset=roi_offset)
+
+    def additional_settings(self):
+        self.geometry(str(GUI_WIDTH) + "x" + str(GUI_HEIGHT) + "+" + str(GUI_WIDTH_START) + "+" + str(GUI_HEIGHT_START))
+        self.iconbitmap(getcwd() + "\ico.ico")
+        self.protocol("WM_DELETE_WINDOW", lambda: quit_gui(gui))
+
+        ttk_style = ttk.Style(self)
+        ttk_style.configure("Big.TButton", font=FONT_BUTTON_BIG)
+        ttk_style.configure("Placeholder.TEntry", foreground="Grey")
+        ttk_style.configure("TButton", font=FONT_BUTTON, background="Grey")
+        ttk_style.configure("TSeparator", background="black")
+        ttk_style.configure("TMenubutton", font=FONT_DROP, background="White")
+
     def show_page(self, page):
-        frame = self.frames[page]
-        frame.tkraise()
+        if page == MainPage:
+            self.footer.pack_forget()
+            self.footer = FooterBase(self)
+            self.footer.pack(side="bottom", fill="both")
+        else:
+            self.footer.pack_forget()
+            self.footer = Footer(self)
+            self.footer.pack(side="bottom", fill="both")
+        page = self.pages[page]
+        page.update_page()
+        page.tkraise()
 
-# %% Main page base
+# %% Base page
 
 
-class MainPageBase(tk.Frame):
+class BasePage(tk.Frame):
     def __init__(self, container, controller):
         tk.Frame.__init__(self, container)
         self.configure(bg='white')
         self.controller = controller
 
-        label_version = tk.Label(self, text="MBx Python, version: " + __version__, font=FONT_LABEL, bg='white',
-                                 anchor='w')
-        label_version.grid(row=50, column=0, columnspan=20, sticky='EW', padx=PAD_SMALL)
-
-        button_quit = ttk.Button(self, text="Quit", command=lambda: quit_gui(self.controller))
-        button_quit.grid(row=50, column=43, columnspan=6, sticky='EW', padx=PAD_SMALL)
-
     def column_row_configure(self):
-        for i in range(49):
+        for i in range(48):
             self.grid_columnconfigure(i, weight=1)
-        for i in range(51):
+        for i in range(20):
             self.grid_rowconfigure(i, weight=1)
 
-
-# %% Base page
-
-
-class BasePage(MainPageBase):
-    def __init__(self, container, controller):
-        super().__init__(container, controller)
-
-        button_cancel = ttk.Button(self, text="Cancel", command=lambda: self.cancel())
-        button_cancel.grid(row=50, column=37, columnspan=6, sticky='EW', padx=PAD_SMALL)
-
-    def cancel(self):
-        self.controller.show_page(MainPage)
+    def update_page(self):
+        pass
 
 # %% Main page
 
 
-class MainPage(MainPageBase):
+class MainPage(BasePage):
     def __init__(self, container, controller):
         super().__init__(container, controller)
 
         label_new = tk.Label(self, text="New", font=FONT_HEADER, bg='white')
-        label_new.grid(row=0, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        label_new.grid(row=0, column=0, columnspan=16, rowspan=1, sticky='EW', padx=PAD_SMALL)
 
         button_new_experiment = BigButton(self, text="ADD EXPERIMENT", height=int(GUI_HEIGHT / 4),
-                                          width=int(GUI_WIDTH / 4), command=lambda: self.add_experiment())
-        button_new_experiment.grid(row=0, column=0)
+                                          width=int(GUI_WIDTH / 6), command=lambda: self.add_experiment())
+        button_new_experiment.grid(row=1, column=0, columnspan=16, rowspan=4, sticky='EW', padx=PAD_SMALL)
 
         button_new_dataset = BigButton(self, text="ADD DATASET", height=int(GUI_HEIGHT / 4),
-                                       width=int(GUI_WIDTH / 4), command=lambda: self.add_dataset())
-        button_new_dataset.grid(row=1, column=0)
+                                       width=int(GUI_WIDTH / 6), command=lambda: self.add_dataset())
+        button_new_dataset.grid(row=5, column=0, columnspan=16, rowspan=4, sticky='EW', padx=PAD_SMALL)
 
         label_loaded = tk.Label(self, text="Loaded", font=FONT_HEADER, bg='white')
-        label_loaded.grid(row=0, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        label_loaded.grid(row=0, column=16, columnspan=16, sticky='EW', padx=PAD_SMALL)
 
         self.listbox_loaded = tk.Listbox(self)
-        self.listbox_loaded.grid(row=0, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.listbox_loaded.grid(row=1, column=16, columnspan=16, rowspan=8, sticky='NSEW', padx=PAD_SMALL)
 
         button_loaded_delete = ttk.Button(self, text="Delete", command=lambda: self.delete_experiment())
-        button_loaded_delete.grid(row=2, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        button_loaded_delete.grid(row=9, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
-        button_loaded_deselect = ttk.Button(self, text="Delete", command=lambda: self.deselect_experiment())
-        button_loaded_deselect.grid(row=2, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        button_loaded_deselect = ttk.Button(self, text="Deselect", command=lambda: self.deselect_experiment())
+        button_loaded_deselect.grid(row=9, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         label_queued = tk.Label(self, text="Queued", font=FONT_HEADER, bg='white')
-        label_queued.grid(row=0, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        label_queued.grid(row=0, column=32, columnspan=16, sticky='EW', padx=PAD_SMALL)
 
         self.listbox_queued = tk.Listbox(self)
-        self.listbox_queued.grid(row=0, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.listbox_queued.grid(row=1, column=32, columnspan=16, rowspan=8, sticky='NSEW', padx=PAD_SMALL)
 
         button_run = ttk.Button(self, text="Run", command=lambda: self.run())
-        button_run.grid(row=2, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        button_run.grid(row=9, column=40, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         label_progress_task = tk.Label(self, text="Task Progress", font=FONT_HEADER, bg='white')
-        label_progress_task.grid(row=0, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        label_progress_task.grid(row=13, column=0, columnspan=8, rowspan=2, sticky='EW', padx=PAD_SMALL)
 
         label_progress_overall = tk.Label(self, text="Overall Progress", font=FONT_HEADER, bg='white')
-        label_progress_overall.grid(row=0, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        label_progress_overall.grid(row=15, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         self.label_progress_task_status = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
-                                                      row=24, column=45, columnspan=5, sticky="ew", font=FONT_LABEL)
+                                                      row=13, column=8, columnspan=16, rowspan=2,
+                                                      sticky="ew", font=FONT_LABEL)
         self.label_progress_overall_status = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
-                                                         row=24, column=45, columnspan=5, sticky="ew", font=FONT_LABEL)
+                                                         row=15, column=8, columnspan=16, rowspan=2,
+                                                         sticky="ew", font=FONT_LABEL)
 
-        self.label_current_task = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
-                                              row=24, column=45, columnspan=5, sticky="ew", font=FONT_LABEL)
+        label_current_task = tk.Label(self, text="Current Task", font=FONT_HEADER, bg='white')
+        label_current_task.grid(row=13, column=32, columnspan=8, rowspan=2, sticky='EW', padx=PAD_SMALL)
 
-        label_time_done = tk.Label(self, text="Time done", font=FONT_HEADER, bg='white')
-        label_time_done.grid(row=0, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.label_current_task_status = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
+                                                     row=13, column=40, columnspan=8, rowspan=2,
+                                                     sticky="ew", font=FONT_LABEL)
+
+        label_time_done = tk.Label(self, text="Time Done", font=FONT_HEADER, bg='white')
+        label_time_done.grid(row=15, column=32, columnspan=8, rowspan=2, sticky='EW', padx=PAD_SMALL)
 
         self.label_time_done_status = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
-                                                  row=24, column=45, columnspan=5, sticky="ew", font=FONT_LABEL)
+                                                  row=15, column=40, columnspan=8, rowspan=2,
+                                                  sticky="ew", font=FONT_LABEL)
+
+        self.controller.progress_updater = ProgressUpdaterGUI(self, self.label_progress_task_status,
+                                                              self.label_progress_overall_status,
+                                                              self.label_current_task_status,
+                                                              self.label_time_done_status)
 
         # general setup
         self.column_row_configure()
@@ -472,13 +563,13 @@ class MainPage(MainPageBase):
         self.controller.experiment_to_link_name = "Test"  # TO DO
 
     def delete_experiment(self):
-        pass
+        pass  # TO DO
 
     def deselect_experiment(self):
-        pass
+        pass  # TO DO
 
     def run(self):
-        pass
+        pass  # TO DO
 
 # %% Loading page
 
@@ -490,17 +581,15 @@ class LoadPage(BasePage):
     def __init__(self, container, controller):
         super().__init__(container, controller)
 
-        button1 = BigButton(self, text="TT", height=int(GUI_HEIGHT / 4),
-                            width=int(GUI_WIDTH / 4),  # style= 'Big.TButton',
+        button1 = BigButton(self, text="TT", height=int(GUI_HEIGHT / 6),
+                            width=int(GUI_WIDTH / 8),
                             command=lambda: self.load_nd2("TT"))
-        button1.grid(row=0, column=0)
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=1)
+        button1.grid(row=0, column=24, columnspan=1, rowspan=20, padx=PAD_SMALL)
 
-        button2 = BigButton(self, text="HSM", height=int(GUI_HEIGHT / 4),
-                            width=int(GUI_WIDTH / 4),  # style= 'Big.TButton',
+        button2 = BigButton(self, text="HSM", height=int(GUI_HEIGHT / 6),
+                            width=int(GUI_WIDTH / 8),
                             command=lambda: self.load_nd2("HSM"))
-        button2.grid(row=0, column=1)
+        button2.grid(row=0, column=25, columnspan=1, rowspan=20, padx=PAD_SMALL)
 
         # general setup
         self.column_row_configure()
@@ -535,12 +624,166 @@ class ROIPage(BasePage):
     def __init__(self, container, controller):
         super().__init__(container, controller)
 
+        self.experiment_in_use = None
+
+        label_name = tk.Label(self, text="Name", font=FONT_LABEL, bg='white')
+        label_name.grid(row=27, column=0, columnspan=16, sticky='EW', padx=PAD_BIG)
+
+        self.entry_name = EntryPlaceholder(self, "TBD", width=INPUT_BIG)
+        self.entry_name.grid(row=28, column=0, columnspan=16)
+
+        label_min_int = tk.Label(self, text="Minimum Intensity", font=FONT_LABEL, bg='white')
+        label_min_int.grid(row=1, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.slider_min_int = NormalSlider(self, from_=0, to=1000,
+                                           row=2, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        button_min_int_histogram = ttk.Button(self, text="Graph",
+                                              command=lambda: self.fun_histogram("min_int"))
+        button_min_int_histogram.grid(row=2, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        button_min_int_histogram_select = ttk.Button(self, text="Select min",
+                                                     command=lambda: self.histogram_select("min_int"))
+        button_min_int_histogram_select.grid(row=2, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        button_max_int_histogram_select = ttk.Button(self, text="Select max",
+                                                     command=lambda: self.histogram_select("max_int"))
+        button_max_int_histogram_select.grid(row=2, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        label_max_int = tk.Label(self, text="Maximum Intensity", font=FONT_LABEL, bg='white')
+        label_max_int.grid(row=1, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.slider_max_int = NormalSlider(self, from_=0, to=5000,
+                                           row=2, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        label_min_sigma = tk.Label(self, text="Minimum Sigma", font=FONT_LABEL, bg='white')
+        label_min_sigma.grid(row=3, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.slider_min_sigma = NormalSlider(self, from_=0, to=5, resolution=0.01,
+                                             row=4, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        button_min_sigma_histogram = ttk.Button(self, text="Graph",
+                                                command=lambda: self.fun_histogram("min_sigma"))
+        button_min_sigma_histogram.grid(row=4, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        button_min_sigma_histogram_select = ttk.Button(self, text="Select min",
+                                                       command=lambda: self.histogram_select("min_sigma"))
+        button_min_sigma_histogram_select.grid(row=4, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        button_max_sigma_histogram_select = ttk.Button(self, text="Select max",
+                                                       command=lambda: self.histogram_select("max_sigma"))
+        button_max_sigma_histogram_select.grid(row=4, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        label_max_sigma = tk.Label(self, text="Maximum Sigma", font=FONT_LABEL, bg='white')
+        label_max_sigma.grid(row=3, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.slider_max_sigma = NormalSlider(self, from_=0, to=10, resolution=0.01,
+                                             row=4, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        line = ttk.Separator(self, orient='horizontal')
+        line.grid(row=5, column=0, rowspan=1, columnspan=40, sticky='we')
+
+        label_advanced_settings = tk.Label(self, text="Advanced settings", font=FONT_SUBHEADER, bg='white')
+        label_advanced_settings.grid(row=6, column=0, columnspan=40, sticky='EW', padx=PAD_SMALL)
+
+        label_min_corr = tk.Label(self, text="Minimum Correlation", font=FONT_LABEL, bg='white')
+        label_min_corr.grid(row=6, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.slider_min_corr = NormalSlider(self, from_=0, to=1, resolution=0.005,
+                                            row=7, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        button_min_corr_histogram = ttk.Button(self, text="Graph",
+                                               command=lambda: self.fun_histogram("corr_min"))
+        button_min_corr_histogram.grid(row=7, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        button_min_corr_histogram_select = ttk.Button(self, text="Graph select",
+                                                      command=lambda: self.histogram_select("corr_min"))
+        button_min_corr_histogram_select.grid(row=7, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        label_roi_size = tk.Label(self, text="ROI size", bg='white', font=FONT_LABEL)
+        label_roi_size.grid(row=9, column=0, columnspan=5, sticky='EW', padx=PAD_SMALL)
+
+        self.variable_roi_size = tk.StringVar(self)
+        drop_roi_size = ttk.OptionMenu(self, self.variable_roi_size, roi_size_options[0], *roi_size_options)
+        drop_roi_size.grid(row=9, column=5, columnspan=5, sticky='EW', padx=PAD_SMALL)
+
+        label_filter_size = tk.Label(self, text="Filter size", bg='white', font=FONT_LABEL)
+        label_filter_size.grid(row=9, column=10, columnspan=5, sticky='EW', padx=PAD_SMALL)
+        self.entry_filter_size = EntryPlaceholder(self, "9", width=INPUT_SMALL)
+        self.entry_filter_size.grid(row=9, column=15, columnspan=5)
+
+        label_roi_side = tk.Label(self, text="Side spacing", bg='white', font=FONT_LABEL)
+        label_roi_side.grid(row=9, column=20, columnspan=5, sticky='EW', padx=PAD_SMALL)
+        self.entry_roi_side = EntryPlaceholder(self, "11", width=INPUT_SMALL)
+        self.entry_roi_side.grid(row=9, column=25, columnspan=5)
+
+        label_inter_roi = tk.Label(self, text="ROI spacing", bg='white', font=FONT_LABEL)
+        label_inter_roi.grid(row=9, column=30, columnspan=5, sticky='EW', padx=PAD_SMALL)
+        self.entry_inter_roi = EntryPlaceholder(self, "6", width=INPUT_SMALL)
+        self.entry_inter_roi.grid(row=9, column=35, columnspan=5)
+
+        line = ttk.Separator(self, orient='horizontal')
+        line.grid(row=10, column=0, rowspan=1, columnspan=40, sticky='we')
+
+        button_find_rois = ttk.Button(self, text="Find ROIs", command=lambda: self.fit_rois())
+        button_find_rois.grid(row=16, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        self.label_number_of_rois = NormalLabel(self, text="TBD", row=17, column=0, columnspan=8, font=FONT_LABEL,
+                                                padx=PAD_SMALL, sticky='EW')
+
+        button_restore = ttk.Button(self, text="Restore default",
+                                    command=lambda: self.restore_default())
+        button_restore.grid(row=16, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.button_restore_saved = NormalButton(self, text="Restore saved",
+                                                 state='disabled',
+                                                 command=lambda: self.restore_saved(),
+                                                 row=16, column=24,
+                                                 columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        button_save = ttk.Button(self, text="Save", command=lambda: self.save_roi_settings())
+        button_save.grid(row=16, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        self.figure = FigureFrame(self, height=GUI_WIDTH * 0.4, width=GUI_WIDTH * 0.4, dpi=DPI)
+        self.figure.grid(row=0, column=40, columnspan=10, rowspan=18, sticky='EW', padx=PAD_SMALL)
+
+    def fun_histogram(self, variable):
+        pass
+
+    def histogram_select(self, variable):
+        pass
+
+    def fit_rois(self):
+        pass
+
+    def restore_default(self):
+        pass
+
+    def restore_saved(self):
+        pass
+
+    def save_roi_settings(self):
+        pass
+
+    def update_page(self):
+        pass
+
 # %% TTPage
 
 
 class TTPage(BasePage):
     def __init__(self, container, controller):
         super().__init__(container, controller)
+
+        label_loaded_video = tk.Label(self, text="Loaded video", font=FONT_HEADER, bg='white')
+        label_loaded_video.grid(row=15, column=32, columnspan=8, rowspan=2, sticky='EW', padx=PAD_SMALL)
+        self.label_loaded_video_status = NormalLabel(self, text="XX", row=15, column=40, columnspan=8, rowspan=2,
+                                                     sticky="ew", font=FONT_LABEL)
+
+        label_x_min_max = tk.Label(self, text="x min and max", font=FONT_LABEL, bg='white')
+        label_x_min_max.grid(row=27, column=0, columnspan=16, sticky='EW', padx=PAD_BIG)
+
+        self.entry_x_min = EntryPlaceholder(self, "Leave empty for start", width=INPUT_BIG)
+        self.entry_x_min.grid(row=28, column=0, columnspan=16)
+        self.entry_x_max = EntryPlaceholder(self, "Leave empty for end", width=INPUT_BIG)
+        self.entry_x_max.grid(row=28, column=16, columnspan=16)
+
+        label_y_min_max = tk.Label(self, text="y min and max", font=FONT_LABEL, bg='white')
+        label_y_min_max.grid(row=27, column=0, columnspan=16, sticky='EW', padx=PAD_BIG)
+
+        self.entry_y_min = EntryPlaceholder(self, "Leave empty for start", width=INPUT_BIG)
+        self.entry_y_min.grid(row=28, column=0, columnspan=16)
+        self.entry_y_max = EntryPlaceholder(self, "Leave empty for end", width=INPUT_BIG)
+        self.entry_y_max.grid(row=28, column=16, columnspan=16)
 
 # %% HSMPage
 
@@ -557,18 +800,7 @@ if __name__ == '__main__':
     divertor = DivertorErrorsGUI()
     warnings.showwarning = divertor.warning
     gui = MbxPython()
-    gui.geometry(str(GUI_WIDTH) + "x" + str(GUI_HEIGHT) + "+" + str(GUI_WIDTH_START) + "+" + str(GUI_HEIGHT_START))
-    gui.iconbitmap(getcwd() + "\ico.ico")
-    gui.protocol("WM_DELETE_WINDOW", lambda: quit_gui(gui))
-
-    ttk_style = ttk.Style(gui)
-    ttk_style.configure("Big.TButton", font=FONT_BUTTON_BIG)
-    ttk_style.configure("Placeholder.TEntry", foreground="Grey")
-    ttk_style.configure("TButton", font=FONT_BUTTON, background="Grey")
-    ttk_style.configure("TSeparator", background="black")
-    ttk_style.configure("TMenubutton", font=FONT_DROP, background="White")
 
     tk.Tk.report_callback_exception = divertor.error
-
     plt.ioff()
     gui.mainloop()
