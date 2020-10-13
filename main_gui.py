@@ -207,8 +207,10 @@ class EntryPlaceholder(ttk.Entry):
             self.insert("0", self.placeholder)
             self["style"] = "Placeholder.TEntry"
 
-    def updater(self, text=None):
+    def updater(self, text=None, placeholder=None):
         self.delete("0", "end")
+        if placeholder is not None:
+            self.placeholder = placeholder
 
         if text is None:
             self.insert("0", self.placeholder)
@@ -473,7 +475,7 @@ class BasePage(tk.Frame):
 
     def column_row_configure(self):
         for i in range(48):
-            self.grid_columnconfigure(i, weight=1)
+            self.grid_columnconfigure(i, weight=1, minsize=18)
         for i in range(20):
             self.grid_rowconfigure(i, weight=1)
 
@@ -624,138 +626,348 @@ class ROIPage(BasePage):
     def __init__(self, container, controller):
         super().__init__(container, controller)
 
-        self.experiment_in_use = None
+        self.experiment = None
+        self.default_settings = None
+        self.saved_settings = None
+        self.histogram_fig = None
+        self.to_hist = None
 
         label_name = tk.Label(self, text="Name", font=FONT_LABEL, bg='white')
-        label_name.grid(row=27, column=0, columnspan=16, sticky='EW', padx=PAD_BIG)
+        label_name.grid(row=0, column=0, columnspan=8, sticky='EW', padx=PAD_BIG)
 
         self.entry_name = EntryPlaceholder(self, "TBD", width=INPUT_BIG)
-        self.entry_name.grid(row=28, column=0, columnspan=16)
+        self.entry_name.grid(row=0, column=8, columnspan=24, sticky='EW')
 
         label_min_int = tk.Label(self, text="Minimum Intensity", font=FONT_LABEL, bg='white')
-        label_min_int.grid(row=1, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        label_min_int.grid(row=2, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
         self.slider_min_int = NormalSlider(self, from_=0, to=1000,
-                                           row=2, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+                                           row=3, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         button_min_int_histogram = ttk.Button(self, text="Graph",
                                               command=lambda: self.fun_histogram("min_int"))
-        button_min_int_histogram.grid(row=2, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        button_min_int_histogram.grid(row=3, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
         button_min_int_histogram_select = ttk.Button(self, text="Select min",
                                                      command=lambda: self.histogram_select("min_int"))
-        button_min_int_histogram_select.grid(row=2, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        button_min_int_histogram_select.grid(row=3, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
         button_max_int_histogram_select = ttk.Button(self, text="Select max",
                                                      command=lambda: self.histogram_select("max_int"))
-        button_max_int_histogram_select.grid(row=2, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        button_max_int_histogram_select.grid(row=3, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         label_max_int = tk.Label(self, text="Maximum Intensity", font=FONT_LABEL, bg='white')
-        label_max_int.grid(row=1, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        label_max_int.grid(row=2, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
         self.slider_max_int = NormalSlider(self, from_=0, to=5000,
-                                           row=2, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+                                           row=3, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         label_min_sigma = tk.Label(self, text="Minimum Sigma", font=FONT_LABEL, bg='white')
-        label_min_sigma.grid(row=3, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        label_min_sigma.grid(row=4, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
         self.slider_min_sigma = NormalSlider(self, from_=0, to=5, resolution=0.01,
-                                             row=4, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+                                             row=5, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         button_min_sigma_histogram = ttk.Button(self, text="Graph",
                                                 command=lambda: self.fun_histogram("min_sigma"))
-        button_min_sigma_histogram.grid(row=4, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        button_min_sigma_histogram.grid(row=5, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
         button_min_sigma_histogram_select = ttk.Button(self, text="Select min",
                                                        command=lambda: self.histogram_select("min_sigma"))
-        button_min_sigma_histogram_select.grid(row=4, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        button_min_sigma_histogram_select.grid(row=5, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
         button_max_sigma_histogram_select = ttk.Button(self, text="Select max",
                                                        command=lambda: self.histogram_select("max_sigma"))
-        button_max_sigma_histogram_select.grid(row=4, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        button_max_sigma_histogram_select.grid(row=5, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         label_max_sigma = tk.Label(self, text="Maximum Sigma", font=FONT_LABEL, bg='white')
-        label_max_sigma.grid(row=3, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        label_max_sigma.grid(row=4, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
         self.slider_max_sigma = NormalSlider(self, from_=0, to=10, resolution=0.01,
-                                             row=4, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+                                             row=5, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         line = ttk.Separator(self, orient='horizontal')
-        line.grid(row=5, column=0, rowspan=1, columnspan=40, sticky='we')
+        line.grid(row=7, column=0, rowspan=1, columnspan=40, sticky='we')
 
         label_advanced_settings = tk.Label(self, text="Advanced settings", font=FONT_SUBHEADER, bg='white')
-        label_advanced_settings.grid(row=6, column=0, columnspan=40, sticky='EW', padx=PAD_SMALL)
+        label_advanced_settings.grid(row=9, column=0, columnspan=40, sticky='EW', padx=PAD_SMALL)
 
         label_min_corr = tk.Label(self, text="Minimum Correlation", font=FONT_LABEL, bg='white')
-        label_min_corr.grid(row=6, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        label_min_corr.grid(row=9, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
         self.slider_min_corr = NormalSlider(self, from_=0, to=1, resolution=0.005,
-                                            row=7, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+                                            row=10, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         button_min_corr_histogram = ttk.Button(self, text="Graph",
                                                command=lambda: self.fun_histogram("corr_min"))
-        button_min_corr_histogram.grid(row=7, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        button_min_corr_histogram.grid(row=10, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
         button_min_corr_histogram_select = ttk.Button(self, text="Graph select",
                                                       command=lambda: self.histogram_select("corr_min"))
-        button_min_corr_histogram_select.grid(row=7, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        button_min_corr_histogram_select.grid(row=10, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         label_roi_size = tk.Label(self, text="ROI size", bg='white', font=FONT_LABEL)
-        label_roi_size.grid(row=9, column=0, columnspan=5, sticky='EW', padx=PAD_SMALL)
+        label_roi_size.grid(row=12, column=0, columnspan=5, sticky='EW', padx=PAD_SMALL)
 
         self.variable_roi_size = tk.StringVar(self)
         drop_roi_size = ttk.OptionMenu(self, self.variable_roi_size, roi_size_options[0], *roi_size_options)
-        drop_roi_size.grid(row=9, column=5, columnspan=5, sticky='EW', padx=PAD_SMALL)
+        drop_roi_size.grid(row=12, column=5, columnspan=5, sticky='EW', padx=PAD_SMALL)
 
         label_filter_size = tk.Label(self, text="Filter size", bg='white', font=FONT_LABEL)
-        label_filter_size.grid(row=9, column=10, columnspan=5, sticky='EW', padx=PAD_SMALL)
+        label_filter_size.grid(row=12, column=10, columnspan=5, sticky='EW', padx=PAD_SMALL)
         self.entry_filter_size = EntryPlaceholder(self, "9", width=INPUT_SMALL)
-        self.entry_filter_size.grid(row=9, column=15, columnspan=5)
+        self.entry_filter_size.grid(row=12, column=15, columnspan=5)
 
         label_roi_side = tk.Label(self, text="Side spacing", bg='white', font=FONT_LABEL)
-        label_roi_side.grid(row=9, column=20, columnspan=5, sticky='EW', padx=PAD_SMALL)
+        label_roi_side.grid(row=12, column=20, columnspan=5, sticky='EW', padx=PAD_SMALL)
         self.entry_roi_side = EntryPlaceholder(self, "11", width=INPUT_SMALL)
-        self.entry_roi_side.grid(row=9, column=25, columnspan=5)
+        self.entry_roi_side.grid(row=12, column=25, columnspan=5)
 
         label_inter_roi = tk.Label(self, text="ROI spacing", bg='white', font=FONT_LABEL)
-        label_inter_roi.grid(row=9, column=30, columnspan=5, sticky='EW', padx=PAD_SMALL)
+        label_inter_roi.grid(row=12, column=30, columnspan=5, sticky='EW', padx=PAD_SMALL)
         self.entry_inter_roi = EntryPlaceholder(self, "6", width=INPUT_SMALL)
-        self.entry_inter_roi.grid(row=9, column=35, columnspan=5)
+        self.entry_inter_roi.grid(row=12, column=35, columnspan=5)
 
         line = ttk.Separator(self, orient='horizontal')
-        line.grid(row=10, column=0, rowspan=1, columnspan=40, sticky='we')
+        line.grid(row=14, column=0, rowspan=1, columnspan=40, sticky='we')
 
         button_find_rois = ttk.Button(self, text="Find ROIs", command=lambda: self.fit_rois())
-        button_find_rois.grid(row=16, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        button_find_rois.grid(row=17, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
-        self.label_number_of_rois = NormalLabel(self, text="TBD", row=17, column=0, columnspan=8, font=FONT_LABEL,
+        self.label_number_of_rois = NormalLabel(self, text="TBD", row=17, column=8, columnspan=8, font=FONT_LABEL,
                                                 padx=PAD_SMALL, sticky='EW')
 
         button_restore = ttk.Button(self, text="Restore default",
                                     command=lambda: self.restore_default())
-        button_restore.grid(row=16, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        button_restore.grid(row=17, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
         self.button_restore_saved = NormalButton(self, text="Restore saved",
                                                  state='disabled',
                                                  command=lambda: self.restore_saved(),
-                                                 row=16, column=24,
+                                                 row=17, column=24,
                                                  columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         button_save = ttk.Button(self, text="Save", command=lambda: self.save_roi_settings())
-        button_save.grid(row=16, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        button_save.grid(row=17, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         self.figure = FigureFrame(self, height=GUI_WIDTH * 0.4, width=GUI_WIDTH * 0.4, dpi=DPI)
-        self.figure.grid(row=0, column=40, columnspan=10, rowspan=18, sticky='EW', padx=PAD_SMALL)
+        self.figure.grid(row=0, column=40, columnspan=8, rowspan=18, sticky='EW', padx=PAD_SMALL)
+
+        button_accept = ttk.Button(self, text="Accept & Continue", command=lambda: self.accept())
+        button_accept.grid(row=18, column=44, columnspan=4, rowspan=2, sticky='EW', padx=PAD_SMALL)
+
+        self.column_row_configure()
 
     def fun_histogram(self, variable):
-        pass
+        """
+        Actually makes the histogram
+        Parameters
+        ----------
+        variable : Variable to make histogram of
+        Returns
+        -------
+        None, outputs figure
+        """
+        if variable == "min_int" or variable == "max_int":
+            self.to_hist = self.experiment.roi_finder.main(return_int=True)
+        elif variable == "peak_min":
+            self.to_hist = np.ravel(self.experiment.frame_for_rois)
+        elif variable == "corr_min":
+            self.to_hist = self.experiment.roi_finder.main(return_corr=True)
+        else:
+            self.to_hist = self.experiment.roi_finder.main(return_sigmas=True)
+
+        self.histogram_fig = plt.figure(figsize=(6.4 * 1.2, 4.8 * 1.2))
+
+        self.make_histogram(variable)
+
+    def make_histogram(self, variable):
+        """
+        Makes histograms of parameters.
+        Parameters
+        ----------
+        variable : The parameter to make a histogram of
+        to_hist: array to make hist of
+        Returns
+        -------
+        None, output figure
+        """
+        fig_sub = self.histogram_fig.add_subplot(111)
+        hist, bins, _ = fig_sub.hist(self.to_hist, bins='auto')
+
+        min_int = self.slider_min_int.get()
+        max_int = self.slider_max_int.get()
+        min_sigma = self.slider_min_sigma.get()
+        max_sigma = self.slider_max_sigma.get()
+        min_corr = self.slider_min_corr.get()
+
+        if variable == "min_int" or variable == "max_int":
+            self.histogram_fig.clear()
+            logbins = np.logspace(np.log10(bins[0]), np.log10(bins[-1]), len(bins))
+            plt.hist(self.to_hist, bins=logbins)
+            plt.title("Intensity. Use graph select to change threshold")
+            plt.axvline(x=min_int, color='red', linestyle='--')
+            plt.axvline(x=max_int, color='red', linestyle='--')
+            plt.xscale('log')
+        elif variable == "min_sigma" or variable == "max_sigma":
+            plt.title("Sigma. Use graph select to change threshold")
+            plt.axvline(x=min_sigma, color='red', linestyle='--')
+            plt.axvline(x=max_sigma, color='red', linestyle='--')
+        else:
+            self.histogram_fig.clear()
+            logbins = np.logspace(np.log10(bins[0]), np.log10(bins[-1]), len(bins))
+            plt.hist(self.to_hist, bins=logbins)
+            plt.title("Correlation values for ROIs. Use graph select to change threshold")
+            plt.axvline(x=min_corr, color='red', linestyle='--')
+            plt.xscale('log')
+
+        self.histogram_fig.show()
 
     def histogram_select(self, variable):
-        pass
+        """
+        Allows user to select from histogram to change slider
+        Parameters
+        ----------
+        variable : variable to change
+        Returns
+        -------
+        None.
+        """
+        try:
+            click = self.histogram_fig.ginput(1)
+        except AttributeError:
+            tk.messagebox.showerror("You cannot do that", "You cannot click on a figure without having a figure open")
+            return
+
+        if variable == "min_int":
+            self.slider_min_int.updater(start=int(click[0][0]))
+        elif variable == 'max_int':
+            self.slider_max_int.updater(start=int(click[0][0]))
+        elif variable == "min_sigma":
+            self.slider_min_sigma.updater(start=click[0][0])
+        elif variable == "max_sigma":
+            self.slider_max_sigma.updater(start=click[0][0])
+        else:
+            self.slider_min_corr.updater(start=click[0][0])
+
+        self.histogram_fig.clear()
+        self.make_histogram(variable)
 
     def fit_rois(self):
-        pass
+        settings = self.read_out_settings()
+
+        if settings['roi_side'] < int((settings['roi_size'] - 1) / 2):
+            tk.messagebox.showerror("ERROR", "Distance to size cannot be smaller than 1D ROI size")
+            return False
+        if settings['filter_size'] % 2 != 1:
+            tk.messagebox.showerror("ERROR", "Filter size should be odd")
+            return False
+
+        self.experiment.change_rois(settings)
+        self.experiment.show_rois("Experiment")
+        self.label_number_of_rois.updater(text="{} ROIs found".format(len(self.experiment.rois)))
+
+        return True
 
     def restore_default(self):
-        pass
+        if self.default_settings is None:
+            self.default_settings = self.experiment.roi_finder.get_settings()
+        else:
+            pass
+        self.slider_min_int.updater(from_=0, to=self.default_settings['int_max'] / 4,
+                                    start=self.default_settings['int_min'])
+        self.slider_max_int.updater(from_=0, to=self.default_settings['int_max'],
+                                    start=self.default_settings['int_max'])
+        self.slider_min_sigma.updater(from_=0, to=self.default_settings['sigma_max'],
+                                      start=self.default_settings['sigma_min'])
+        self.slider_max_sigma.updater(from_=0, to=self.default_settings['sigma_max'],
+                                      start=self.default_settings['sigma_max'])
+        self.slider_min_corr.updater(from_=0, to=1, start=self.default_settings['corr_min'])
+
+        self.variable_roi_size.set(roi_size_options[0])
+        self.entry_filter_size.updater()
+        self.entry_roi_side.updater()
+        self.entry_inter_roi.updater()
+
+        self.update()
+        self.fit_rois()
+
+    def read_out_settings(self):
+        """
+        Function that reads out all the settings, and saves it to a dict which it returns
+        Returns
+        -------
+        settings: a dictionary of all read-out settings
+        """
+        int_min = self.slider_min_int.get()
+        int_max = self.slider_max_int.get()
+        sigma_min = self.slider_min_sigma.get()
+        sigma_max = self.slider_max_sigma.get()
+        corr_min = self.slider_min_corr.get()
+        roi_size = int(self.variable_roi_size.get()[0])
+
+        filter_size = int(self.entry_filter_size.get())
+        roi_side = int(self.entry_roi_side.get())
+        inter_roi = int(self.entry_inter_roi.get())
+
+        settings = {'int_max': int_max, 'int_min': int_min,
+                    'sigma_min': sigma_min, 'sigma_max': sigma_max,
+                    'corr_min': corr_min, 'roi_size': roi_size, 'filter_size': filter_size,
+                    'roi_side': roi_side, 'inter_roi': inter_roi}
+
+        return settings
 
     def restore_saved(self):
-        pass
+        """
+                Restores saved settings to sliders etc.
+                Returns
+                -------
+                None, updates GUI
+                """
+        settings = self.saved_settings
+
+        self.slider_min_int.updater(from_=0, to=self.default_settings['int_max'] / 4,
+                                    start=settings['int_min'])
+        self.slider_max_int.updater(from_=0, to=self.default_settings['int_max'],
+                                    start=settings['int_max'])
+        self.slider_min_sigma.updater(from_=0, to=self.default_settings['sigma_max'],
+                                      start=settings['sigma_min'])
+        self.slider_max_sigma.updater(from_=0, to=self.default_settings['sigma_max'],
+                                      start=settings['sigma_max'])
+        self.slider_min_corr.updater(from_=0, to=1, start=settings['corr_min'])
+
+        if settings['roi_size'] == 7:
+            self.variable_roi_size.set(roi_size_options[0])
+        else:
+            self.variable_roi_size.set(roi_size_options[1])
+
+        self.entry_filter_size.updater(settings['filter_size'])
+        self.entry_roi_side.updater(settings['roi_side'])
+        self.entry_inter_roi.updater(settings['inter_roi'])
+
+        self.experiment.change_rois(settings)
+        self.experiment.show_rois("Experiment")
+        self.label_number_of_rois.updater(text="{} ROIs found".format(len(self.experiment.rois)))
+        self.update()
 
     def save_roi_settings(self):
-        pass
+        success = self.fit_rois()
+        if not success:
+            return
+
+        self.saved_settings = self.read_out_settings()
+        self.button_restore_saved.updater()
+
+    def accept(self):
+        settings = self.read_out_settings()
+        self.experiment.change_rois(settings)
+
+        if self.experiment.created_by == "TT":
+            self.controller.show_page(TTPage)
+        else:
+            self.controller.show_page(HSMPage)
+        self.experiment = None
+        self.default_settings = None
+        self.saved_settings = None
+        self.histogram_fig = None
+        self.to_hist = None
 
     def update_page(self):
-        pass
+        self.experiment = self.controller.experiments[-1]  # finding new ROIs so always last
+
+        self.entry_name.updater(placeholder=self.experiment.datasets[-1].name)  # take name for only dataset in exp
+        self.figure.updater(self.experiment.frame_for_rois)
+
+        self.restore_default()
 
 # %% TTPage
 
@@ -801,6 +1013,6 @@ if __name__ == '__main__':
     warnings.showwarning = divertor.warning
     gui = MbxPython()
 
-    tk.Tk.report_callback_exception = divertor.error
+    #  tk.Tk.report_callback_exception = divertor.error
     plt.ioff()
     gui.mainloop()
