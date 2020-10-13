@@ -776,7 +776,6 @@ class ROIPage(BasePage):
         Parameters
         ----------
         variable : The parameter to make a histogram of
-        to_hist: array to make hist of
         Returns
         -------
         None, output figure
@@ -842,6 +841,31 @@ class ROIPage(BasePage):
         self.histogram_fig.clear()
         self.make_histogram(variable)
 
+    def read_out_settings(self):
+        """
+        Function that reads out all the settings, and saves it to a dict which it returns
+        Returns
+        -------
+        settings: a dictionary of all read-out settings
+        """
+        int_min = self.slider_min_int.get()
+        int_max = self.slider_max_int.get()
+        sigma_min = self.slider_min_sigma.get()
+        sigma_max = self.slider_max_sigma.get()
+        corr_min = self.slider_min_corr.get()
+        roi_size = int(self.variable_roi_size.get()[0])
+
+        filter_size = int(self.entry_filter_size.get())
+        roi_side = int(self.entry_roi_side.get())
+        inter_roi = int(self.entry_inter_roi.get())
+
+        settings = {'int_max': int_max, 'int_min': int_min,
+                    'sigma_min': sigma_min, 'sigma_max': sigma_max,
+                    'corr_min': corr_min, 'roi_size': roi_size, 'filter_size': filter_size,
+                    'roi_side': roi_side, 'inter_roi': inter_roi}
+
+        return settings
+
     def fit_rois(self):
         settings = self.read_out_settings()
 
@@ -881,38 +905,13 @@ class ROIPage(BasePage):
         self.update()
         self.fit_rois()
 
-    def read_out_settings(self):
-        """
-        Function that reads out all the settings, and saves it to a dict which it returns
-        Returns
-        -------
-        settings: a dictionary of all read-out settings
-        """
-        int_min = self.slider_min_int.get()
-        int_max = self.slider_max_int.get()
-        sigma_min = self.slider_min_sigma.get()
-        sigma_max = self.slider_max_sigma.get()
-        corr_min = self.slider_min_corr.get()
-        roi_size = int(self.variable_roi_size.get()[0])
-
-        filter_size = int(self.entry_filter_size.get())
-        roi_side = int(self.entry_roi_side.get())
-        inter_roi = int(self.entry_inter_roi.get())
-
-        settings = {'int_max': int_max, 'int_min': int_min,
-                    'sigma_min': sigma_min, 'sigma_max': sigma_max,
-                    'corr_min': corr_min, 'roi_size': roi_size, 'filter_size': filter_size,
-                    'roi_side': roi_side, 'inter_roi': inter_roi}
-
-        return settings
-
     def restore_saved(self):
         """
-                Restores saved settings to sliders etc.
-                Returns
-                -------
-                None, updates GUI
-                """
+        Restores saved settings to sliders etc.
+        Returns
+        -------
+        None, updates GUI
+        """
         settings = self.saved_settings
 
         self.slider_min_int.updater(from_=0, to=self.default_settings['int_max'] / 4,
