@@ -74,13 +74,14 @@ FRAME_END = 10  # number or "Leave empty for end"
 # %% Proceed question
 
 
-def proceed_question(option1, option2, title, text):
+def proceed_question(title, text):
+    option1 = "OK"
+    option2 = "Cancel"
     answer = input(title + "\n" + text + "\n" + option1 + "/" + option2)
     if answer == option1:
         return True
     else:
         return False
-
 
 # %% Progress updater non-GUI
 
@@ -173,10 +174,10 @@ class DivertError:
 # %% General plot
 
 
-def show_rois(_, frame, roi_locations=None, roi_size=None, roi_offset=None):
+def show_rois(frame, figure=None, roi_locations=None, roi_size=None, roi_offset=None):
     if roi_offset is None:
         roi_offset = [0, 0]
-    fig, ax = plt.subplots(1)
+    figure, ax = plt.subplots(1)
     figuring.plot_rois(ax, frame, roi_locations, roi_size, roi_offset)
     plt.show()
 

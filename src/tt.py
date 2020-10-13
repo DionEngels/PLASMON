@@ -67,14 +67,14 @@ class TimeTrace(Dataset):
         self.figure_range = None
 
     def prepare_run(self, settings):
-        check = self.experiment.proceed_question("OK", "Cancel", "Are you sure?",
+        check = self.experiment.proceed_question("Are you sure?",
                                                  "You cannot change settings later. "
                                                  "Are you sure everything is set up correctly?")
         if not check:
             return False
 
         if settings['#cores'] > 1 and "Phasor" in settings['method']:
-            cores_check = self.experiment.proceed_question("ok_cancel", "Just a heads up",
+            cores_check = self.experiment.proceed_question("Just a heads up",
                                                            """Phasor will be used with one core since the
             overhead only slows it down""")
             if not cores_check:

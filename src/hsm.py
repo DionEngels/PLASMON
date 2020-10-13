@@ -97,7 +97,7 @@ class HSMDataset(Dataset):
 
             return np.asarray(wavelength_list)
 
-        check = self.experiment.proceed_question("OK", "Cancel", "Are you sure?",
+        check = self.experiment.proceed_question("Are you sure?",
                                                  "You cannot change settings later. "
                                                  "Are you sure everything is set up correctly?")
         if not check:
