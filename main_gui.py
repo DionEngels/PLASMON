@@ -95,6 +95,12 @@ roi_size_options = ["7x7", "9x9"]
 
 # TO DO
 
+# %% Proceed Question
+
+def proceed_question(title, text):
+    check = tk.messagebox.askokcancel(title, text)
+    return check
+
 # %% Divert errors
 
 
@@ -398,6 +404,7 @@ class MbxPython(tk.Tk):
 
     def __init__(self, proceed_question=None, *args, **kwargs):
         tk.Tk.__init__(self, *args, **kwargs)
+        self.withdraw()
 
         tk.Tk.wm_title(self, "MBx Python")
         container = tk.Frame(self)
@@ -410,34 +417,27 @@ class MbxPython(tk.Tk):
         container.grid_rowconfigure(0, weight=1)
         container.grid_columnconfigure(0, weight=1)
 
-        self.dataset_figure = FigureFrame(self, height=GUI_WIDTH * 0.4, width=GUI_WIDTH * 0.4, dpi=DPI)
+        self.proceed_question = proceed_question
+        self.progress_updater = None
+        self.experiments = []
+        self.experiment_to_link_name = None
 
         self.pages = {}
-
         page_tuple = (MainPage, LoadPage, ROIPage, TTPage, HSMPage)
-
         for to_load_page in page_tuple:
             page = to_load_page(container, self)
             self.pages[to_load_page] = page
             page.grid(row=0, column=0, sticky="nsew")
-
-        self.experiment_figure = self.pages[ROIPage].figure
-
         self.show_page(MainPage)
 
-        self.proceed_question = proceed_question
-        self.progress_updater = None
-        self.experiments = []
-        self.list_of_datasets = []
-        self.experiment_to_link_name = None
-
         self.additional_settings()
+        self.deiconify()
 
-    def show_rois(self, experiment_or_dataset, frame, roi_locations=None, roi_size=None, roi_offset=None):
-        if experiment_or_dataset == "Experiment":
-            self.experiment_figure.updater(frame, roi_locations=roi_locations, roi_size=roi_size, roi_offset=roi_offset)
-        elif experiment_or_dataset == "Dataset":
-            self.dataset_figure.updater(frame, roi_locations=roi_locations, roi_size=roi_size, roi_offset=roi_offset)
+    @staticmethod
+    def show_rois(frame, figure=None, roi_locations=None, roi_size=None, roi_offset=None):
+        if figure is None:
+            figure = plt.subplots(1)
+        figure.updater(frame, roi_locations=roi_locations, roi_size=roi_size, roi_offset=roi_offset)
 
     def additional_settings(self):
         self.geometry(str(GUI_WIDTH) + "x" + str(GUI_HEIGHT) + "+" + str(GUI_WIDTH_START) + "+" + str(GUI_HEIGHT_START))
@@ -451,7 +451,7 @@ class MbxPython(tk.Tk):
         ttk_style.configure("TSeparator", background="black")
         ttk_style.configure("TMenubutton", font=FONT_DROP, background="White")
 
-    def show_page(self, page):
+    def show_page(self, page, experiment=None):
         if page == MainPage:
             self.footer.pack_forget()
             self.footer = FooterBase(self)
@@ -461,7 +461,7 @@ class MbxPython(tk.Tk):
             self.footer = Footer(self)
             self.footer.pack(side="bottom", fill="both")
         page = self.pages[page]
-        page.update_page()
+        page.update_page(experiment=experiment)
         page.tkraise()
 
 # %% Base page
@@ -473,13 +473,15 @@ class BasePage(tk.Frame):
         self.configure(bg='white')
         self.controller = controller
 
+        self.column_row_configure()
+
     def column_row_configure(self):
         for i in range(48):
             self.grid_columnconfigure(i, weight=1, minsize=18)
         for i in range(20):
             self.grid_rowconfigure(i, weight=1)
 
-    def update_page(self):
+    def update_page(self, experiment=None):
         pass
 
 # %% Main page
@@ -505,6 +507,7 @@ class MainPage(BasePage):
 
         self.listbox_loaded = tk.Listbox(self)
         self.listbox_loaded.grid(row=1, column=16, columnspan=16, rowspan=8, sticky='NSEW', padx=PAD_SMALL)
+        self.listbox_loaded.configure(justify="center")
 
         button_loaded_delete = ttk.Button(self, text="Delete", command=lambda: self.delete_experiment())
         button_loaded_delete.grid(row=9, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
@@ -517,6 +520,8 @@ class MainPage(BasePage):
 
         self.listbox_queued = tk.Listbox(self)
         self.listbox_queued.grid(row=1, column=32, columnspan=16, rowspan=8, sticky='NSEW', padx=PAD_SMALL)
+        self.listbox_queued.configure(justify="center")
+        self.listbox_queued.bindtags((self.listbox_queued, self, "all"))
 
         button_run = ttk.Button(self, text="Run", command=lambda: self.run())
         button_run.grid(row=9, column=40, columnspan=8, sticky='EW', padx=PAD_SMALL)
@@ -553,25 +558,45 @@ class MainPage(BasePage):
                                                               self.label_current_task_status,
                                                               self.label_time_done_status)
 
-        # general setup
-        self.column_row_configure()
-
     def add_experiment(self):
         self.controller.show_page(LoadPage)
         self.controller.experiment_to_link_name = None
 
     def add_dataset(self):
-        self.controller.show_page(LoadPage)
-        self.controller.experiment_to_link_name = "Test"  # TO DO
+        try:
+            selected = self.listbox_loaded.get(self.listbox_loaded.curselection())
+            name = selected.split(" ")[-1]
+            self.controller.experiment_to_link_name = name
+            self.controller.show_page(LoadPage)
+        except:
+            tk.messagebox.showerror("ERROR", "No experiment selected, please select one to link dataset to")
 
     def delete_experiment(self):
-        pass  # TO DO
+        try:
+            selected = self.listbox_loaded.get(self.listbox_loaded.curselection())
+            name = selected.split(" ")[-1]
+            for index, experiment in enumerate(self.controller.experiments):
+                if name in experiment.name:
+                    del self.controller.experiments[index]
+                    break
+            self.update_page()
+        except:
+            return
 
     def deselect_experiment(self):
-        pass  # TO DO
+        self.listbox_loaded.selection_clear(0, "end")
 
     def run(self):
         pass  # TO DO
+
+    def update_page(self, experiment=None):
+        self.listbox_loaded.delete(0, 'end')
+        self.listbox_queued.delete(0, 'end')
+
+        for index, experiment in enumerate(self.controller.experiments, 1):
+            self.listbox_loaded.insert('end', "Experiment {}: {}".format(index, experiment.name))
+            for dataset in experiment.datasets:
+                self.listbox_queued.insert('end', "Experiment {}: {} ({})".format(index, dataset.name, dataset.type))
 
 # %% Loading page
 
@@ -593,9 +618,6 @@ class LoadPage(BasePage):
                             command=lambda: self.load_nd2("HSM"))
         button2.grid(row=0, column=25, columnspan=1, rowspan=20, padx=PAD_SMALL)
 
-        # general setup
-        self.column_row_configure()
-
     def load_nd2(self, dataset_type):
         filename = askopenfilename(filetypes=FILETYPES,
                                    title="Select nd2",
@@ -608,16 +630,16 @@ class LoadPage(BasePage):
             experiment = Experiment(dataset_type, filename, self.controller.proceed_question,
                                     self.controller.progress_updater, self.controller.show_rois)
             self.controller.experiments.append(experiment)
-            self.controller.show_page(ROIPage)
+            self.controller.show_page(ROIPage, experiment=experiment)
         else:
             experiment_to_link = [experiment for experiment in self.controller.experiments if
                                   self.controller.experiment_to_link_name in experiment.name][0]
             if dataset_type == "TT":
                 experiment_to_link.init_new_tt(filename)
-                self.controller.show_page(TTPage)
+                self.controller.show_page(TTPage, experiment=experiment_to_link)
             else:
                 experiment_to_link.init_new_hsm(filename)
-                self.controller.show_page(HSMPage)
+                self.controller.show_page(HSMPage, experiment=experiment_to_link)
 
 # %% ROIPage
 
@@ -696,12 +718,12 @@ class ROIPage(BasePage):
                                                       command=lambda: self.histogram_select("corr_min"))
         button_min_corr_histogram_select.grid(row=10, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
-        label_roi_size = tk.Label(self, text="ROI size", bg='white', font=FONT_LABEL)
-        label_roi_size.grid(row=12, column=0, columnspan=5, sticky='EW', padx=PAD_SMALL)
-
-        self.variable_roi_size = tk.StringVar(self)
-        drop_roi_size = ttk.OptionMenu(self, self.variable_roi_size, roi_size_options[0], *roi_size_options)
-        drop_roi_size.grid(row=12, column=5, columnspan=5, sticky='EW', padx=PAD_SMALL)
+        label_all_figures = tk.Label(self, text="All Figures", font=FONT_LABEL, bg='white')
+        label_all_figures.grid(row=12, column=0, columnspan=5, sticky='EW', padx=PAD_SMALL)
+        self.variable_all_figures = tk.StringVar(self, value=False)
+        check_figures = tk.Checkbutton(self, variable=self.variable_all_figures, onvalue=True, offvalue=False,
+                                       bg="white")
+        check_figures.grid(row=12, column=5, columnspan=5, sticky='EW', padx=PAD_SMALL)
 
         label_filter_size = tk.Label(self, text="Filter size", bg='white', font=FONT_LABEL)
         label_filter_size.grid(row=12, column=10, columnspan=5, sticky='EW', padx=PAD_SMALL)
@@ -744,8 +766,6 @@ class ROIPage(BasePage):
 
         button_accept = ttk.Button(self, text="Accept & Continue", command=lambda: self.accept())
         button_accept.grid(row=18, column=44, columnspan=4, rowspan=2, sticky='EW', padx=PAD_SMALL)
-
-        self.column_row_configure()
 
     def fun_histogram(self, variable):
         """
@@ -853,21 +873,28 @@ class ROIPage(BasePage):
         sigma_min = self.slider_min_sigma.get()
         sigma_max = self.slider_max_sigma.get()
         corr_min = self.slider_min_corr.get()
-        roi_size = int(self.variable_roi_size.get()[0])
+        roi_size = 7  # hard-coded as 7 for ROI finding
+        all_figures = bool(int(self.variable_all_figures.get()))
 
-        filter_size = int(self.entry_filter_size.get())
-        roi_side = int(self.entry_roi_side.get())
-        inter_roi = int(self.entry_inter_roi.get())
+        try:
+            filter_size = int(self.entry_filter_size.get())
+            roi_side = int(self.entry_roi_side.get())
+            inter_roi = int(self.entry_inter_roi.get())
+        except:
+            tk.messagebox.showerror("ERROR", "Filter size, side spacing, and ROI spacing must all be integers")
+            return {}, False
 
         settings = {'int_max': int_max, 'int_min': int_min,
                     'sigma_min': sigma_min, 'sigma_max': sigma_max,
                     'corr_min': corr_min, 'roi_size': roi_size, 'filter_size': filter_size,
-                    'roi_side': roi_side, 'inter_roi': inter_roi}
+                    'roi_side': roi_side, 'inter_roi': inter_roi, 'all_figures': all_figures}
 
-        return settings
+        return settings, True
 
     def fit_rois(self):
-        settings = self.read_out_settings()
+        settings, success = self.read_out_settings()
+        if success is False:
+            return False
 
         if settings['roi_side'] < int((settings['roi_size'] - 1) / 2):
             tk.messagebox.showerror("ERROR", "Distance to size cannot be smaller than 1D ROI size")
@@ -877,7 +904,7 @@ class ROIPage(BasePage):
             return False
 
         self.experiment.change_rois(settings)
-        self.experiment.show_rois("Experiment")
+        self.experiment.show_rois("Experiment", figure=self.figure)
         self.label_number_of_rois.updater(text="{} ROIs found".format(len(self.experiment.rois)))
 
         return True
@@ -897,7 +924,8 @@ class ROIPage(BasePage):
                                       start=self.default_settings['sigma_max'])
         self.slider_min_corr.updater(from_=0, to=1, start=self.default_settings['corr_min'])
 
-        self.variable_roi_size.set(roi_size_options[0])
+        self.variable_all_figures.set(False)
+
         self.entry_filter_size.updater()
         self.entry_roi_side.updater()
         self.entry_inter_roi.updater()
@@ -924,17 +952,14 @@ class ROIPage(BasePage):
                                       start=settings['sigma_max'])
         self.slider_min_corr.updater(from_=0, to=1, start=settings['corr_min'])
 
-        if settings['roi_size'] == 7:
-            self.variable_roi_size.set(roi_size_options[0])
-        else:
-            self.variable_roi_size.set(roi_size_options[1])
-
         self.entry_filter_size.updater(settings['filter_size'])
         self.entry_roi_side.updater(settings['roi_side'])
         self.entry_inter_roi.updater(settings['inter_roi'])
 
+        self.variable_all_figures.set(settings['all_figures'])
+
         self.experiment.change_rois(settings)
-        self.experiment.show_rois("Experiment")
+        self.experiment.show_rois("Experiment", figure=self.figure)
         self.label_number_of_rois.updater(text="{} ROIs found".format(len(self.experiment.rois)))
         self.update()
 
@@ -943,25 +968,33 @@ class ROIPage(BasePage):
         if not success:
             return
 
-        self.saved_settings = self.read_out_settings()
+        self.saved_settings, _ = self.read_out_settings()
         self.button_restore_saved.updater()
 
     def accept(self):
-        settings = self.read_out_settings()
+        if self.controller.proceed_question("Are you sure?", "You cannot change settings later.") is False:
+            return
+        settings, success = self.read_out_settings()
+        if success is False:
+            return
         self.experiment.change_rois(settings)
 
+        name = self.entry_name.get()
+        settings_experiment = {'All Figures': settings['all_figures']}
+        self.experiment.finalize_rois(name, settings_experiment)
+
         if self.experiment.created_by == "TT":
-            self.controller.show_page(TTPage)
+            self.controller.show_page(TTPage, experiment=self.experiment)
         else:
-            self.controller.show_page(HSMPage)
+            self.controller.show_page(HSMPage, experiment=self.experiment)
         self.experiment = None
         self.default_settings = None
         self.saved_settings = None
         self.histogram_fig = None
         self.to_hist = None
 
-    def update_page(self):
-        self.experiment = self.controller.experiments[-1]  # finding new ROIs so always last
+    def update_page(self, experiment=None):
+        self.experiment = experiment
 
         self.entry_name.updater(placeholder=self.experiment.datasets[-1].name)  # take name for only dataset in exp
         self.figure.updater(self.experiment.frame_for_rois)
@@ -975,26 +1008,162 @@ class TTPage(BasePage):
     def __init__(self, container, controller):
         super().__init__(container, controller)
 
+        self.experiment = None
+
         label_loaded_video = tk.Label(self, text="Loaded video", font=FONT_HEADER, bg='white')
-        label_loaded_video.grid(row=15, column=32, columnspan=8, rowspan=2, sticky='EW', padx=PAD_SMALL)
-        self.label_loaded_video_status = NormalLabel(self, text="XX", row=15, column=40, columnspan=8, rowspan=2,
+        label_loaded_video.grid(row=0, column=0, columnspan=8, rowspan=1, sticky='EW', padx=PAD_SMALL)
+        self.label_loaded_video_status = NormalLabel(self, text="XX", row=0, column=8, columnspan=16, rowspan=1,
                                                      sticky="ew", font=FONT_LABEL)
 
-        label_x_min_max = tk.Label(self, text="x min and max", font=FONT_LABEL, bg='white')
-        label_x_min_max.grid(row=27, column=0, columnspan=16, sticky='EW', padx=PAD_BIG)
+        label_name = tk.Label(self, text="Name", font=FONT_LABEL, bg='white')
+        label_name.grid(row=1, column=0, columnspan=8, sticky='EW', padx=PAD_BIG)
 
+        self.entry_name = EntryPlaceholder(self, "TBD", width=INPUT_BIG)
+        self.entry_name.grid(row=1, column=8, columnspan=16, sticky='EW')
+
+        label_x_min_max = tk.Label(self, text="x min and max", font=FONT_LABEL, bg='white')
+        label_x_min_max.grid(row=3, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
         self.entry_x_min = EntryPlaceholder(self, "Leave empty for start", width=INPUT_BIG)
-        self.entry_x_min.grid(row=28, column=0, columnspan=16)
+        self.entry_x_min.grid(row=3, column=8, columnspan=8, padx=PAD_SMALL)
         self.entry_x_max = EntryPlaceholder(self, "Leave empty for end", width=INPUT_BIG)
-        self.entry_x_max.grid(row=28, column=16, columnspan=16)
+        self.entry_x_max.grid(row=3, column=16, columnspan=8, padx=PAD_SMALL)
 
         label_y_min_max = tk.Label(self, text="y min and max", font=FONT_LABEL, bg='white')
-        label_y_min_max.grid(row=27, column=0, columnspan=16, sticky='EW', padx=PAD_BIG)
-
+        label_y_min_max.grid(row=4, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
         self.entry_y_min = EntryPlaceholder(self, "Leave empty for start", width=INPUT_BIG)
-        self.entry_y_min.grid(row=28, column=0, columnspan=16)
+        self.entry_y_min.grid(row=4, column=8, columnspan=8, padx=PAD_SMALL)
         self.entry_y_max = EntryPlaceholder(self, "Leave empty for end", width=INPUT_BIG)
-        self.entry_y_max.grid(row=28, column=16, columnspan=16)
+        self.entry_y_max.grid(row=4, column=16, columnspan=8, padx=PAD_SMALL)
+
+        button_find_rois = ttk.Button(self, text="Find ROIs", command=lambda: self.fit_rois())
+        button_find_rois.grid(row=6, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        self.figure_dataset = FigureFrame(self, height=GUI_WIDTH * 0.35, width=GUI_WIDTH * 0.35, dpi=DPI)
+        self.figure_dataset.grid(row=0, column=24, columnspan=12, rowspan=8, sticky='EW', padx=PAD_SMALL)
+
+        self.figure_experiment = FigureFrame(self, height=GUI_WIDTH * 0.35, width=GUI_WIDTH * 0.35, dpi=DPI)
+        self.figure_experiment.grid(row=0, column=36, columnspan=12, rowspan=8, sticky='EW', padx=PAD_SMALL)
+
+        line = ttk.Separator(self, orient='horizontal')
+        line.grid(row=8, column=0, rowspan=1, columnspan=48, sticky='we')
+
+        label_method = tk.Label(self, text="Method", font=FONT_LABEL, bg='white')
+        label_method.grid(row=12, column=0, columnspan=12, sticky='EW', padx=PAD_SMALL)
+        self.variable_method = tk.StringVar(self)
+        drop_method = ttk.OptionMenu(self, self.variable_method, fit_options[1], *fit_options)
+        drop_method.grid(row=13, column=0, columnspan=12, sticky="ew")
+
+        label_rejection = tk.Label(self, text="Rejection", bg='white', font=FONT_LABEL)
+        label_rejection.grid(row=12, column=12, columnspan=12, sticky='EW', padx=PAD_SMALL)
+        self.variable_rejection = tk.StringVar(self)
+        drop_rejection = ttk.OptionMenu(self, self.variable_rejection, rejection_options[0], *rejection_options)
+        drop_rejection.grid(row=13, column=12, columnspan=12, sticky='EW', padx=PAD_SMALL)
+
+        label_cores = tk.Label(self, text="#cores", font=FONT_LABEL, bg='white')
+        label_cores.grid(row=12, column=24, columnspan=6, sticky='EW', padx=PAD_BIG)
+        total_cores = mp.cpu_count()
+        cores_options = [1, int(total_cores / 2), int(total_cores * 3 / 4), int(total_cores)]
+        self.variable_cores = tk.IntVar(self)
+        drop_cores = ttk.OptionMenu(self, self.variable_cores, cores_options[0], *cores_options)
+        drop_cores.grid(row=13, column=24, columnspan=6, sticky='EW', padx=PAD_BIG)
+
+        label_dimensions = tk.Label(self, text="pixels or nm", font=FONT_LABEL, bg='white')
+        label_dimensions.grid(row=12, column=30, columnspan=6, sticky='EW', padx=PAD_BIG)
+        dimension_options = ["nm", "pixels"]
+        self.variable_dimensions = tk.StringVar(self)
+        drop_dimension = ttk.OptionMenu(self, self.variable_dimensions, dimension_options[0], *dimension_options)
+        drop_dimension.grid(row=13, column=30, columnspan=6, sticky='EW', padx=PAD_BIG)
+
+        label_used_roi_spacing = tk.Label(self, text="Used ROI spacing", bg='white', font=FONT_LABEL)
+        label_used_roi_spacing.grid(row=16, column=0, rowspan=2, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.label_roi_spacing_status = NormalLabel(self, text="TBD", row=16, column=8, rowspan=2, columnspan=4,
+                                                    sticky='EW', padx=PAD_SMALL, font=FONT_LABEL)
+
+        label_roi_size = tk.Label(self, text="ROI size", bg='white', font=FONT_LABEL)
+        label_roi_size.grid(row=18, column=0, columnspan=6, rowspan=2, sticky='EW', padx=PAD_SMALL)
+        self.variable_roi_size = tk.StringVar(self)
+        drop_roi_size = ttk.OptionMenu(self, self.variable_roi_size, roi_size_options[0], *roi_size_options)
+        drop_roi_size.grid(row=18, column=6, columnspan=6, rowspan=2, sticky='EW', padx=PAD_SMALL)
+
+        label_begin_frame = tk.Label(self, text="Begin frame", font=FONT_LABEL, bg='white')
+        label_begin_frame.grid(row=16, column=12, rowspan=2, columnspan=12, sticky='EW', padx=PAD_BIG)
+        self.entry_begin_frame = EntryPlaceholder(self, "Leave empty for start", width=INPUT_BIG)
+        self.entry_begin_frame.grid(row=18, column=12, rowspan=2, columnspan=12)
+
+        label_end_frame = tk.Label(self, text="End frame", font=FONT_LABEL, bg='white')
+        label_end_frame.grid(row=16, column=24, rowspan=2, columnspan=6, sticky='EW', padx=PAD_BIG)
+        self.entry_end_frame = EntryPlaceholder(self, "Leave empty for end", width=INPUT_BIG)
+        self.entry_end_frame.grid(row=18, column=24, rowspan=2, columnspan=6)
+
+        self.button_add_to_queue = NormalButton(self, text="Add to queue", state='disabled',
+                                                row=18, column=42, columnspan=6, rowspan=2, sticky='EW', padx=PAD_SMALL)
+
+    @staticmethod
+    def check_invalid_input(input_string, start):
+        def is_int(to_check):
+            try:
+                int(to_check)
+                return True
+            except:
+                return False
+
+        if start:
+            if input_string == "Leave empty for start" or is_int(input_string):
+                return False
+        else:
+            if input_string == "Leave empty for end" or is_int(input_string):
+                return False
+        return True
+
+    def fit_rois(self):
+        x_min = self.entry_x_min.get()
+        x_max = self.entry_x_max.get()
+        y_min = self.entry_y_min.get()
+        y_max = self.entry_y_max.get()
+        if self.check_invalid_input(x_min, True) or self.check_invalid_input(y_max, False) or\
+           self.check_invalid_input(y_min, True) or self.check_invalid_input(y_max, False):
+            tk.messagebox.showerror("ERROR", "x min and max and y min and max must all be integers")
+            return
+
+        settings_correlation = {'x_min': x_min, 'x_max': x_max,
+                                'y_min': y_min, 'y_max': y_max}
+
+        self.experiment.find_rois_dataset(settings_correlation)
+        self.experiment.show_rois("Dataset", self.figure_dataset)
+        self.button_add_to_queue.updater(command=lambda: self.add_to_queue())
+
+    def add_to_queue(self):
+        name = self.entry_name.get()
+        method = self.variable_method.get()
+        rejection_type = self.variable_rejection.get()
+        n_processes = self.variable_cores.get()
+        dimension = self.variable_dimensions.get()
+        frame_begin = self.entry_begin_frame.get()
+        frame_end = self.entry_end_frame.get()
+        roi_size = int(self.variable_roi_size.get()[0])
+
+        if self.check_invalid_input(frame_begin, True) or self.check_invalid_input(frame_end, False):
+            tk.messagebox.showerror("ERROR", "Frame begin and frame end must be integers")
+            return
+
+        settings_runtime = {'method': method, 'rejection': rejection_type, '#cores': n_processes,
+                            'roi_size': roi_size, "pixels_or_nm": dimension, 'name': name,
+                            'frame_begin': frame_begin, 'frame_end': frame_end}
+
+        status = self.experiment.add_to_queue(settings_runtime)
+        if status is False:
+            tk.messagebox.askokcancel("Check again", "Settings are not allowed. Check again.")
+
+        self.controller.show_page(MainPage)
+
+    def update_page(self, experiment=None):
+        self.experiment = experiment
+        experiment.show_rois("Experiment", self.figure_experiment)
+        experiment.show_rois("Dataset", self.figure_dataset)
+
+        self.label_loaded_video_status.updater(text=self.experiment.datasets[-1].name)
+        self.entry_name.updater(placeholder=self.experiment.datasets[-1].name)
+        self.label_roi_spacing_status.updater(text=self.experiment.roi_finder.get_settings()['inter_roi'])
 
 # %% HSMPage
 
@@ -1010,7 +1179,7 @@ if __name__ == '__main__':
     mp.freeze_support()
     divertor = DivertorErrorsGUI()
     warnings.showwarning = divertor.warning
-    gui = MbxPython()
+    gui = MbxPython(proceed_question=proceed_question)
 
     #  tk.Tk.report_callback_exception = divertor.error
     plt.ioff()
