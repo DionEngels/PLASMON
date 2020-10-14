@@ -525,13 +525,13 @@ class MainPage(BasePage):
         label_new = tk.Label(self, text="New", font=FONT_HEADER, bg='white')
         label_new.grid(row=0, column=0, columnspan=16, rowspan=1, sticky='EW', padx=PAD_SMALL)
 
-        button_new_experiment = BigButton(self, text="ADD EXPERIMENT", height=int(GUI_HEIGHT / 4),
-                                          width=int(GUI_WIDTH / 6), command=lambda: self.add_experiment())
-        button_new_experiment.grid(row=1, column=0, columnspan=16, rowspan=4, sticky='EW', padx=PAD_SMALL)
+        self.button_new_experiment = BigButton(self, text="ADD EXPERIMENT", height=int(GUI_HEIGHT / 4),
+                                               width=int(GUI_WIDTH / 6), command=lambda: self.add_experiment())
+        self.button_new_experiment.grid(row=1, column=0, columnspan=16, rowspan=4, sticky='EW', padx=PAD_SMALL)
 
-        button_new_dataset = BigButton(self, text="ADD DATASET", height=int(GUI_HEIGHT / 4),
-                                       width=int(GUI_WIDTH / 6), command=lambda: self.add_dataset())
-        button_new_dataset.grid(row=5, column=0, columnspan=16, rowspan=4, sticky='EW', padx=PAD_SMALL)
+        self.button_new_dataset = BigButton(self, text="ADD DATASET", height=int(GUI_HEIGHT / 4),
+                                            width=int(GUI_WIDTH / 6), command=lambda: self.add_dataset())
+        self.button_new_dataset.grid(row=5, column=0, columnspan=16, rowspan=4, sticky='EW', padx=PAD_SMALL)
 
         label_loaded = tk.Label(self, text="Loaded", font=FONT_HEADER, bg='white')
         label_loaded.grid(row=0, column=16, columnspan=16, sticky='EW', padx=PAD_SMALL)
@@ -554,8 +554,8 @@ class MainPage(BasePage):
         self.listbox_queued.configure(justify="center")
         self.listbox_queued.bindtags((self.listbox_queued, self, "all"))
 
-        button_run = ttk.Button(self, text="Run", command=lambda: self.run())
-        button_run.grid(row=9, column=40, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.button_run = NormalButton(self, text="Run", command=lambda: self.run(),
+                                       row=9, column=40, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         label_progress_task = tk.Label(self, text="Task Progress", font=FONT_HEADER, bg='white')
         label_progress_task.grid(row=13, column=0, columnspan=8, rowspan=2, sticky='EW', padx=PAD_SMALL)
@@ -617,17 +617,32 @@ class MainPage(BasePage):
     def deselect_experiment(self):
         self.listbox_loaded.selection_clear(0, "end")
 
-    @staticmethod
-    def run_thread(experiments, progress_updater):
-        for exp_index, experiment in enumerate(experiments):
-            progress_updater.new_experiment(exp_index)
+    def run_thread(self):
+        for exp_index, experiment in enumerate(self.controller.experiments):
+            self.controller.progress_updater.new_experiment(exp_index)
             experiment.run()
+
+        self.close_down()
 
     def run(self):
         if self.controller.thread_started is False:
             self.controller.thread_started = True
             self.controller.progress_updater.start(self.controller.experiments)
-            _thread.start_new_thread(self.run_thread, (self.controller.experiments, self.controller.progress_updater))
+            self.disable()
+            _thread.start_new_thread(self.run_thread, ())
+
+    def disable(self):
+        self.button_run.updater(state='disabled')
+        self.button_new_experiment.updater(state='disabled')
+        self.button_new_dataset.updater(state='disabled')
+
+    def close_down(self):
+        self.button_run.updater(command=lambda: self.run(), state='enabled')
+        self.button_new_experiment.updater(state='enabled')
+        self.button_new_dataset.updater(state='enabled')
+        self.controller.experiments = []
+        self.update_page()
+        self.controller.thread_started = False
 
     def update_page(self, experiment=None):
         self.listbox_loaded.delete(0, 'end')
