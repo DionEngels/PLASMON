@@ -73,12 +73,12 @@ PAD_SMALL = 10
 INPUT_BIG = 25
 INPUT_SMALL = 5
 
-width = GetSystemMetrics(0)
-height = GetSystemMetrics(1)
+SCREEN_WIDTH = GetSystemMetrics(0)
+SCREEN_HEIGHT = GetSystemMetrics(1)
 GUI_WIDTH = 1344  # int(width * 0.70)
 GUI_HEIGHT = 756  # int(height * 0.70)
-GUI_WIDTH_START = int((width - GUI_WIDTH) / 2)
-GUI_HEIGHT_START = int((height - GUI_HEIGHT) / 2)
+GUI_WIDTH_START = int((SCREEN_WIDTH - GUI_WIDTH) / 2)
+GUI_HEIGHT_START = int((SCREEN_HEIGHT - GUI_HEIGHT) / 2)
 DPI = 100
 
 # %% Options for dropdown menus
@@ -611,12 +611,16 @@ class LoadPage(BasePage):
         button1 = BigButton(self, text="TT", height=int(GUI_HEIGHT / 6),
                             width=int(GUI_WIDTH / 8),
                             command=lambda: self.load_nd2("TT"))
-        button1.grid(row=0, column=24, columnspan=1, rowspan=20, padx=PAD_SMALL)
+        button1.grid(row=10, column=24, columnspan=1, rowspan=1, padx=PAD_SMALL)
 
         button2 = BigButton(self, text="HSM", height=int(GUI_HEIGHT / 6),
                             width=int(GUI_WIDTH / 8),
                             command=lambda: self.load_nd2("HSM"))
-        button2.grid(row=0, column=25, columnspan=1, rowspan=20, padx=PAD_SMALL)
+        button2.grid(row=10, column=25, columnspan=1, rowspan=1, padx=PAD_SMALL)
+
+        self.label_wait = tk.Label(self, text="HSM frames are being merged, please wait.", font=FONT_LABEL, bg='white')
+        self.label_wait.grid(row=11, column=24, columnspan=2, padx=PAD_SMALL)
+        self.label_wait.grid_remove()
 
     def load_nd2(self, dataset_type):
         filename = askopenfilename(filetypes=FILETYPES,
@@ -626,6 +630,8 @@ class LoadPage(BasePage):
         if len(filename) == 0:
             return
 
+        if dataset_type == "HSM":
+            self.label_wait.grid()
         if self.controller.experiment_to_link_name is None:
             experiment = Experiment(dataset_type, filename, self.controller.proceed_question,
                                     self.controller.progress_updater, self.controller.show_rois)
@@ -640,6 +646,9 @@ class LoadPage(BasePage):
             else:
                 experiment_to_link.init_new_hsm(filename)
                 self.controller.show_page(HSMPage, experiment=experiment_to_link)
+
+        if dataset_type == "HSM":
+            self.label_wait.grid_remove()
 
 # %% ROIPage
 
@@ -1001,10 +1010,10 @@ class ROIPage(BasePage):
 
         self.restore_default()
 
-# %% TTPage
+# %% Analysis Page Template
 
 
-class TTPage(BasePage):
+class AnalysisPageTemplate(BasePage):
     def __init__(self, container, controller):
         super().__init__(container, controller)
 
@@ -1046,6 +1055,61 @@ class TTPage(BasePage):
 
         line = ttk.Separator(self, orient='horizontal')
         line.grid(row=8, column=0, rowspan=1, columnspan=48, sticky='we')
+
+        self.button_add_to_queue = NormalButton(self, text="Add to queue", state='disabled',
+                                                row=18, column=42, columnspan=6, rowspan=2, sticky='EW', padx=PAD_SMALL)
+
+    @staticmethod
+    def check_invalid_input(input_string, start):
+        def is_int(to_check):
+            try:
+                int(to_check)
+                return True
+            except:
+                return False
+
+        if start:
+            if input_string == "Leave empty for start" or is_int(input_string):
+                return False
+        else:
+            if input_string == "Leave empty for end" or is_int(input_string):
+                return False
+        return True
+
+    def fit_rois(self):
+        x_min = self.entry_x_min.get()
+        x_max = self.entry_x_max.get()
+        y_min = self.entry_y_min.get()
+        y_max = self.entry_y_max.get()
+        if self.check_invalid_input(x_min, True) or self.check_invalid_input(y_max, False) or \
+                self.check_invalid_input(y_min, True) or self.check_invalid_input(y_max, False):
+            tk.messagebox.showerror("ERROR", "x min and max and y min and max must all be integers")
+            return
+
+        settings_correlation = {'x_min': x_min, 'x_max': x_max,
+                                'y_min': y_min, 'y_max': y_max}
+
+        self.experiment.find_rois_dataset(settings_correlation)
+        self.experiment.show_rois("Dataset", self.figure_dataset)
+        self.button_add_to_queue.updater(command=lambda: self.add_to_queue())
+
+    def add_to_queue(self):
+        pass
+
+    def update_page(self, experiment=None):
+        self.experiment = experiment
+        experiment.show_rois("Experiment", self.figure_experiment)
+        experiment.show_rois("Dataset", self.figure_dataset)
+
+        self.label_loaded_video_status.updater(text=self.experiment.datasets[-1].name)
+        self.entry_name.updater(placeholder=self.experiment.datasets[-1].name)
+
+# %% TTPage
+
+
+class TTPage(AnalysisPageTemplate):
+    def __init__(self, container, controller):
+        super().__init__(container, controller)
 
         label_method = tk.Label(self, text="Method", font=FONT_LABEL, bg='white')
         label_method.grid(row=12, column=0, columnspan=12, sticky='EW', padx=PAD_SMALL)
@@ -1095,43 +1159,6 @@ class TTPage(BasePage):
         self.entry_end_frame = EntryPlaceholder(self, "Leave empty for end", width=INPUT_BIG)
         self.entry_end_frame.grid(row=18, column=24, rowspan=2, columnspan=6)
 
-        self.button_add_to_queue = NormalButton(self, text="Add to queue", state='disabled',
-                                                row=18, column=42, columnspan=6, rowspan=2, sticky='EW', padx=PAD_SMALL)
-
-    @staticmethod
-    def check_invalid_input(input_string, start):
-        def is_int(to_check):
-            try:
-                int(to_check)
-                return True
-            except:
-                return False
-
-        if start:
-            if input_string == "Leave empty for start" or is_int(input_string):
-                return False
-        else:
-            if input_string == "Leave empty for end" or is_int(input_string):
-                return False
-        return True
-
-    def fit_rois(self):
-        x_min = self.entry_x_min.get()
-        x_max = self.entry_x_max.get()
-        y_min = self.entry_y_min.get()
-        y_max = self.entry_y_max.get()
-        if self.check_invalid_input(x_min, True) or self.check_invalid_input(y_max, False) or\
-           self.check_invalid_input(y_min, True) or self.check_invalid_input(y_max, False):
-            tk.messagebox.showerror("ERROR", "x min and max and y min and max must all be integers")
-            return
-
-        settings_correlation = {'x_min': x_min, 'x_max': x_max,
-                                'y_min': y_min, 'y_max': y_max}
-
-        self.experiment.find_rois_dataset(settings_correlation)
-        self.experiment.show_rois("Dataset", self.figure_dataset)
-        self.button_add_to_queue.updater(command=lambda: self.add_to_queue())
-
     def add_to_queue(self):
         name = self.entry_name.get()
         method = self.variable_method.get()
@@ -1157,22 +1184,38 @@ class TTPage(BasePage):
         self.controller.show_page(MainPage)
 
     def update_page(self, experiment=None):
-        self.experiment = experiment
-        experiment.show_rois("Experiment", self.figure_experiment)
-        experiment.show_rois("Dataset", self.figure_dataset)
-
-        self.label_loaded_video_status.updater(text=self.experiment.datasets[-1].name)
-        self.entry_name.updater(placeholder=self.experiment.datasets[-1].name)
+        super().update_page(experiment=experiment)
         self.label_roi_spacing_status.updater(text=self.experiment.roi_finder.get_settings()['inter_roi'])
 
 # %% HSMPage
 
 
-class HSMPage(BasePage):
+class HSMPage(AnalysisPageTemplate):
     def __init__(self, container, controller):
         super().__init__(container, controller)
 
-# %% START GUI and declare styles (how things look)
+        label_hsm_correct = tk.Label(self, text="Correction file:", font=FONT_LABEL, bg='white', anchor='e')
+        label_hsm_correct.grid(row=13, column=0, columnspan=8, rowspan=2, sticky='EW', padx=PAD_SMALL)
+        path_hsm_correct = getcwd() + "/spectral_corrections"
+        hsm_correct_options = listdir(path_hsm_correct)
+        hsm_correct_options = [option[:-4] for option in hsm_correct_options]  # remove .mat in name
+        self.variable_hsm_correct = tk.StringVar(self)
+        drop_hsm_correct = ttk.OptionMenu(self, self.variable_hsm_correct, [], *hsm_correct_options)
+        drop_hsm_correct.grid(row=13, column=8, columnspan=24, rowspan=2, sticky="ew")
+
+        label_hsm_wavelength = tk.Label(self, text="Wavelengths:", font=FONT_LABEL, bg='white', anchor='e')
+        label_hsm_wavelength.grid(row=15, column=0, columnspan=8, rowspan=2, sticky='EW', padx=PAD_SMALL)
+
+        self.entry_wavelength = EntryPlaceholder(self,
+                                                 "Use MATLAB-like array notation. Example: [500:10:520, 532, 540:10:800"
+                                                 , width=INPUT_BIG)
+        self.entry_wavelength.grid(row=15, column=8, columnspan=24, rowspan=2, sticky='EW')
+
+    def update_page(self, experiment=None):
+        super().update_page(experiment=experiment)
+
+
+# %% START GUI
 
 
 if __name__ == '__main__':
