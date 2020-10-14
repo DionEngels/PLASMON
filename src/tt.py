@@ -125,7 +125,7 @@ class TimeTrace(Dataset):
             int_under_which_more_its_are_needed = 2000
             max_its = np.ceil((int_under_which_more_its_are_needed - mu) / 1000) * 100 + 100
 
-        return max_its
+        return int(max_its)
 
     def run(self):
         frames_to_fit = np.asarray(self.frames[self.slice])
