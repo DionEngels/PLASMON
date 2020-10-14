@@ -344,17 +344,12 @@ class ProgressUpdaterGUI(ProgressUpdater):
         self.update(False, False, False)
 
     def update(self, new_experiment, new_dataset, message_bool):
+        progress_dataset = (self.current_dataset - 1) / self.total_datasets
+        progress_per_dataset = 1 / self.total_datasets
         if new_experiment:
             pass
-            overall_progress = self.current_experiment / self.total_experiments
-            self.progress_task_status.updater(text="0%")
-            self.progress_overall_status.updater(text="{:.2f}%".format(overall_progress * 100))
-
         elif new_dataset:
-            progress_experiment = self.current_experiment / self.total_experiments
-            progress_per_experiment = 1 / self.total_experiments
-            progress_dataset = (self.current_dataset - 1) / self.total_datasets * progress_per_experiment
-            overall_progress = progress_dataset + progress_experiment
+            overall_progress = progress_dataset
 
             self.progress_task_status.updater(text="0%")
             self.progress_overall_status.updater(text="{:.2f}%".format(overall_progress * 100))
@@ -363,15 +358,17 @@ class ProgressUpdaterGUI(ProgressUpdater):
                                                                                         self.current_dataset,
                                                                                         self.current_type))
         elif message_bool:
+            progress_task = 1
+            progress_overall = progress_task * progress_per_dataset + progress_dataset
+
+            self.progress_task_status.updater(text="{:.2f}%".format(progress_task * 100))
+            self.progress_overall_status.updater(text="{:.2f}%".format(progress_overall * 100))
+
             self.current_task_status.updater(text="Experiment {}: ".format(self.current_experiment + 1) +
                                                   self.message_string)
         else:
             progress_task = self.progress / self.total
-            progress_experiment = self.current_experiment / self.total_experiments
-            progress_per_experiment = 1 / self.total_experiments
-            progress_dataset = (self.current_dataset - 1) / self.total_datasets * progress_per_experiment
-            progress_per_dataset = 1 / self.total_datasets
-            progress_overall = progress_experiment + progress_task * progress_per_dataset + progress_dataset
+            progress_overall = progress_task * progress_per_dataset + progress_dataset
 
             self.progress_task_status.updater(text="{:.2f}%".format(progress_task*100))
             self.progress_overall_status.updater(text="{:.2f}%".format(progress_overall*100))
@@ -557,24 +554,24 @@ class MainPage(BasePage):
         label_progress_overall.grid(row=15, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         self.label_progress_task_status = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
-                                                      row=13, column=8, columnspan=16, rowspan=2,
+                                                      row=13, column=8, columnspan=8, rowspan=2,
                                                       sticky="ew", font=FONT_LABEL)
         self.label_progress_overall_status = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
-                                                         row=15, column=8, columnspan=16, rowspan=2,
+                                                         row=15, column=8, columnspan=8, rowspan=2,
                                                          sticky="ew", font=FONT_LABEL)
 
         label_current_task = tk.Label(self, text="Current Task", font=FONT_HEADER, bg='white')
-        label_current_task.grid(row=13, column=32, columnspan=8, rowspan=2, sticky='EW', padx=PAD_SMALL)
+        label_current_task.grid(row=13, column=24, columnspan=8, rowspan=2, sticky='EW', padx=PAD_SMALL)
 
         self.label_current_task_status = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
-                                                     row=13, column=40, columnspan=8, rowspan=2,
+                                                     row=13, column=32, columnspan=16, rowspan=2,
                                                      sticky="ew", font=FONT_LABEL)
 
         label_time_done = tk.Label(self, text="Time Done", font=FONT_HEADER, bg='white')
-        label_time_done.grid(row=15, column=32, columnspan=8, rowspan=2, sticky='EW', padx=PAD_SMALL)
+        label_time_done.grid(row=15, column=24, columnspan=8, rowspan=2, sticky='EW', padx=PAD_SMALL)
 
         self.label_time_done_status = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
-                                                  row=15, column=40, columnspan=8, rowspan=2,
+                                                  row=15, column=32, columnspan=16, rowspan=2,
                                                   sticky="ew", font=FONT_LABEL)
 
         self.controller.progress_updater = ProgressUpdaterGUI(self, self.label_progress_task_status,
@@ -661,7 +658,7 @@ class LoadPage(BasePage):
             self.label_wait.grid()
             self.update()
         if self.controller.experiment_to_link_name is None:
-            experiment = Experiment(dataset_type, filename, self.controller.proceed_question,
+            experiment = Experiment(dataset_type, filename, self.controller.proceed_question, tk.messagebox.showerror,
                                     self.controller.progress_updater, self.controller.show_rois)
             self.controller.experiments.append(experiment)
             self.controller.show_page(ROIPage, experiment=experiment)
@@ -1209,9 +1206,7 @@ class TTPage(AnalysisPageTemplate):
                             'roi_size': roi_size, "pixels_or_nm": dimension, 'name': name,
                             'frame_begin': frame_begin, 'frame_end': frame_end}
 
-        status = self.experiment.add_to_queue(settings_runtime)
-        if status is False:
-            tk.messagebox.showerror("Check again", "Settings are not allowed. Check again.")
+        if self.experiment.add_to_queue(settings_runtime) is False:
             return
 
         self.controller.show_page(MainPage)
@@ -1273,10 +1268,7 @@ class HSMPage(AnalysisPageTemplate):
             return
 
         settings_runtime_hsm = {'correction_file': hsm_correction, 'wavelengths': wavelengths, 'name': name}
-        status = self.experiment.add_to_queue(settings_runtime_hsm)
-
-        if status is False:
-            tk.messagebox.showerror("Check again", "Settings are not allowed. Check again.")
+        if self.experiment.add_to_queue(settings_runtime_hsm) is False:
             return
 
         self.controller.show_page(MainPage)

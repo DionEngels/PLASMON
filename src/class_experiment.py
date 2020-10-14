@@ -34,7 +34,7 @@ __self_made__ = True
 
 class Experiment:
 
-    def __init__(self, created_by, filename, proceed_question, progress_updater, show_rois):
+    def __init__(self, created_by, filename, proceed_question, error_func, progress_updater, show_rois):
         self.created_by = created_by
         self.directory = filename
         self.name = None
@@ -42,6 +42,7 @@ class Experiment:
         self.settings = None
         self.proceed_question = proceed_question
         self.progress_updater = progress_updater
+        self.error_func = error_func
         self.show_rois_func = show_rois
 
         if created_by == 'HSM':

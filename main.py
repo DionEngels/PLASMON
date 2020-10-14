@@ -127,9 +127,8 @@ class ProgressUpdater:
         if new_experiment:
             print('Starting experiment {}'.format(self.current_experiment))
         elif new_dataset:
-            print('Experiment {}. Starting dataset {} of {}. Type: {}'.format(self.current_experiment,
-                                                                              self.current_dataset, self.total_datasets,
-                                                                              self.current_type))
+            print('Starting dataset {} of {}. Type: {}. Part of Experiment {}'
+                  .format(self.current_dataset, self.total_datasets, self.current_type, self.current_experiment))
         elif message_bool:
             print("Experiment {}: ".format(self.current_experiment) + self.message_string)
         else:
@@ -183,6 +182,12 @@ class DivertError:
         else:
             print("\033[93m {}\033[00m".format(traceback_details))
 
+# %% Input error
+
+
+def input_error(title, text):
+    print("\033[91m {}\033[00m".format(title + "\n" + text))
+
 # %% General plot
 
 
@@ -211,7 +216,7 @@ if __name__ == '__main__':
     experiments = []
     warnings.showwarning = divertor.warning
 
-    experiment = Experiment("TT", tt_name, proceed_question, progress_updater, show_rois)
+    experiment = Experiment("TT", tt_name, proceed_question, input_error, progress_updater, show_rois)
 
     experiment.show_rois("Experiment")
 

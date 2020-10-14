@@ -119,10 +119,14 @@ class HSMDataset(Dataset):
             self.spec_wavelength = correction['SpectralCorrection']['Lambda']
             self.spec_shape = correction['SpectralCorrection']['SpecShape']
 
-        if check_correct_chars(settings['wavelengths']):
-            self.wavelengths = parse_string_to_numpy_array(settings['wavelengths'])
-        else:
-            warn("Wavelengths input not valid", InputWarning)
+        try:
+            if check_correct_chars(settings['wavelengths']):
+                self.wavelengths = parse_string_to_numpy_array(settings['wavelengths'])
+            else:
+                self.experiment.error_func("Input error", "Wavelengths input not valid")
+                return False
+        except:
+            self.experiment.error_func("Input error", "Wavelengths input not valid")
             return False
 
     # %% Correct for drift between frames
