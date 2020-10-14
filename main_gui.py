@@ -354,9 +354,9 @@ class ProgressUpdaterGUI(ProgressUpdater):
             self.progress_task_status.updater(text="0%")
             self.progress_overall_status.updater(text="{:.2f}%".format(overall_progress * 100))
 
-            self.current_task_status.updater(text="Experiment #{}: Task #{}: {}".format(self.current_experiment + 1,
-                                                                                        self.current_dataset,
-                                                                                        self.current_type))
+            self.current_task_status.updater(text="Experiment #{}: Dataset #{}: {}".format(self.current_experiment + 1,
+                                                                                           self.current_dataset,
+                                                                                           self.current_type))
         elif message_bool:
             progress_task = 1
             progress_overall = progress_task * progress_per_dataset + progress_dataset
@@ -379,6 +379,8 @@ class ProgressUpdaterGUI(ProgressUpdater):
                 tr = time.localtime(time_done_estimate)
                 time_text = "{:02d}:{:02d}:{:02d} {:02d}/{:02d}".format(tr[3], tr[4], tr[5], tr[2], tr[1])
                 self.time_done_status.updater(text=time_text)
+            else:
+                self.time_done_status.updater(text="TBD")
 
         self.gui.update()
 
