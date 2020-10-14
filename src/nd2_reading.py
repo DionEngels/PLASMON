@@ -47,7 +47,7 @@ class ND2ReaderForMetadata(ND2Reader):
         # Other properties
         self._timesteps = None
 
-    def get_metadata(self):
+    def get_metadata(self, verbose=True):
         """
         Get metadata. Reads out nd2 and returns the metadata
         """
@@ -58,7 +58,8 @@ class ND2ReaderForMetadata(ND2Reader):
             metadata_dict['z_levels'] = list(metadata_dict.pop('z_levels'))
             metadata_dict['z_coordinates'] = metadata_dict.pop('z_coordinates')
         except Exception:
-            warn("Z-levels missing from metadata", DataWarning)
+            if verbose:
+                warn("Z-levels missing from metadata", DataWarning)
         metadata_dict.pop('frames', None)
         metadata_dict.pop('date', None)
 
@@ -66,20 +67,23 @@ class ND2ReaderForMetadata(ND2Reader):
             metadata_dict['pfs_status'] = self._parser._raw_metadata.pfs_status
             metadata_dict['pfs_offset'] = self._parser._raw_metadata.pfs_offset
         except Exception:
-            warn("PFS data missing from metadata", DataWarning)
+            if verbose:
+                warn("PFS data missing from metadata", DataWarning)
 
         try:
             metadata_dict['timesteps'] = self.timesteps
             metadata_dict['frame_rate'] = self.frame_rate
         except Exception:
-            warn("Timestep data missing from metadata", DataWarning)
+            if verbose:
+                warn("Timestep data missing from metadata", DataWarning)
 
         try:
             info_to_parse = self.parser._raw_metadata.image_text_info
             metadata_text_dict = self.parse_text_info(info_to_parse)
             metadata_dict = {**metadata_dict, **metadata_text_dict}
         except Exception:
-            warn("Detailed metadata missing", DataWarning)
+            if verbose:
+                warn("Detailed metadata missing", DataWarning)
 
         try:
             info_to_parse = self.parser._raw_metadata.image_metadata_sequence
@@ -92,7 +96,8 @@ class ND2ReaderForMetadata(ND2Reader):
                 pass
             metadata_dict['Others'] = metadata_dict_sequence
         except Exception:
-            warn("Raw metadata missing", DataWarning)
+            if verbose:
+                warn("Raw metadata missing", DataWarning)
 
         for key, value in metadata_dict.items(): # prevent None values by making None string
             if value is None:
@@ -204,9 +209,9 @@ class ND2ReaderSelf(ND2_Reader):
         self._get_frame_dict = dict()
         super().__init__(filename, series=series, channel=channel)
 
-    def get_metadata(self):
+    def get_metadata(self, verbose=True):
         metadata_nd2 = ND2ReaderForMetadata(self.filename)
-        metadata_dict = metadata_nd2.get_metadata()
+        metadata_dict = metadata_nd2.get_metadata(verbose=verbose)
         metadata_nd2.close()
 
         return metadata_dict

@@ -51,7 +51,7 @@ class HSMDataset(Dataset):
         super().__init__(experiment, name)
         self.type = "HSM"
         self.frames = np.asarray(nd2)
-        self.metadata = nd2.get_metadata()
+        self.metadata = nd2.get_metadata(verbose=False)
         self.wavelengths = None
         self.correction_file = None
         self.spec_wavelength = None
