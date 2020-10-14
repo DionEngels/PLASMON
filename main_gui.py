@@ -85,10 +85,9 @@ DPI = 100
 
 fit_options = ["Gaussian - Fit bg", "Gaussian - Estimate bg",
                "Phasor + Intensity", "Phasor + Sum", "Phasor"]
-
 rejection_options = ["Loose", "None"]
-
 roi_size_options = ["7x7", "9x9"]
+dimension_options = ["nm", "pixels"]
 
 
 # %% Multiprocessing main
@@ -340,29 +339,49 @@ class ProgressUpdaterGUI(ProgressUpdater):
         self.start_time = time.time()
 
     def status(self, progress, total):
-        self.progress = progress  # this time with +1
+        self.progress = progress  # this time without +1
         self.total = total
-        self.update(False, False)
+        self.update(False, False, False)
 
-    def update(self, new_dataset, message_bool):
-        if new_dataset:
+    def update(self, new_experiment, new_dataset, message_bool):
+        if new_experiment:
+            pass
+            overall_progress = self.current_experiment / self.total_experiments
             self.progress_task_status.updater(text="0%")
-            self.progress_overall_status.updater(text="{}%".format(int((self.current_dataset - 1)/self.total_datasets)))
+            self.progress_overall_status.updater(text="{:.2f}%".format(overall_progress * 100))
 
-            self.current_task_status.updater(text="Task #{}: {}".format(self.current_dataset, self.current_type))
+        elif new_dataset:
+            progress_experiment = self.current_experiment / self.total_experiments
+            progress_per_experiment = 1 / self.total_experiments
+            progress_dataset = (self.current_dataset - 1) / self.total_datasets * progress_per_experiment
+            overall_progress = progress_dataset + progress_experiment
+
+            self.progress_task_status.updater(text="0%")
+            self.progress_overall_status.updater(text="{:.2f}%".format(overall_progress * 100))
+
+            self.current_task_status.updater(text="Experiment #{}: Task #{}: {}".format(self.current_experiment + 1,
+                                                                                        self.current_dataset,
+                                                                                        self.current_type))
         elif message_bool:
-            self.current_task_status.updater(text="Experiment {}: ".format() + self.message_string)
+            self.current_task_status.updater(text="Experiment {}: ".format(self.current_experiment + 1) +
+                                                  self.message_string)
         else:
-            progress_percent = self.progress / self.total
-            progress_percent_overall = progress_percent + (self.current_dataset - 1) * 100 / self.total_datasets
-            self.progress_task_status.updater(text="{}%".format(int(progress_percent*100)))
-            self.progress_overall_status.updater(text="{}%".format(int(progress_percent_overall*100)))
+            progress_task = self.progress / self.total
+            progress_experiment = self.current_experiment / self.total_experiments
+            progress_per_experiment = 1 / self.total_experiments
+            progress_dataset = (self.current_dataset - 1) / self.total_datasets * progress_per_experiment
+            progress_per_dataset = 1 / self.total_datasets
+            progress_overall = progress_experiment + progress_task * progress_per_dataset + progress_dataset
 
-            time_taken = time.time() - self.start_time
-            time_done_estimate = time_taken * 1 / progress_percent + self.start_time
-            tr = time.localtime(time_done_estimate)
-            time_text = "{:02d}:{:02d}:{:02d} {:02d}/{:02d}".format(tr[3], tr[4], tr[5], tr[2], tr[1])
-            self.time_done_status.updater(text=time_text)
+            self.progress_task_status.updater(text="{:.2f}%".format(progress_task*100))
+            self.progress_overall_status.updater(text="{:.2f}%".format(progress_overall*100))
+
+            if progress_overall != 0:
+                time_taken = time.time() - self.start_time
+                time_done_estimate = time_taken * 1 / progress_overall + self.start_time
+                tr = time.localtime(time_done_estimate)
+                time_text = "{:02d}:{:02d}:{:02d} {:02d}/{:02d}".format(tr[3], tr[4], tr[5], tr[2], tr[1])
+                self.time_done_status.updater(text=time_text)
 
         self.gui.update()
 
@@ -592,7 +611,9 @@ class MainPage(BasePage):
         self.listbox_loaded.selection_clear(0, "end")
 
     def run(self):
-        for experiment in self.controller.experiments:
+        self.controller.progress_updater.start(self.controller.experiments)
+        for exp_index, experiment in enumerate(self.controller.experiments):
+            self.controller.progress_updater.new_experiment(exp_index)
             experiment.run()
 
     def update_page(self, experiment=None):
@@ -1111,6 +1132,11 @@ class AnalysisPageTemplate(BasePage):
         self.label_loaded_video_status.updater(text=self.experiment.datasets[-1].name)
         self.entry_name.updater(placeholder=self.experiment.datasets[-1].name)
 
+        self.entry_x_min.updater()
+        self.entry_y_min.updater()
+        self.entry_x_max.updater()
+        self.entry_y_max.updater()
+
 # %% TTPage
 
 
@@ -1140,7 +1166,6 @@ class TTPage(AnalysisPageTemplate):
 
         label_dimensions = tk.Label(self, text="pixels or nm", font=FONT_LABEL, bg='white')
         label_dimensions.grid(row=12, column=30, columnspan=6, sticky='EW', padx=PAD_BIG)
-        dimension_options = ["nm", "pixels"]
         self.variable_dimensions = tk.StringVar(self)
         drop_dimension = ttk.OptionMenu(self, self.variable_dimensions, dimension_options[0], *dimension_options)
         drop_dimension.grid(row=13, column=30, columnspan=6, sticky='EW', padx=PAD_BIG)
@@ -1195,6 +1220,16 @@ class TTPage(AnalysisPageTemplate):
         super().update_page(experiment=experiment)
         self.label_roi_spacing_status.updater(text=self.experiment.roi_finder.get_settings()['inter_roi'])
 
+        self.variable_method.set(fit_options[1])
+        self.variable_rejection.set(rejection_options[0])
+        self.variable_cores.set(1)
+        self.variable_dimensions.set(dimension_options[0])
+        self.variable_roi_size.set(roi_size_options[0])
+        self.entry_begin_frame.updater()
+        self.entry_end_frame.updater()
+
+        self.button_add_to_queue.updater(state='disabled')
+
 # %% HSMPage
 
 
@@ -1221,6 +1256,9 @@ class HSMPage(AnalysisPageTemplate):
 
     def update_page(self, experiment=None):
         super().update_page(experiment=experiment)
+
+        self.variable_hsm_correct.set("")
+        self.entry_wavelength.updater()
 
     def add_to_queue(self):
         hsm_correction = self.variable_hsm_correct.get()

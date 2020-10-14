@@ -92,6 +92,7 @@ class ProgressUpdater:
         self.current_dataset = None
         self.total_datasets = None
         self.current_experiment = None
+        self.total_experiments = None
         self.progress = None
         self.total = None
         self.message_string = None
@@ -100,6 +101,7 @@ class ProgressUpdater:
         self.current_type = None
         self.current_dataset = 0
         self.total_datasets = 0
+        self.total_experiments = len(experiments)
         for experiment in experiments:
             self.total_datasets += len(experiment.datasets)
 
