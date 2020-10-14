@@ -53,6 +53,7 @@ from src.warnings import InputWarning
 
 # Multiprocessing
 import multiprocessing as mp
+import _thread
 
 mpl.use("TkAgg")  # set back end to TK
 
@@ -415,6 +416,12 @@ class Footer(FooterBase):
             self.grid_columnconfigure(i, weight=1)
 
     def cancel(self):
+        if self.controller.experiment_to_link_name is None:
+            del self.controller.experiments[-1]
+        else:
+            experiment_to_link = [experiment for experiment in self.controller.experiments if
+                                  self.controller.experiment_to_link_name in experiment.name][0]
+            del experiment_to_link.datasets[-1]
         self.controller.show_page(MainPage)
 
 # %% Controller
@@ -444,6 +451,7 @@ class MbxPython(tk.Tk):
         self.progress_updater = None
         self.experiments = []
         self.experiment_to_link_name = None
+        self.thread_started = False
 
         self.pages = {}
         page_tuple = (MainPage, LoadPage, ROIPage, TTPage, HSMPage)
@@ -609,11 +617,17 @@ class MainPage(BasePage):
     def deselect_experiment(self):
         self.listbox_loaded.selection_clear(0, "end")
 
-    def run(self):
-        self.controller.progress_updater.start(self.controller.experiments)
-        for exp_index, experiment in enumerate(self.controller.experiments):
-            self.controller.progress_updater.new_experiment(exp_index)
+    @staticmethod
+    def run_thread(experiments, progress_updater):
+        for exp_index, experiment in enumerate(experiments):
+            progress_updater.new_experiment(exp_index)
             experiment.run()
+
+    def run(self):
+        if self.controller.thread_started is False:
+            self.controller.thread_started = True
+            self.controller.progress_updater.start(self.controller.experiments)
+            _thread.start_new_thread(self.run_thread, (self.controller.experiments, self.controller.progress_updater))
 
     def update_page(self, experiment=None):
         self.listbox_loaded.delete(0, 'end')
