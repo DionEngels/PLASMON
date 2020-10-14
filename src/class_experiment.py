@@ -154,6 +154,8 @@ class Experiment:
         self.progress_updater.message("Saving to .mat")
         outputting.save_to_mat(self.directory, "Results", results)
         outputting.save_to_mat(self.directory, "Metadata", metadata)
+        self.progress_updater.message("Done")
+
 
     def rois_to_dict(self):
         result_dict = {}

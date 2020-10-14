@@ -339,6 +339,11 @@ class ProgressUpdaterGUI(ProgressUpdater):
         self.time_done_status = time_done_status
         self.start_time = time.time()
 
+    def status(self, progress, total):
+        self.progress = progress  # this time with +1
+        self.total = total
+        self.update(False, False)
+
     def update(self, new_dataset, message_bool):
         if new_dataset:
             self.progress_task_status.updater(text="0%")
@@ -346,7 +351,7 @@ class ProgressUpdaterGUI(ProgressUpdater):
 
             self.current_task_status.updater(text="Task #{}: {}".format(self.current_dataset, self.current_type))
         elif message_bool:
-            self.current_task_status.updater(text=self.message_string)
+            self.current_task_status.updater(text="Experiment {}: ".format() + self.message_string)
         else:
             progress_percent = self.progress / self.total
             progress_percent_overall = progress_percent + (self.current_dataset - 1) * 100 / self.total_datasets
@@ -559,8 +564,8 @@ class MainPage(BasePage):
                                                               self.label_time_done_status)
 
     def add_experiment(self):
-        self.controller.show_page(LoadPage)
         self.controller.experiment_to_link_name = None
+        self.controller.show_page(LoadPage)
 
     def add_dataset(self):
         try:
@@ -587,7 +592,8 @@ class MainPage(BasePage):
         self.listbox_loaded.selection_clear(0, "end")
 
     def run(self):
-        pass  # TO DO
+        for experiment in self.controller.experiments:
+            experiment.run()
 
     def update_page(self, experiment=None):
         self.listbox_loaded.delete(0, 'end')
@@ -632,6 +638,7 @@ class LoadPage(BasePage):
 
         if dataset_type == "HSM":
             self.label_wait.grid()
+            self.update()
         if self.controller.experiment_to_link_name is None:
             experiment = Experiment(dataset_type, filename, self.controller.proceed_question,
                                     self.controller.progress_updater, self.controller.show_rois)
@@ -1179,7 +1186,8 @@ class TTPage(AnalysisPageTemplate):
 
         status = self.experiment.add_to_queue(settings_runtime)
         if status is False:
-            tk.messagebox.askokcancel("Check again", "Settings are not allowed. Check again.")
+            tk.messagebox.showerror("Check again", "Settings are not allowed. Check again.")
+            return
 
         self.controller.show_page(MainPage)
 
@@ -1214,6 +1222,26 @@ class HSMPage(AnalysisPageTemplate):
     def update_page(self, experiment=None):
         super().update_page(experiment=experiment)
 
+    def add_to_queue(self):
+        hsm_correction = self.variable_hsm_correct.get()
+        wavelengths = self.entry_wavelength.get()
+        name = self.entry_name.get()
+
+        if wavelengths == "Use MATLAB-like array notation. Example: [500:10:520, 532, 540:10:800":
+            tk.messagebox.showerror("Check again", "Wavelengths not given.")
+            return
+        if hsm_correction == "":
+            tk.messagebox.showerror("Check again", "Select a correction file.")
+            return
+
+        settings_runtime_hsm = {'correction_file': hsm_correction, 'wavelengths': wavelengths, 'name': name}
+        status = self.experiment.add_to_queue(settings_runtime_hsm)
+
+        if status is False:
+            tk.messagebox.showerror("Check again", "Settings are not allowed. Check again.")
+            return
+
+        self.controller.show_page(MainPage)
 
 # %% START GUI
 
