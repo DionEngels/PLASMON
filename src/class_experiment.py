@@ -13,7 +13,7 @@ The experiment class of v2 of the program. Holds several datasets.
 """
 # GENERAL IMPORTS
 from os import mkdir  # to get standard usage
-import numpy as np
+import matplotlib as mpl
 
 from warnings import warn
 
@@ -145,6 +145,7 @@ class Experiment:
                 figuring.individual_figures(self)
             except:
                 warn("Individual figure creation failed", RuntimeWarning)
+
 
         self.progress_updater.message("Converting to MATLAB coordinate system")
         tools.convert_to_matlab(self)

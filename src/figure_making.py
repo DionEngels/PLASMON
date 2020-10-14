@@ -24,6 +24,8 @@ from numpy import max as np_max
 from numpy import min as np_min
 from math import ceil, floor
 
+
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.lines import Line2D
@@ -170,6 +172,9 @@ def set_range_and_ticks(ax, max_range):
 
 
 def save_overview(experiment):
+    mpl.use('agg', force=True)
+    from matplotlib import pyplot as plt
+
     path = experiment.directory + "/Graphs"
     mkdir(path)
 
@@ -262,6 +267,9 @@ def save_overview(experiment):
 
 
 def individual_figures(experiment):
+    mpl.use('agg', force=True)
+    from matplotlib import pyplot as plt
+
     path = experiment.directory + "/Graphs"
 
     tt = []

@@ -36,7 +36,6 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
-import matplotlib.patches as patches
 from scipy.io import loadmat
 from scipy.ndimage import median_filter
 
@@ -540,11 +539,11 @@ class MainPage(BasePage):
         self.listbox_loaded.grid(row=1, column=16, columnspan=16, rowspan=8, sticky='NSEW', padx=PAD_SMALL)
         self.listbox_loaded.configure(justify="center")
 
-        button_loaded_delete = ttk.Button(self, text="Delete", command=lambda: self.delete_experiment())
-        button_loaded_delete.grid(row=9, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.button_loaded_delete = NormalButton(self, text="Delete", command=lambda: self.delete_experiment(),
+                                                 row=9, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
-        button_loaded_deselect = ttk.Button(self, text="Deselect", command=lambda: self.deselect_experiment())
-        button_loaded_deselect.grid(row=9, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.button_loaded_deselect = NormalButton(self, text="Deselect", command=lambda: self.deselect_experiment(),
+                                                   row=9, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         label_queued = tk.Label(self, text="Queued", font=FONT_HEADER, bg='white')
         label_queued.grid(row=0, column=32, columnspan=16, sticky='EW', padx=PAD_SMALL)
@@ -635,14 +634,22 @@ class MainPage(BasePage):
         self.button_run.updater(state='disabled')
         self.button_new_experiment.updater(state='disabled')
         self.button_new_dataset.updater(state='disabled')
+        self.button_loaded_delete.updater(state='disabled')
+        self.button_loaded_deselect.updater(state='disabled')
 
     def close_down(self):
         self.button_run.updater(command=lambda: self.run(), state='enabled')
         self.button_new_experiment.updater(state='enabled')
         self.button_new_dataset.updater(state='enabled')
+        self.button_loaded_delete.updater(state='enabled', command=lambda: self.delete_experiment())
+        self.button_loaded_deselect.updater(state='enabled', command=lambda: self.deselect_experiment())
         self.controller.experiments = []
         self.update_page()
         self.controller.thread_started = False
+
+        # reset backend for further use in GUI
+        mpl.use("TkAgg", force=True)
+        from matplotlib import pyplot as plt
 
     def update_page(self, experiment=None):
         self.listbox_loaded.delete(0, 'end')
