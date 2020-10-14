@@ -91,35 +91,45 @@ class ProgressUpdater:
         self.current_type = None
         self.current_dataset = None
         self.total_datasets = None
+        self.current_experiment = None
         self.progress = None
         self.total = None
         self.message_string = None
 
-    def start(self, n_datasets):
+    def start(self, experiments):
         self.current_type = None
         self.current_dataset = 0
-        self.total_datasets = n_datasets
+        self.total_datasets = 0
+        for experiment in experiments:
+            self.total_datasets += len(experiment.datasets)
 
     def new_dataset(self, new_type):
         self.current_type = new_type
         self.current_dataset += 1
-        self.update(True, False)
+        self.update(False, True, False)
+
+    def new_experiment(self, exp_index):
+        self.current_experiment = exp_index
+        self.update(True, False, False)
 
     def status(self, progress, total):
         self.progress = progress + 1
         self.total = total
-        self.update(False, False)
+        self.update(False, False, False)
 
     def message(self, message_string):
         self.message_string = message_string
-        self.update(False, True)
+        self.update(False, False, True)
 
-    def update(self, new_dataset, message_bool):
-        if new_dataset:
-            print('Starting dataset {} of {}. Type: {}'.format(self.current_dataset, self.total_datasets,
-                                                               self.current_type))
+    def update(self, new_experiment, new_dataset, message_bool):
+        if new_experiment:
+            print('Starting experiment {}'.format(self.current_experiment))
+        elif new_dataset:
+            print('Experiment {}. Starting dataset {} of {}. Type: {}'.format(self.current_experiment,
+                                                                              self.current_dataset, self.total_datasets,
+                                                                              self.current_type))
         elif message_bool:
-            print(self.message_string)
+            print("Experiment {}: ".format(self.current_experiment) + self.message_string)
         else:
             print('{} of {} of current dataset done'.format(self.progress, self.total))
 
@@ -181,14 +191,25 @@ def show_rois(frame, figure=None, roi_locations=None, roi_size=None, roi_offset=
     figuring.plot_rois(ax, frame, roi_locations, roi_size, roi_offset)
     plt.show()
 
+# %% Run
+
+
+def run(experiments, progress_updater):
+    progress_updater.start(experiments)
+    for exp_index, experiment in enumerate(experiments, start=1):
+        progress_updater.new_experiment(exp_index)
+        experiment.run()
+
 # %% Main loop cell
 
 
 if __name__ == '__main__':
     divertor = DivertError()
+    progress_updater = ProgressUpdater()
+    experiments = []
     warnings.showwarning = divertor.warning
 
-    experiment = Experiment("TT", tt_name, proceed_question, ProgressUpdater(), show_rois)
+    experiment = Experiment("TT", tt_name, proceed_question, progress_updater, show_rois)
 
     experiment.show_rois("Experiment")
 
@@ -240,4 +261,5 @@ if __name__ == '__main__':
     if status is False:
         sys.exit("Did not pass check")
 
-    experiment.run()
+    experiments.append(experiment)
+    run(experiments, progress_updater)

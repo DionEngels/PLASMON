@@ -114,8 +114,6 @@ class Experiment:
 
     def run(self):
 
-        self.progress_updater.start(len(self.datasets))
-
         for dataset in self.datasets:
             self.progress_updater.new_dataset(dataset.type)
             dataset.run()
