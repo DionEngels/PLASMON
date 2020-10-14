@@ -643,6 +643,7 @@ class MainPage(BasePage):
         self.button_new_dataset.updater(state='enabled')
         self.button_loaded_delete.updater(state='enabled', command=lambda: self.delete_experiment())
         self.button_loaded_deselect.updater(state='enabled', command=lambda: self.deselect_experiment())
+
         self.controller.experiments = []
         self.update_page()
         self.controller.thread_started = False

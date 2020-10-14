@@ -31,6 +31,8 @@ import matplotlib.patches as patches
 from matplotlib.lines import Line2D
 from matplotlib.gridspec import GridSpec
 
+import _thread
+
 __self_made__ = True
 DPI = 400
 N_TICKS = 4
@@ -171,6 +173,12 @@ def set_range_and_ticks(ax, max_range):
     ax.yaxis.set_major_locator(plt.MaxNLocator(N_TICKS))
 
 
+def save_figure(fig, name):
+    fig.savefig(name, bbox_inches='tight')
+    fig.clear()
+    plt.close(fig)
+
+
 def save_overview(experiment):
     mpl.use('agg', force=True)
     from matplotlib import pyplot as plt
@@ -261,9 +269,7 @@ def save_overview(experiment):
 
     name = path + "/" + "_Overview.png"
     plt.tight_layout()
-    fig.savefig(name, bbox_inches='tight')
-    fig.clear()
-    plt.close(fig)
+    _thread.start_new_thread(save_figure, (fig, name))
 
 
 def individual_figures(experiment):
