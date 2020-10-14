@@ -133,6 +133,9 @@ class Experiment:
         settings = self.settings_to_dict()
         outputting.save_settings(self.directory, settings)
 
+        import time
+        start_time = time.time()
+
         try:
             self.progress_updater.message("Saving overview")
             figuring.save_overview(self)
@@ -140,12 +143,15 @@ class Experiment:
             warn("Overview figure creation failed", RuntimeWarning)
 
         if self.settings['All Figures'] is True:
-            try:
-                self.progress_updater.message("Saving individual figures")
-                figuring.individual_figures(self)
-            except:
-                warn("Individual figure creation failed", RuntimeWarning)
+            #try:
+            self.progress_updater.message("Saving individual figures")
+            figuring.individual_figures(self)
+            #except:
+                #import traceback
+              #  print(traceback.format_exc())
+              #  warn("Individual figure creation failed", RuntimeWarning)
 
+        print("Time taken {}".format(time.time() - start_time))
 
         self.progress_updater.message("Converting to MATLAB coordinate system")
         tools.convert_to_matlab(self)
@@ -155,7 +161,6 @@ class Experiment:
         outputting.save_to_mat(self.directory, "Results", results)
         outputting.save_to_mat(self.directory, "Metadata", metadata)
         self.progress_updater.message("Done")
-
 
     def rois_to_dict(self):
         result_dict = {}

@@ -268,29 +268,15 @@ def save_overview(experiment):
                         roi.results[experiment.datasets[n_dataset].name_result]['result'], method, roi.index)
 
     name = path + "/" + "_Overview.png"
-    plt.tight_layout()
+    #  plt.tight_layout()
     _thread.start_new_thread(save_figure, (fig, name))
 
 
-def individual_figures(experiment):
+def save_figure_queue(path, per_roi_length, experiment, hsm, tt, rois):
     mpl.use('agg', force=True)
     from matplotlib import pyplot as plt
-
-    path = experiment.directory + "/Graphs"
-
-    tt = []
-    hsm = []
-    for n_dataset, dataset in enumerate(experiment.datasets):
-        if dataset.type == "TT":
-            tt.append(n_dataset)
-        elif dataset.type == "HSM":
-            hsm.append(n_dataset)
-
-    per_roi_length = len(tt) + max(len(hsm), 1)
-
-    for roi in experiment.rois:
-        fig = plt.figure(figsize=(8, 4*per_roi_length), dpi=DPI)
-
+    fig = plt.figure(figsize=(8, 4 * per_roi_length), dpi=DPI)
+    for roi in rois:
         ax_frame = fig.add_subplot(per_roi_length, 2, 1)
         plot_rois(ax_frame, roi.get_roi(experiment.frame_for_rois, 7, [0, 0]))
         ax_frame.set_xlabel('x (pixels)')
@@ -318,8 +304,44 @@ def individual_figures(experiment):
                 make_tt(ax_tt, experiment.datasets[n_dataset].time_axis,
                         roi.results[experiment.datasets[n_dataset].name_result]['result'], method, roi.index)
 
-        name = path + "/" + "ROI" + str(roi.index+1)+".png"
-        plt.tight_layout()
+        name = path + "/" + "ROI" + str(roi.index + 1) + ".png"
+        #  fig.tight_layout()
         fig.savefig(name, bbox_inches='tight')
         fig.clear()
-        plt.close(fig)
+        # plt.close(fig)
+
+
+def individual_figures(experiment):
+    def split_list(alist, wanted_parts=1):
+        length = len(alist)
+        return [alist[i * length // wanted_parts: (i + 1) * length // wanted_parts]
+                for i in range(wanted_parts)]
+
+    mpl.use('agg', force=True)
+    from matplotlib import pyplot as plt
+
+    from threading import Thread
+    n_threads = 2
+
+    path = experiment.directory + "/Graphs"
+
+    tt = []
+    hsm = []
+    for n_dataset, dataset in enumerate(experiment.datasets):
+        if dataset.type == "TT":
+            tt.append(n_dataset)
+        elif dataset.type == "HSM":
+            hsm.append(n_dataset)
+
+    per_roi_length = len(tt) + max(len(hsm), 1)
+
+    split_rois = split_list(experiment.rois, wanted_parts=n_threads)
+    threads = []
+    for rois in split_rois:
+        thread = Thread(target=save_figure_queue, args=(path, per_roi_length, experiment, hsm, tt, rois))
+        thread.start()
+        threads.append(thread)
+
+    for thread in threads:
+        thread.join()
+
