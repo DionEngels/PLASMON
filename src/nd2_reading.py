@@ -13,6 +13,7 @@ Everything related to reading in the .nd2 files
 
 v1.0: split from tools and new version with only nd2reader and no longer nd2_reader (that is a different package)
 v1.1: None prevention: 10/08/2020
+v2.0: Part of GUI v2.0: 15/10/2020
 
 """
 from warnings import warn
@@ -51,18 +52,25 @@ class ND2ReaderForMetadata(ND2Reader):
         """
         Get metadata. Reads out nd2 and returns the metadata
         """
+        # get base metadata
         metadata_dict = self.metadata
 
+        # remove ROIs
         metadata_dict.pop('rois', None)
+
+        # try to find z levels
         try:
             metadata_dict['z_levels'] = list(metadata_dict.pop('z_levels'))
             metadata_dict['z_coordinates'] = metadata_dict.pop('z_coordinates')
         except Exception:
             if verbose:
                 warn("Z-levels missing from metadata", DataWarning)
+
+        # remove frames and date (for now)
         metadata_dict.pop('frames', None)
         metadata_dict.pop('date', None)
 
+        # check pfs status
         try:
             metadata_dict['pfs_status'] = self._parser._raw_metadata.pfs_status
             metadata_dict['pfs_offset'] = self._parser._raw_metadata.pfs_offset
@@ -70,6 +78,7 @@ class ND2ReaderForMetadata(ND2Reader):
             if verbose:
                 warn("PFS data missing from metadata", DataWarning)
 
+        # check timesteps and frame rate
         try:
             metadata_dict['timesteps'] = self.timesteps
             metadata_dict['frame_rate'] = self.frame_rate
@@ -77,6 +86,7 @@ class ND2ReaderForMetadata(ND2Reader):
             if verbose:
                 warn("Timestep data missing from metadata", DataWarning)
 
+        # add more info
         try:
             info_to_parse = self.parser._raw_metadata.image_text_info
             metadata_text_dict = self.parse_text_info(info_to_parse)
@@ -85,21 +95,25 @@ class ND2ReaderForMetadata(ND2Reader):
             if verbose:
                 warn("Detailed metadata missing", DataWarning)
 
+        # add raw metadata
         try:
             info_to_parse = self.parser._raw_metadata.image_metadata_sequence
             metadata_dict_sequence = self.parse_sequence_info(info_to_parse)
             try:
+                # move some important stuff to main metadata
                 metadata_dict['EnableGainMultiplier'] = metadata_dict_sequence.pop('EnableGainMultiplier')
                 metadata_dict['GainMultiplier'] = metadata_dict.pop('Multiplier')
                 metadata_dict['Conversion_Gain'] = metadata_dict.pop('Conversion_Gain')
             except Exception:
                 pass
+            # move rest to others
             metadata_dict['Others'] = metadata_dict_sequence
         except Exception:
             if verbose:
                 warn("Raw metadata missing", DataWarning)
 
-        for key, value in metadata_dict.items(): # prevent None values by making None string
+        # prevent None values by making None string
+        for key, value in metadata_dict.items():
             if value is None:
                 metadata_dict[key] = str(value)
 
@@ -108,17 +122,19 @@ class ND2ReaderForMetadata(ND2Reader):
     def recursive_add_to_dict(self, dictionary):
         """
         Function to parse dictionaries in metadata since many include dictionaries in dictionaries
-
+        ----------------------------------------------
         :param dictionary: the dictionary to be parsed
         :return: the result of the dictionary
         """
         metadata_text_dict = {}
         for key_decoded, value_decoded in dictionary.items():
+            # decode keys and values
             if type(key_decoded) is bytes:
                 key_decoded = key_decoded.decode("utf-8")
             if type(value_decoded) is bytes:
                 value_decoded = value_decoded.decode("utf-8")
 
+            # if dict, add to restart function. Otherwise to add
             if type(value_decoded) == dict:
                 return_dict = self.recursive_add_to_dict(value_decoded)
                 metadata_text_dict = {**metadata_text_dict, **return_dict}
@@ -132,7 +148,7 @@ class ND2ReaderForMetadata(ND2Reader):
     def parse_sequence_info(self, info_to_parse):
         """
         Parses the metadata info of the sequence
-
+        --------------------------------------------
         :param info_to_parse: the info to parse from nd2 file
         :return: the parsed metadata
         """
@@ -146,7 +162,7 @@ class ND2ReaderForMetadata(ND2Reader):
     def parse_text_info(info_to_parse):
         """
         Parses the metadata info of the image
-
+        --------------------------------------------
         :param info_to_parse: the info to parse from nd2 file
         :return: the parsed metadata
         """
@@ -154,22 +170,28 @@ class ND2ReaderForMetadata(ND2Reader):
         metadata_text_dict = {}
 
         for key, value in main_part.items():
+            # decode
             value_string = value.decode("utf-8")
             if value_string != '':
+                # if not empty, split
                 split_string = value_string.split('\r\n')
                 for line_number, line in enumerate(split_string):
                     if line == '':
                         continue
                     if line_number == 0:  # these are the headers, they do not have a value, only key
                         key = key.decode("utf-8")
+                        # we do not want those
                         if '5' in key or '6' in key:
                             continue
                         elif '9' in key:
+                            # this is the date
                             value = value_string
                             key = 'date'
                         elif '13' in key:
+                            # this is the objective
                             value = value_string
                             key = 'Objective'
+                        # otherwise just add
                         metadata_text_dict[key] = value
                         continue
                     try:
@@ -202,7 +224,7 @@ class ND2ReaderForMetadata(ND2Reader):
 
 class ND2ReaderSelf(ND2_Reader):
     """
-    Self-made ND2 reader with improved metadata and less warnings
+    Self-made ND2 reader with improved metadata and fewer warnings
     """
     def __init__(self, filename, series=0, channel=0):
         self._clear_axes()
@@ -210,6 +232,12 @@ class ND2ReaderSelf(ND2_Reader):
         super().__init__(filename, series=series, channel=channel)
 
     def get_metadata(self, verbose=True):
+        """
+        Gets metadata of nd2 using self-made class.
+        ---------------------------------------
+        :param verbose: Verbose if you want all the outputs
+        :return: metadata_dict: the dictionary of all metadata
+        """
         metadata_nd2 = ND2ReaderForMetadata(self.filename)
         metadata_dict = metadata_nd2.get_metadata(verbose=verbose)
         metadata_nd2.close()
