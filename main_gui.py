@@ -132,6 +132,13 @@ class DivertorErrorsGUI(DivertError):
 
 
 def quit_gui(gui):
+    # for all loaded experiments, try to delete directory if directory is made. This only succeeds if its empty
+    for experiment in gui.experiments:
+        if experiment.dir_made:
+            try:
+                rmdir(experiment.directory)
+            except:
+                pass
     gui.quit()
     sys.exit(0)
 
