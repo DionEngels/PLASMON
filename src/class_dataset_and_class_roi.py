@@ -22,9 +22,16 @@ __self_made__ = True
 
 
 class Roi:
-
+    """
+    ROI class. Used to determine region of interest
+    """
     def __init__(self, x, y):
-
+        """
+        Initialization of ROI class.
+        ---------------------------
+        :param x: x position
+        :param y: y position
+        """
         self.x = x
         self.y = y
         self.index = None
@@ -32,17 +39,46 @@ class Roi:
         self.results = {}
 
     def set_index(self, index):
+        """
+        Sets index of ROI
+        ----------------
+        :param index: index to set
+        """
         self.index = index
 
     def get_roi(self, frame, roi_size_1d, offset):
+        """
+        Gets ROI for a certain frame, offset, and ROI size
+        ------------------------------------
+        :param frame: frame to get ROI of
+        :param roi_size_1d: ROI size
+        :param offset: offset of current ROI in that frame
+        :return: Something by Something ROI around the x/y position of this ROI
+        """
         return frame[self.y + offset[0] - roi_size_1d:self.y + offset[0] + roi_size_1d + 1,
                      self.x + offset[1] - roi_size_1d:self.x + offset[1] + roi_size_1d + 1]
 
     def get_frame_stack(self, frames, roi_size_1d, offset):
+        """
+        Gets ROI for a certain frame stack, offset, and ROI size
+        ------------------------------------
+        :param frames: frames to get ROI of
+        :param roi_size_1d: ROI size
+        :param offset: offset of current ROI in that frame
+        :return: Something by Something ROI around the x/y position of this ROI, in time
+        """
         return frames[:, self.y + offset[0] - roi_size_1d:self.y + offset[0] + roi_size_1d + 1,
                       self.x + offset[1] - roi_size_1d:self.x + offset[1] + roi_size_1d + 1]
 
     def in_frame(self, shape, offset, margin):
+        """
+        Checks whether or not this ROI is in the frame
+        --------------------------
+        :param shape: Shape of frame
+        :param offset: offset of frame
+        :param margin: margin required to edge
+        :return: in_frame_boolean: whether or not in frame
+        """
         if self.x + offset[1] < margin or self.x + offset[1] > shape[1] - margin:
             in_frame_boolean = False
         elif self.y + offset[0] < margin or self.y + offset[0] > shape[0] - margin:
@@ -56,7 +92,16 @@ class Roi:
 
 
 class Dataset:
+    """
+    Base dataset class. Each dataset type (HSM / TT) inherits from this
+    """
     def __init__(self, experiment, name):
+        """
+        Init for dataset class. Sets name, type, name_result (for MATLAB) and some other base things to None
+        -----------------------------------
+        :param experiment: parent experiment
+        :param name: name of dataset
+        """
         self.type = "Dataset"
         self.experiment = experiment
         self.name = name.split(".")[0].split("/")[-1]
@@ -72,6 +117,13 @@ class Dataset:
 
     @staticmethod
     def parse_start_end(start, end):
+        """
+        Parses start and end values often used in program to create a slice
+        ---------------------------
+        :param start: Start value
+        :param end: End value
+        :return: Slice from start to end value
+        """
         if start == "Leave empty for start" and end == "Leave empty for end":
             return slice(None), 0
         elif start == "Leave empty for start" and end != "Leave empty for end":
@@ -83,6 +135,13 @@ class Dataset:
 
     @staticmethod
     def correlate_frames(frame_old, frame_new):
+        """
+        Correlates old frame with new frame and finds offset between the two
+        -----------------------
+        :param frame_old: Previous frame
+        :param frame_new: New frame to correlate with
+        :return: offset: the offset between the two frames
+        """
         # if same matrix
         if np.array_equal(frame_new, frame_old):
             return [0, 0]
@@ -100,6 +159,13 @@ class Dataset:
         return offset
 
     def correlate(self, settings):
+        """
+        The overall correlate function. Calls the above functions
+        ----------------------------------
+        :param settings: settings from user
+        :return: offset: offset between new and old frame
+        """
+        # finds slices and offset
         x_slice, x_offset = self.parse_start_end(settings['x_min'], settings['x_max'])
         y_slice, y_offset = self.parse_start_end(settings['y_min'], settings['y_max'])
         offset_crop = np.asarray([y_offset, x_offset])
@@ -107,22 +173,30 @@ class Dataset:
         experiment_frame_shape = self.experiment.frame_for_rois.shape
         frame_shape = self.frame_for_rois.shape
 
-        # test offset crop
+        # if frame is larger than experiment frame
         if frame_shape[0] > experiment_frame_shape[0] and frame_shape[1] > experiment_frame_shape[1]:
             small_frame = self.experiment.frame_for_rois
             cropped_frame = self.frame_for_rois[y_slice, x_slice]
             offset = self.correlate_frames(small_frame, cropped_frame) - offset_crop
         elif frame_shape[0] < experiment_frame_shape[0] and frame_shape[1] < experiment_frame_shape[1]:
+            # if other way around
             small_frame = self.frame_for_rois
             cropped_frame = self.experiment.frame_for_rois[y_slice, x_slice]
             offset = self.correlate_frames(cropped_frame, small_frame) + offset_crop
         else:
+            # if same size
             old_frame = self.experiment.frame_for_rois
             new_frame = self.frame_for_rois
             offset = self.correlate_frames(old_frame, new_frame)
         return offset
 
     def find_rois(self, settings):
+        """
+        Finds the ROIs within a new dataset. First correlates frames, then uses roi_in_frame func
+        --------------------
+        :param settings: settings from user
+        :return: None. Edits dataset class by self.active_rois and self.roi_offset
+        """
         self.roi_offset = self.correlate(settings)
         self.active_rois = [roi for roi in self.experiment.rois if roi.in_frame(self.frame_for_rois.shape,
                                                                                 self.roi_offset,
@@ -130,6 +204,12 @@ class Dataset:
                                                                                 roi_finder.side_distance)]
 
     def set_name(self, new_name):
+        """
+        Set a name
+        -----------------
+        :param new_name: new name
+        :return: None. Edits class
+        """
         self.name = new_name
         self.name_result = 'res_{}'.format(self.name.replace(' ', '_'))
 
