@@ -10,6 +10,11 @@ MBx Python Data Analysis
 class_experiment
 
 The experiment class of v2 of the program. Holds several datasets.
+
+-----------------
+
+v2.0: part of v2.0: 15/10/2020
+
 """
 # GENERAL IMPORTS
 from os import mkdir  # to get standard usage

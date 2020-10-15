@@ -10,6 +10,11 @@ MBx Python Data Analysis
 class dataset & roi
 
 The dataset and ROI class of v2 of program. Dataset is one nd2 file, ROIs are region of interest.
+
+-----------------
+
+v2.0: part of v2.0: 15/10/2020
+
 """
 # GENERAL IMPORTS
 import scipy.fft as fft
