@@ -660,6 +660,7 @@ class MainPage(BasePage):
         # reset backend for further use in GUI
         mpl.use("TkAgg", force=True)
         from matplotlib import pyplot as plt
+        tk.messagebox.showinfo("Done", "Processing is done!")
 
     def update_page(self, experiment=None):
         self.listbox_loaded.delete(0, 'end')
