@@ -22,6 +22,7 @@ v0.5: removed pixel min
 v1.0: bugfixes
 v1.1: list creation bugfixes
 v1.2: find max_its
+v2.0: part of GUI v2 release; 15/10/2020
 
 """
 import src.tt as fitting
@@ -31,40 +32,36 @@ import numpy as np  # for linear algebra
 from scipy.signal import convolve2d
 from scipy.ndimage import median_filter
 from scipy.ndimage.filters import maximum_filter
-from math import ceil
 
-from scipy.stats import norm
-
-# %% Python ROI finder
 __self_made__ = True
+# %% Python ROI finder
 
 
 class RoiFinder:
     """
-    Class to find ROIs in the first frame of a microscope video
+    Class to find ROIs
     """
     def __init__(self, frame, settings=None):
         """
-        Parameters
-        ----------
-        frame : Frame in which ROIs will be found
-        settings : for resetting when frame has already been loaded before
-
-        Returns
-        -------
-        None.
-
+        Initialises ROI finder
+        -----------------------
+        :param frame: Frame in which ROIs will be found
+        :param settings: for resetting when frame has already been loaded before
+        :return: None. Sets up class
         """
         self.base_frame = frame
+        # standard fitter settings
         fitter_settings = {'roi_size': 7, 'method': "Gaussian", 'rejection': "None"}
         self.fitter = fitting.Gaussian(fitter_settings, 300, 5, [0, 0])
 
+        # setup lists
         self.sigma_list = []
         self.int_list = []
         self.corr_list = []
         self.roi_locations = []
 
         if settings is None:
+            # set standard settings if not given
             self.filter_size = 9
             self.roi_size = 7
             self.roi_size_1d = int((self.roi_size - 1) / 2)
@@ -77,16 +74,20 @@ class RoiFinder:
             self.int_min = 0
             self.int_max = np.inf
 
+            # correct for background
             background = median_filter(frame, size=self.filter_size)
             self.frame_bg = frame.astype('float') - background
 
+            # find ROI locations
             self.roi_locations = self.main()
+            # get lists
             self.int_sigma_limit(return_int=True, return_sigmas=True)
-
+            # set standard sigma/int min/max
             self.sigma_max = np.max(self.sigma_list) * 1.5  # 50% margin
             self.int_max = np.max(self.int_list) * 1.5  # 50% margin
             self.int_min = np.min(self.int_list) / 2
         else:
+            # just take values from settings
             self.filter_size = settings['filter_size']
             self.roi_size = settings['roi_size']
             self.roi_size_1d = int((self.roi_size - 1) / 2)
@@ -103,17 +104,12 @@ class RoiFinder:
 
     def change_settings(self, settings):
         """
-        Changed the settings of the ROI finder. Only called by GUI.
-
-        Parameters
-        ----------
-        settings: a dictionary of all settings
-
-        Returns
-        -------
-        None.
-
+        Changed the settings of the ROI finder.
+        ----------------------------------
+        :param: settings: a dictionary of all settings
+        :return: None. Changes class
         """
+        # copy settings
         self.roi_size = settings['roi_size']
         self.roi_size_1d = int((self.roi_size - 1) / 2)
         self.side_distance = settings['roi_side']
@@ -125,6 +121,7 @@ class RoiFinder:
         self.int_max = settings['int_max']
         self.int_min = settings['int_min']
 
+        # if filter size not changed, just take processed frame from dict to prevent processing it again
         if settings['filter_size'] != self.filter_size:
             self.filter_size = settings['filter_size']
             background = median_filter(self.base_frame, size=self.filter_size)
@@ -138,6 +135,11 @@ class RoiFinder:
                 self.frame_bg = self.base_frame.astype('float') - background
 
     def get_settings(self):
+        """
+        Get settings from ROI finder. Saves to dict
+        --------------------------
+        :return: settings dictionary
+        """
         return {'int_max': self.int_max, 'int_min': self.int_min,
                 'sigma_min': self.sigma_min, 'sigma_max': self.sigma_max,
                 'corr_min': self.corr_min, 'roi_size': self.roi_size, 'filter_size': self.filter_size,
@@ -148,16 +150,11 @@ class RoiFinder:
     def make_gaussian(size, fwhm=3, center=None):
         """
         Makes a 2D Gaussian
-
-        Parameters
         ----------
-        size : Size of Gaussian
-        fwhm : FWHM. The default is 3.
-        center : Center position of Gaussian. The default is None.
-
-        Returns
-        -------
-        size by size array of 2D Gaussian
+        :param: size : Size of Gaussian
+        :param: fwhm : FWHM. The default is 3.
+        :param: center : Center position of Gaussian. The default is None.
+        :return: size by size array of 2D Gaussian
         """
         x = np.arange(0, size, 1, float)
         y = x[:, np.newaxis]
@@ -173,33 +170,35 @@ class RoiFinder:
     def find_particles(self, return_corr):
         """
         Finds particles using correlation with 2D Gaussian
-
-        Parameters
         ----------
-        return_corr : If true, returns the values of the correlations for graphing GUI
-
-        Returns
-        -------
-        beads : boolean array. One if ROI position, zero if not
+        :param: return_corr : If true, returns the values of the correlations for graphing GUI
+        :return: beads : boolean array. One if ROI position, zero if not
+        :return: roi_locations. List of ROIs
         """
         roi_locations = []
+        # comparison gaussian
         compare = self.make_gaussian(self.roi_size)
 
+        # compare with gaussian
         frame_convolution = convolve2d(self.frame_bg, compare, mode='same')
 
+        # filter for maxima
         fp = np.ones((3, 3), dtype=bool)
         local_peaks = maximum_filter(frame_convolution, footprint=fp)
         local_peaks_bool = (frame_convolution == local_peaks)
 
         max_convolution = np.max(frame_convolution)
 
+        # find beads
         beads = (frame_convolution * local_peaks_bool) > self.corr_min * max_convolution
 
         locations = np.transpose(np.where(beads == 1))
 
+        # find ROIs
         for roi in locations:
             roi_locations.append(Roi(roi[1], roi[0]))
 
+        # if return corr, return convolutions
         if return_corr:
             corr = frame_convolution * local_peaks_bool / max_convolution
 
@@ -212,14 +211,9 @@ class RoiFinder:
     def adjacent_or_boundary_rois(self, roi_boolean):
         """
         Takes boolean of correlation with 2D Gaussian and checks if ROIs are too close to each other or side of frame
-
-        Parameters
         ----------
-        roi_boolean : Boolean value whether or not pixel is defined as ROI after correlation with 2D Gaussian
-
-        Returns
-        -------
-        None officially. Adapts ROI locations
+        :param: roi_boolean : Boolean value whether or not pixel is defined as ROI after correlation with 2D Gaussian
+        :return: None officially. Adapts ROI locations
 
         """
         remove_list = []
@@ -231,41 +225,42 @@ class RoiFinder:
                 continue
 
             my_roi = roi.get_roi(roi_boolean, self.roi_distance, [0, 0])
-
+            # if other ROIs in ROI, remove
             trues_in_roi = np.transpose(np.where(my_roi == True))
 
             if trues_in_roi.shape[0] > 1:
                 remove_list.append(roi_index)
 
+        # remove all bad ROIs from ROI list
         self.roi_locations = [roi for roi_index, roi in enumerate(self.roi_locations) if roi_index not in remove_list]
 
     def int_sigma_limit(self, return_int=False, return_sigmas=False):
         """
         Checks intensity and sigma of each defined ROI. Rejects them if outside thresholds
-
-        Parameters
         ----------
-        return_int : Boolean whether or not intensity list should be returned
-        return_sigmas : Boolean whether or not sigma list should be returned
-
-        Returns
-        -------
-        None officially. Either adapts ROI_locations, sigma_list or int_list depending on the afforementioned booleans
+        :param: return_int : Boolean whether or not intensity list should be returned
+        :param: return_sigmas : Boolean whether or not sigma list should be returned
+        :return: None officially.
+        Either adapts ROI_locations, sigma_list or int_list depending on the aforementioned booleans
 
         """
         remove_list = []
 
         for roi_index, roi in enumerate(self.roi_locations):
+            # gets ROI
             my_roi = roi.get_roi(self.frame_bg, self.roi_size_1d, [0, 0])
 
+            # fits ROI
             result, its, success = self.fitter.fit_gaussian(my_roi, roi_index)
 
+            # return sigma or int if desired
             if return_sigmas:
                 self.sigma_list.append(result[4])
                 self.sigma_list.append(result[3])
             if return_int:
                 self.int_list.append(result[0])
 
+            # check if sigma and int without bounds, otherwise remove
             if result[4] < self.sigma_min or result[3] < self.sigma_min:
                 remove_list.append(roi_index)
             if result[4] > self.sigma_max or result[3] > self.sigma_max:
@@ -278,22 +273,16 @@ class RoiFinder:
              return_corr=False):
         """
         Main of ROI finder. Calls all functions above.
-
-        Parameters
         ----------
-        return_int : Boolean whether or not intensity list is to be returned. Used by GUI to plot. The default is False.
-        return_sigmas : Boolean whether or not sigma list is to be returned. Used by GUI to plot. The default is False.
-        return_corr : Boolean whether or not correlation list is to be returned. Used by GUI to plot.
+        :param: return_int : Boolean whether or not intensity list is to be returned. Used by GUI to plot.
         The default is False.
-
-        Returns
-        -------
-        Depending on booleans returns either a list or simply the ROI locations
+        :param: return_sigmas : Boolean whether or not sigma list is to be returned. Used by GUI to plot.
+        The default is False.
+        :param: return_corr : Boolean whether or not correlation list is to be returned. Used by GUI to plot.
+        The default is False.
+        :return: Depending on booleans returns either a list or simply the ROI locations
 
         """
-
-        saved_corr_min = None
-
         # directly return if already made lists
         if return_corr and self.corr_list != []:
             return self.corr_list
