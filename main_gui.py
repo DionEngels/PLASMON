@@ -16,12 +16,14 @@ v1.1: Bugfixes and improved figures (WIP)
 v1.2: GUI and output improvement based on Sjoerd's feedback, HSM: 27/08/2020 - 13/09/2020
 v1.3: HSM to eV: 24/09/2020
 v1.4: HSM output back to nm, while fitting in eV: 29/09/2020
+v2.0: First version of GUI v2.0: 15/10/2020
 """
+
 __version__ = "2.0"
 __self_made__ = True
 
 # GENERAL IMPORTS
-from os import getcwd, mkdir, environ, listdir, rmdir  # to get standard usage
+from os import getcwd, environ, listdir, rmdir  # to get standard usage
 from tempfile import mkdtemp
 import sys
 import time  # for timekeeping
@@ -36,19 +38,16 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
-from scipy.io import loadmat
-from scipy.ndimage import median_filter
 
 # GUI
 import tkinter as tk  # for GUI
 from tkinter import ttk  # GUI styling
-from tkinter.filedialog import askopenfilename, askdirectory  # for popup that asks to select .nd2's or folders
+from tkinter.filedialog import askopenfilename  # for popup that asks to select .nd2's or folders
 
-# Own code v2
+# Own code
 from main import DivertError, ProgressUpdater
 from src.class_experiment import Experiment
 import src.figure_making as figuring
-from src.warnings import InputWarning
 
 # Multiprocessing
 import multiprocessing as mp
@@ -98,6 +97,12 @@ dimension_options = ["nm", "pixels"]
 # %% Proceed Question
 
 def proceed_question(title, text):
+    """
+    Asks user to proceed or not
+    :param title: Title
+    :param text: Text
+    :return: True or False depending on proceed or not
+    """
     check = tk.messagebox.askokcancel(title, text)
     return check
 
@@ -105,8 +110,17 @@ def proceed_question(title, text):
 
 
 class DivertorErrorsGUI(DivertError):
+    """
+    GUI version of DivertorError
+    """
     @staticmethod
     def show(error, traceback_details):
+        """
+        Shows the actual error or warning in Tkinter
+        :param error: Boolean whether or not error or warning
+        :param traceback_details: Error details
+        :return: Prints out
+        """
         if error:
             tk.messagebox.showerror("Critical error. Send screenshot to Dion. PROGRAM WILL STOP",
                                     message=str(traceback_details))
@@ -128,7 +142,6 @@ class BigButton(ttk.Frame):
     """
     Big button, used for FIT and LOAD
     """
-
     def __init__(self, parent, height=None, width=None, text="", command=None, state='enabled'):
         ttk.Frame.__init__(self, parent, height=height, width=width)
 
@@ -194,7 +207,6 @@ class EntryPlaceholder(ttk.Entry):
     """
     Entry with a placeholder text in grey
     """
-
     def __init__(self, master=None, placeholder="PLACEHOLDER", *args, **kwargs):
         super().__init__(master, *args, style="Placeholder.TEntry", font=FONT_ENTRY, **kwargs)
         self.placeholder = placeholder
@@ -231,7 +243,6 @@ class NormalButton:
     My normal button, again with an updater function to update the button.
     Only buttons that need updating use this class
     """
-
     def __init__(self, parent, text=None, row=None, column=None,
                  rowspan=1, columnspan=1, command=None, state='enabled', sticky=None, padx=0, pady=0):
         self._btn = ttk.Button(parent, text=text, command=command, state=state)
@@ -259,7 +270,6 @@ class NormalSlider:
     """
     My normal slider, again with an updater function to update the slider.
     """
-
     def __init__(self, parent, from_=0, to=np.inf, resolution=1, start=0,
                  row=None, column=None, rowspan=1, columnspan=1, sticky=None, padx=0, pady=0):
         self._scale = tk.Scale(parent, from_=from_, to=to, orient='horizontal',
@@ -302,7 +312,6 @@ class NormalLabel:
     """
     My normal label, again with an updater function to update the label.
     """
-
     def __init__(self, parent, text=None, font=None, bd=None, relief=None,
                  row=None, column=None, rowspan=1, columnspan=1, sticky=None, padx=0, pady=0):
         self._label = tk.Label(parent, text=text, font=font, bd=bd, relief=relief, bg='white')
@@ -330,7 +339,18 @@ class NormalLabel:
 
 
 class ProgressUpdaterGUI(ProgressUpdater):
+    """
+    GUI version of ProgressUpdater
+    """
     def __init__(self, gui, progress_task_status, progress_overall_status, current_task_status, time_done_status):
+        """
+        Initializer of ProgressUpdaterGUI. Also adds GUI and GUI elements to object
+        :param gui: GUI called by
+        :param progress_task_status: label with task status
+        :param progress_overall_status: label with overall status
+        :param current_task_status: label with current status
+        :param time_done_status: label with eta
+        """
         super().__init__()
         self.gui = gui
         self.progress_task_status = progress_task_status
@@ -340,11 +360,24 @@ class ProgressUpdaterGUI(ProgressUpdater):
         self.start_time = time.time()
 
     def status(self, progress, total):
+        """
+        Updates progress within dataset.
+        :param progress: progress within dataset
+        :param total: total within dataset
+        :return: Calls update
+        """
         self.progress = progress  # this time without +1
         self.total = total
         self.update(False, False, False)
 
     def update(self, new_experiment, new_dataset, message_bool):
+        """
+        Update function. Does the actual communication.
+        :param new_experiment: Boolean. Whether or not new experiment
+        :param new_dataset: Boolean. Whether or not new dataset
+        :param message_bool: Boolean. Whether or not message
+        :return: prints out info in tkinter
+        """
         progress_dataset = (self.current_dataset - 1) / self.total_datasets
         progress_per_dataset = 1 / self.total_datasets
         if new_experiment:
@@ -389,6 +422,9 @@ class ProgressUpdaterGUI(ProgressUpdater):
 
 
 class FooterBase(tk.Frame):
+    """
+    FooterBase class. Shows close and version number
+    """
     def __init__(self, controller):
         tk.Frame.__init__(self, controller)
         self.configure(bg='white')
@@ -406,6 +442,9 @@ class FooterBase(tk.Frame):
 
 
 class Footer(FooterBase):
+    """
+    Footer class. Also shows cancel button
+    """
     def __init__(self, controller):
         super().__init__(controller)
 
@@ -432,30 +471,39 @@ class Footer(FooterBase):
 
 class MbxPython(tk.Tk):
     """
-    Controller of GUI. This container calls the page we need
+    Controller of GUI. This container calls the pages we need and store overall data
     """
-
     def __init__(self, proceed_question=None, *args, **kwargs):
+        """
+        Initializer of total GUI
+        :param proceed_question: Proceed Question to use
+        :param args: other arguments
+        :param kwargs: other arguments
+        """
         tk.Tk.__init__(self, *args, **kwargs)
+        # withdraw until done
         self.withdraw()
 
+        # setup container
         tk.Tk.wm_title(self, "MBx Python")
         container = tk.Frame(self)
-
         container.pack(side="top", fill="both", expand=True)
 
+        # and setup footer
         self.footer = FooterBase(self)
         self.footer.pack(side="bottom", fill="both")
 
         container.grid_rowconfigure(0, weight=1)
         container.grid_columnconfigure(0, weight=1)
 
+        # setup data
         self.proceed_question = proceed_question
         self.progress_updater = None
         self.experiments = []
         self.experiment_to_link_name = None
         self.thread_started = False
 
+        # setup pages
         self.pages = {}
         page_tuple = (MainPage, LoadPage, ROIPage, TTPage, HSMPage)
         for to_load_page in page_tuple:
@@ -465,17 +513,30 @@ class MbxPython(tk.Tk):
         self.current_page = MainPage
         self.show_page(MainPage)
 
-
+        # additional settings and pop-up again
         self.additional_settings()
         self.deiconify()
 
     @staticmethod
     def show_rois(frame, figure=None, roi_locations=None, roi_size=None, roi_offset=None):
+        """
+        Shows ROIs within python
+        :param frame: frame to make figure of
+        :param figure: figure (only used by GUI)
+        :param roi_locations: ROI locations within frame
+        :param roi_size: ROI size
+        :param roi_offset: Offset of ROIs within dataset
+        :return:
+        """
         if figure is None:
             figure = plt.subplots(1)
         figure.updater(frame, roi_locations=roi_locations, roi_size=roi_size, roi_offset=roi_offset)
 
     def additional_settings(self):
+        """
+        Sets additional settings, such as styles and icon.
+        :return: None. Edits GUI
+        """
         self.geometry(str(GUI_WIDTH) + "x" + str(GUI_HEIGHT) + "+" + str(GUI_WIDTH_START) + "+" + str(GUI_HEIGHT_START))
         self.iconbitmap(getcwd() + "\ico.ico")
         self.protocol("WM_DELETE_WINDOW", lambda: quit_gui(gui))
@@ -490,6 +551,12 @@ class MbxPython(tk.Tk):
         ttk_style.configure("TCheckbutton", background="White")
 
     def show_page(self, page, experiment=None):
+        """
+        Show other page
+        :param page: Page to show
+        :param experiment: experiment to sent to page if need be
+        :return: None. Changes page
+        """
         self.current_page = page
         if page == MainPage:
             self.footer.pack_forget()
@@ -507,6 +574,9 @@ class MbxPython(tk.Tk):
 
 
 class BasePage(tk.Frame):
+    """
+    BasePage with some standard initializations
+    """
     def __init__(self, container, controller):
         tk.Frame.__init__(self, container)
         self.configure(bg='white')
@@ -515,6 +585,9 @@ class BasePage(tk.Frame):
         self.column_row_configure()
 
     def column_row_configure(self):
+        """
+        Standard function for column and row scaling
+        """
         for i in range(48):
             self.grid_columnconfigure(i, weight=1, minsize=18)
         for i in range(20):
@@ -528,6 +601,11 @@ class BasePage(tk.Frame):
 
 class MainPage(BasePage):
     def __init__(self, container, controller):
+        """
+        Initializes MainPage, including all buttons
+        :param container: Container
+        :param controller: Controller
+        """
         super().__init__(container, controller)
 
         label_new = tk.Label(self, text="New", font=FONT_HEADER, bg='white')
@@ -592,17 +670,25 @@ class MainPage(BasePage):
                                                   row=15, column=32, columnspan=16, rowspan=2,
                                                   sticky="ew", font=FONT_LABEL)
 
+        # set progress updater to control created labels
         self.controller.progress_updater = ProgressUpdaterGUI(self, self.label_progress_task_status,
                                                               self.label_progress_overall_status,
                                                               self.label_current_task_status,
                                                               self.label_time_done_status)
 
     def add_experiment(self):
+        """
+        Add experiment function. Simply shows LoadPage and tells it no experiment to link to
+        """
         self.controller.experiment_to_link_name = None
         self.controller.show_page(LoadPage)
 
     def add_dataset(self):
+        """
+        Add dataset function. Shows LoadPage and also links to an experiment
+        """
         try:
+            # try to get experiment from listbox. If fail, none selected
             selected = self.listbox_loaded.get(self.listbox_loaded.curselection())
             name = selected.split(" ")[-1]
             self.controller.experiment_to_link_name = name
@@ -611,35 +697,56 @@ class MainPage(BasePage):
             tk.messagebox.showerror("ERROR", "No experiment selected, please select one to link dataset to")
 
     def delete_experiment(self):
+        """
+        Deletes an experiment
+        """
         try:
+            # try to get experiment from listbox
             selected = self.listbox_loaded.get(self.listbox_loaded.curselection())
             name = selected.split(" ")[-1]
+            # delete the correct experiment
             for index, experiment in enumerate(self.controller.experiments):
                 if name in experiment.name:
                     del self.controller.experiments[index]
                     break
+            # update MainPage
             self.update_page()
         except:
             return
 
     def deselect_experiment(self):
+        """
+        Deselects listbox
+        """
         self.listbox_loaded.selection_clear(0, "end")
 
     def run_thread(self):
+        """
+        The function that is run within the thread when run is called
+        """
+        # analyze experiments
         for exp_index, experiment in enumerate(self.controller.experiments):
             self.controller.progress_updater.new_experiment(exp_index)
             experiment.run()
 
+        # close down thread
         self.close_down()
 
     def run(self):
+        """
+        Wrapper run function. Sets some things and starts up thread
+        """
         if self.controller.thread_started is False:
             self.controller.thread_started = True
             self.controller.progress_updater.start(self.controller.experiments)
+            # disable all buttons and start analysis
             self.disable()
             _thread.start_new_thread(self.run_thread, ())
 
     def disable(self):
+        """
+        Disables all buttons
+        """
         self.button_run.updater(state='disabled')
         self.button_new_experiment.updater(state='disabled')
         self.button_new_dataset.updater(state='disabled')
@@ -647,6 +754,9 @@ class MainPage(BasePage):
         self.button_loaded_deselect.updater(state='disabled')
 
     def close_down(self):
+        """
+        Closes down run thread by enabling all buttons and clearing experiments
+        """
         self.button_run.updater(command=lambda: self.run(), state='enabled')
         self.button_new_experiment.updater(state='enabled')
         self.button_new_dataset.updater(state='enabled')
@@ -663,6 +773,10 @@ class MainPage(BasePage):
         tk.messagebox.showinfo("Done", "Processing is done!")
 
     def update_page(self, experiment=None):
+        """
+        Update page by clearing and filling list boxes
+        :param experiment: experiment to sent to page if need be
+        """
         self.listbox_loaded.delete(0, 'end')
         self.listbox_queued.delete(0, 'end')
 
@@ -696,6 +810,10 @@ class LoadPage(BasePage):
         self.label_wait.grid_remove()
 
     def load_nd2(self, dataset_type):
+        """
+        Function to load an nd2
+        :param dataset_type: Type is given by which button you click
+        """
         filename = askopenfilename(filetypes=FILETYPES,
                                    title="Select nd2",
                                    initialdir=getcwd())
@@ -704,14 +822,18 @@ class LoadPage(BasePage):
             return
 
         if dataset_type == "HSM":
+            # if datatype is HSM, show wait label
             self.label_wait.grid()
             self.update()
         if self.controller.experiment_to_link_name is None:
+            # if no experiment to link to, new experiment
             experiment = Experiment(dataset_type, filename, self.controller.proceed_question, tk.messagebox.showerror,
                                     self.controller.progress_updater, self.controller.show_rois)
             self.controller.experiments.append(experiment)
+            # show ROIPage
             self.controller.show_page(ROIPage, experiment=experiment)
         else:
+            # otherwise, link to experiment
             experiment_to_link = [experiment for experiment in self.controller.experiments if
                                   self.controller.experiment_to_link_name in experiment.name][0]
             if dataset_type == "TT":
@@ -721,6 +843,7 @@ class LoadPage(BasePage):
                 experiment_to_link.init_new_hsm(filename)
                 self.controller.show_page(HSMPage, experiment=experiment_to_link)
 
+        # remove wait label
         if dataset_type == "HSM":
             self.label_wait.grid_remove()
 
@@ -728,9 +851,18 @@ class LoadPage(BasePage):
 
 
 class ROIPage(BasePage):
+    """
+    Page on which you can find the ROIs in your experiment
+    """
     def __init__(self, container, controller):
+        """
+        Sets all data and GUI
+        :param container: container
+        :param controller: controller
+        """
         super().__init__(container, controller)
 
+        # set data
         self.experiment = None
         self.default_settings = None
         self.saved_settings = None
@@ -865,6 +997,7 @@ class ROIPage(BasePage):
         -------
         None, outputs figure
         """
+        # find variable to make histogram of
         if variable == "min_int" or variable == "max_int":
             self.to_hist = self.experiment.roi_finder.main(return_int=True)
         elif variable == "peak_min":
@@ -874,8 +1007,8 @@ class ROIPage(BasePage):
         else:
             self.to_hist = self.experiment.roi_finder.main(return_sigmas=True)
 
+        # make histogram
         self.histogram_fig = plt.figure(figsize=(6.4 * 1.2, 4.8 * 1.2))
-
         self.make_histogram(variable)
 
     def make_histogram(self, variable):
@@ -888,16 +1021,20 @@ class ROIPage(BasePage):
         -------
         None, output figure
         """
+        # add sub figure to histogram and create histogram
         fig_sub = self.histogram_fig.add_subplot(111)
         hist, bins, _ = fig_sub.hist(self.to_hist, bins='auto')
 
+        # get sliders
         min_int = self.slider_min_int.get()
         max_int = self.slider_max_int.get()
         min_sigma = self.slider_min_sigma.get()
         max_sigma = self.slider_max_sigma.get()
         min_corr = self.slider_min_corr.get()
 
+        # draw sliders
         if variable == "min_int" or variable == "max_int":
+            # reset bins
             self.histogram_fig.clear()
             logbins = np.logspace(np.log10(bins[0]), np.log10(bins[-1]), len(bins))
             plt.hist(self.to_hist, bins=logbins)
@@ -910,6 +1047,7 @@ class ROIPage(BasePage):
             plt.axvline(x=min_sigma, color='red', linestyle='--')
             plt.axvline(x=max_sigma, color='red', linestyle='--')
         else:
+            # reset bins
             self.histogram_fig.clear()
             logbins = np.logspace(np.log10(bins[0]), np.log10(bins[-1]), len(bins))
             plt.hist(self.to_hist, bins=logbins)
@@ -917,6 +1055,7 @@ class ROIPage(BasePage):
             plt.axvline(x=min_corr, color='red', linestyle='--')
             plt.xscale('log')
 
+        # show figure
         self.histogram_fig.show()
 
     def histogram_select(self, variable):
@@ -929,12 +1068,14 @@ class ROIPage(BasePage):
         -------
         None.
         """
+        # find click on figure
         try:
             click = self.histogram_fig.ginput(1)
         except AttributeError:
             tk.messagebox.showerror("You cannot do that", "You cannot click on a figure without having a figure open")
             return
 
+        # set slider to click
         if variable == "min_int":
             self.slider_min_int.updater(start=int(click[0][0]))
         elif variable == 'max_int':
@@ -946,6 +1087,7 @@ class ROIPage(BasePage):
         else:
             self.slider_min_corr.updater(start=click[0][0])
 
+        # clear histogram and make new figure
         self.histogram_fig.clear()
         self.make_histogram(variable)
 
@@ -964,6 +1106,7 @@ class ROIPage(BasePage):
         roi_size = 7  # hard-coded as 7 for ROI finding
         all_figures = bool(int(self.variable_all_figures.get()))
 
+        # try to read out inputs and check integer
         try:
             filter_size = int(self.entry_filter_size.get())
             roi_side = int(self.entry_roi_side.get())
@@ -977,13 +1120,19 @@ class ROIPage(BasePage):
                     'corr_min': corr_min, 'roi_size': roi_size, 'filter_size': filter_size,
                     'roi_side': roi_side, 'inter_roi': inter_roi, 'all_figures': all_figures}
 
+        # return settings and success boolean
         return settings, True
 
     def fit_rois(self):
+        """
+        Reads out settings and correlates frame with old frame to find active ROIs
+        :return: alters active ROIs within dataset
+        """
         settings, success = self.read_out_settings()
         if success is False:
             return False
 
+        # check settings
         if settings['roi_side'] < int((settings['roi_size'] - 1) / 2):
             tk.messagebox.showerror("ERROR", "Distance to size cannot be smaller than 1D ROI size")
             return False
@@ -991,6 +1140,7 @@ class ROIPage(BasePage):
             tk.messagebox.showerror("ERROR", "Filter size should be odd")
             return False
 
+        # change settings and show new ROIs
         self.experiment.change_rois(settings)
         self.experiment.show_rois("Experiment", figure=self.figure)
         self.label_number_of_rois.updater(text="{} ROIs found".format(len(self.experiment.rois)))
@@ -998,10 +1148,16 @@ class ROIPage(BasePage):
         return True
 
     def restore_default(self):
+        """
+        Restores default settings
+        :return: Changes GUI
+        """
+        # find default settings if need be
         if self.default_settings is None:
             self.default_settings = self.experiment.roi_finder.get_settings()
         else:
             pass
+        # change all sliders and such
         self.slider_min_int.updater(from_=0, to=self.default_settings['int_max'] / 4,
                                     start=self.default_settings['int_min'])
         self.slider_max_int.updater(from_=0, to=self.default_settings['int_max'],
@@ -1028,6 +1184,7 @@ class ROIPage(BasePage):
         -------
         None, updates GUI
         """
+        # gets saved settings and changes sliders and such
         settings = self.saved_settings
 
         self.slider_min_int.updater(from_=0, to=self.default_settings['int_max'] / 4,
@@ -1052,36 +1209,51 @@ class ROIPage(BasePage):
         self.update()
 
     def save_roi_settings(self):
-        success = self.fit_rois()
-        if not success:
+        """
+        Save settings for later re-use
+        """
+        if self.fit_rois() is False:
             return
 
         self.saved_settings, _ = self.read_out_settings()
         self.button_restore_saved.updater()
 
     def accept(self):
+        """
+        Accept ROI settings and move to analysis page
+        """
+        # check
         if self.controller.proceed_question("Are you sure?", "You cannot change settings later.") is False:
             return
         settings, success = self.read_out_settings()
         if success is False:
             return
+        # change ROI settings to latest set
         self.experiment.change_rois(settings)
 
+        # get name and all figures variable
         name = self.entry_name.get()
         settings_experiment = {'All Figures': settings['all_figures']}
         self.experiment.finalize_rois(name, settings_experiment)
 
+        # show correct analysis page
         if self.experiment.created_by == "TT":
             self.controller.show_page(TTPage, experiment=self.experiment)
         else:
             self.controller.show_page(HSMPage, experiment=self.experiment)
+        # empty memory
         self.experiment = None
         self.default_settings = None
         self.saved_settings = None
         self.histogram_fig = None
         self.to_hist = None
+        self.figure.fig.clear()
 
     def update_page(self, experiment=None):
+        """
+        Update page by changing name and showing figure
+        :param experiment: experiment to show
+        """
         self.experiment = experiment
 
         self.entry_name.updater(placeholder=self.experiment.datasets[-1].name)  # take name for only dataset in exp
@@ -1093,9 +1265,18 @@ class ROIPage(BasePage):
 
 
 class AnalysisPageTemplate(BasePage):
+    """
+    Base analysis page. Inherits from BasePage and adds the correlation area and some initalisations
+    """
     def __init__(self, container, controller):
+        """
+        Initializer of AnalysisPageTemplate. Sets a load of buttons and and experiment member.
+        :param container: container
+        :param controller: controller
+        """
         super().__init__(container, controller)
 
+        # experiment working on
         self.experiment = None
 
         label_loaded_video = tk.Label(self, text="Loaded:", font=FONT_SUBHEADER, bg='white')
@@ -1140,42 +1321,62 @@ class AnalysisPageTemplate(BasePage):
 
     @staticmethod
     def check_invalid_input(input_string, start):
+        """
+        Check whether or not given string input is invalid input
+        :param input_string: Input string
+        :param start: Whether or not start or end
+        :return: Boolean if valid
+        """
         def is_int(to_check):
+            # check if int
             try:
                 int(to_check)
                 return True
             except:
                 return False
 
+        # if start, check if base value or valid int
         if start:
             if input_string == "Leave empty for start" or is_int(input_string):
                 return False
-        else:
+        else:  # otherwise, check for other base value or still int
             if input_string == "Leave empty for end" or is_int(input_string):
                 return False
         return True
 
     def fit_rois(self):
+        """
+        Correlate frames to find active ROIs
+        :return: Changes active ROIs
+        """
+        # get values from GUI
         x_min = self.entry_x_min.get()
         x_max = self.entry_x_max.get()
         y_min = self.entry_y_min.get()
         y_max = self.entry_y_max.get()
+        # check invalid
         if self.check_invalid_input(x_min, True) or self.check_invalid_input(y_max, False) or \
                 self.check_invalid_input(y_min, True) or self.check_invalid_input(y_max, False):
             tk.messagebox.showerror("ERROR", "x min and max and y min and max must all be integers")
             return
 
-        settings_correlation = {'x_min': x_min, 'x_max': x_max,
-                                'y_min': y_min, 'y_max': y_max}
-
+        # set settings and sent to dataset
+        settings_correlation = {'x_min': x_min, 'x_max': x_max, 'y_min': y_min, 'y_max': y_max}
         self.experiment.find_rois_dataset(settings_correlation)
         self.experiment.show_rois("Dataset", self.figure_dataset)
         self.button_add_to_queue.updater(command=lambda: self.add_to_queue())
 
     def add_to_queue(self):
+        """
+        Empty add_to_queue. Changed by inheritance
+        """
         pass
 
     def update_page(self, experiment=None):
+        """
+        Update page by adding experiment data to page.
+        :param experiment: experiment to analyze
+        """
         self.experiment = experiment
         experiment.show_rois("Experiment", self.figure_experiment)
         experiment.show_rois("Dataset", self.figure_dataset)
@@ -1192,7 +1393,15 @@ class AnalysisPageTemplate(BasePage):
 
 
 class TTPage(AnalysisPageTemplate):
+    """
+    TT Page. Inherits of AnalysisPageTemplate
+    """
     def __init__(self, container, controller):
+        """
+        Initializer of TTPage. Adds even more buttons specifically for TT analysis
+        :param container: container
+        :param controller: controller
+        """
         super().__init__(container, controller)
 
         label_tt = tk.Label(self, text="TT settings", font=FONT_SUBHEADER, bg='white')
@@ -1246,6 +1455,11 @@ class TTPage(AnalysisPageTemplate):
         self.entry_end_frame.grid(row=18, column=24, rowspan=2, columnspan=6, padx=PAD_SMALL)
 
     def add_to_queue(self):
+        """
+        Add to queue specific for TT analysis
+        :return: None. Edits objects
+        """
+        # get all inputs
         name = self.entry_name.get()
         method = self.variable_method.get()
         rejection_type = self.variable_rejection.get()
@@ -1255,10 +1469,12 @@ class TTPage(AnalysisPageTemplate):
         frame_end = self.entry_end_frame.get()
         roi_size = int(self.variable_roi_size.get()[0])
 
+        # check validity inputs
         if self.check_invalid_input(frame_begin, True) or self.check_invalid_input(frame_end, False):
             tk.messagebox.showerror("ERROR", "Frame begin and frame end must be integers")
             return
 
+        # make settings dict and set to input
         settings_runtime = {'method': method, 'rejection': rejection_type, '#cores': n_processes,
                             'roi_size': roi_size, "pixels_or_nm": dimension, 'name': name,
                             'frame_begin': frame_begin, 'frame_end': frame_end}
@@ -1267,8 +1483,17 @@ class TTPage(AnalysisPageTemplate):
             return
 
         self.controller.show_page(MainPage)
+        # clear memory
+        self.experiment = None
+        self.figure_experiment.fig.clear()
+        self.figure_dataset.fig.clear()
 
     def update_page(self, experiment=None):
+        """
+        Update page by setting standard values and showing experiment
+        :param experiment: experiment to show
+        :return: changes GUI
+        """
         super().update_page(experiment=experiment)
         self.label_roi_spacing_status.updater(text=self.experiment.roi_finder.get_settings()['inter_roi'])
 
@@ -1286,7 +1511,16 @@ class TTPage(AnalysisPageTemplate):
 
 
 class HSMPage(AnalysisPageTemplate):
+    """
+    HSM Page. Inherits from AnalysisPageTemplate.
+    """
     def __init__(self, container, controller):
+        """
+        Sets more buttons specifically for HSM analysis
+        -------------------
+        :param container: container
+        :param controller: controller
+        """
         super().__init__(container, controller)
 
         label_hsm = tk.Label(self, text="HSM settings", font=FONT_SUBHEADER, bg='white')
@@ -1305,33 +1539,48 @@ class HSMPage(AnalysisPageTemplate):
         label_hsm_wavelength.grid(row=15, column=0, columnspan=8, rowspan=2, sticky='EW', padx=PAD_SMALL)
 
         self.entry_wavelength = EntryPlaceholder(self,
-                                                 "Use MATLAB-like array notation. Example: [500:10:520, 532, 540:10:800"
-                                                 , width=INPUT_BIG)
+                                                 "Use MATLAB-like array notation. "
+                                                 "Example: [500:10:520, 532, 540:10:800]", width=INPUT_BIG)
         self.entry_wavelength.grid(row=15, column=8, columnspan=24, rowspan=2, sticky='EW')
 
     def update_page(self, experiment=None):
+        """
+        Set base values and show experiment
+        :param experiment: experiment to show
+        :return: Changes GUI
+        """
         super().update_page(experiment=experiment)
 
         self.variable_hsm_correct.set("")
         self.entry_wavelength.updater()
 
     def add_to_queue(self):
+        """
+        Add HSM dataset to queue and clears memory
+        """
+        # get input values
         hsm_correction = self.variable_hsm_correct.get()
         wavelengths = self.entry_wavelength.get()
         name = self.entry_name.get()
 
-        if wavelengths == "Use MATLAB-like array notation. Example: [500:10:520, 532, 540:10:800":
+        # check input values
+        if wavelengths == "Use MATLAB-like array notation. Example: [500:10:520, 532, 540:10:800]":
             tk.messagebox.showerror("Check again", "Wavelengths not given.")
             return
         if hsm_correction == "":
             tk.messagebox.showerror("Check again", "Select a correction file.")
             return
 
+        # make settings dictionary and add to queue
         settings_runtime_hsm = {'correction_file': hsm_correction, 'wavelengths': wavelengths, 'name': name}
         if self.experiment.add_to_queue(settings_runtime_hsm) is False:
             return
 
         self.controller.show_page(MainPage)
+        # clear memory
+        self.experiment = None
+        self.figure_dataset.fig.clear()
+        self.figure_experiment.fig.clear()
 
 # %% START GUI
 
