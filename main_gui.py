@@ -1280,41 +1280,45 @@ class AnalysisPageTemplate(BasePage):
         self.experiment = None
 
         label_loaded_video = tk.Label(self, text="Loaded:", font=FONT_SUBHEADER, bg='white')
-        label_loaded_video.grid(row=0, column=0, columnspan=8, rowspan=1, sticky='EW', padx=PAD_SMALL)
-        self.label_loaded_video_status = NormalLabel(self, text="XX", row=0, column=8, columnspan=16, rowspan=1,
+        label_loaded_video.grid(row=0, column=0, columnspan=16, rowspan=1, sticky='EW', padx=PAD_SMALL)
+        self.label_loaded_video_status = NormalLabel(self, text="XX", row=1, column=0, columnspan=16, rowspan=1,
                                                      sticky="ew", font=FONT_LABEL)
 
         label_name = tk.Label(self, text="Name", font=FONT_SUBHEADER, bg='white')
-        label_name.grid(row=1, column=0, columnspan=8, sticky='EW', padx=PAD_BIG)
+        label_name.grid(row=2, column=0, columnspan=16, sticky='EW', padx=PAD_BIG)
 
-        self.entry_name = EntryPlaceholder(self, "TBD", width=INPUT_BIG)
-        self.entry_name.grid(row=1, column=8, columnspan=16, sticky='EW')
+        self.entry_name = EntryPlaceholder(self, "TBD")
+        self.entry_name.grid(row=3, column=0, columnspan=16, sticky='EW', padx=PAD_SMALL)
 
-        label_x_min_max = tk.Label(self, text="x min and max", font=FONT_LABEL, bg='white')
-        label_x_min_max.grid(row=3, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
-        self.entry_x_min = EntryPlaceholder(self, "Leave empty for start", width=INPUT_BIG)
-        self.entry_x_min.grid(row=3, column=8, columnspan=8, padx=PAD_SMALL)
-        self.entry_x_max = EntryPlaceholder(self, "Leave empty for end", width=INPUT_BIG)
-        self.entry_x_max.grid(row=3, column=16, columnspan=8, padx=PAD_SMALL)
+        label_x_min = tk.Label(self, text="x min", font=FONT_LABEL, bg='white')
+        label_x_min.grid(row=4, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.entry_x_min = EntryPlaceholder(self, "Leave empty for start")
+        self.entry_x_min.grid(row=4, column=8, columnspan=8, padx=PAD_SMALL)
+        label_x_max = tk.Label(self, text="x max", font=FONT_LABEL, bg='white')
+        label_x_max.grid(row=5, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.entry_x_max = EntryPlaceholder(self, "Leave empty for end")
+        self.entry_x_max.grid(row=5, column=8, columnspan=8, padx=PAD_SMALL)
 
-        label_y_min_max = tk.Label(self, text="y min and max", font=FONT_LABEL, bg='white')
-        label_y_min_max.grid(row=4, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
-        self.entry_y_min = EntryPlaceholder(self, "Leave empty for start", width=INPUT_BIG)
-        self.entry_y_min.grid(row=4, column=8, columnspan=8, padx=PAD_SMALL)
-        self.entry_y_max = EntryPlaceholder(self, "Leave empty for end", width=INPUT_BIG)
-        self.entry_y_max.grid(row=4, column=16, columnspan=8, padx=PAD_SMALL)
+        label_y_min = tk.Label(self, text="y min", font=FONT_LABEL, bg='white')
+        label_y_min.grid(row=6, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.entry_y_min = EntryPlaceholder(self, "Leave empty for start")
+        self.entry_y_min.grid(row=6, column=8, columnspan=8, padx=PAD_SMALL)
+        label_y_max = tk.Label(self, text="y max", font=FONT_LABEL, bg='white')
+        label_y_max.grid(row=7, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.entry_y_max = EntryPlaceholder(self, "Leave empty for end")
+        self.entry_y_max.grid(row=7, column=8, columnspan=8, padx=PAD_SMALL)
 
         button_find_rois = ttk.Button(self, text="Find ROIs", command=lambda: self.fit_rois())
-        button_find_rois.grid(row=6, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        button_find_rois.grid(row=8, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         self.figure_dataset = FigureFrame(self, height=GUI_WIDTH * 0.35, width=GUI_WIDTH * 0.35, dpi=DPI)
-        self.figure_dataset.grid(row=0, column=24, columnspan=12, rowspan=8, sticky='EW', padx=PAD_SMALL)
+        self.figure_dataset.grid(row=0, column=16, columnspan=16, rowspan=8, sticky='EW', padx=PAD_SMALL)
 
         self.figure_experiment = FigureFrame(self, height=GUI_WIDTH * 0.35, width=GUI_WIDTH * 0.35, dpi=DPI)
-        self.figure_experiment.grid(row=0, column=36, columnspan=12, rowspan=8, sticky='EW', padx=PAD_SMALL)
+        self.figure_experiment.grid(row=0, column=32, columnspan=16, rowspan=8, sticky='EW', padx=PAD_SMALL)
 
         line = ttk.Separator(self, orient='horizontal')
-        line.grid(row=8, column=0, rowspan=1, columnspan=48, sticky='we')
+        line.grid(row=9, column=0, rowspan=1, columnspan=48, sticky='we')
 
         self.button_add_to_queue = NormalButton(self, text="Add to queue", state='disabled',
                                                 row=18, column=42, columnspan=6, rowspan=2, sticky='EW', padx=PAD_SMALL)
@@ -1420,39 +1424,39 @@ class TTPage(AnalysisPageTemplate):
         drop_rejection.grid(row=13, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         label_cores = tk.Label(self, text="#cores", font=FONT_LABEL, bg='white')
-        label_cores.grid(row=12, column=24, columnspan=6, sticky='EW', padx=PAD_BIG)
+        label_cores.grid(row=12, column=24, columnspan=8, sticky='EW', padx=PAD_BIG)
         total_cores = mp.cpu_count()
         cores_options = [1, int(total_cores / 2), int(total_cores * 3 / 4), int(total_cores)]
         self.variable_cores = tk.IntVar(self)
         drop_cores = ttk.OptionMenu(self, self.variable_cores, cores_options[0], *cores_options)
-        drop_cores.grid(row=13, column=24, columnspan=6, sticky='EW', padx=PAD_BIG)
+        drop_cores.grid(row=13, column=24, columnspan=8, sticky='EW', padx=PAD_BIG)
 
         label_dimensions = tk.Label(self, text="pixels or nm", font=FONT_LABEL, bg='white')
-        label_dimensions.grid(row=12, column=30, columnspan=6, sticky='EW', padx=PAD_BIG)
+        label_dimensions.grid(row=12, column=32, columnspan=8, sticky='EW', padx=PAD_BIG)
         self.variable_dimensions = tk.StringVar(self)
         drop_dimension = ttk.OptionMenu(self, self.variable_dimensions, dimension_options[0], *dimension_options)
-        drop_dimension.grid(row=13, column=30, columnspan=6, sticky='EW', padx=PAD_BIG)
+        drop_dimension.grid(row=13, column=32, columnspan=8, sticky='EW', padx=PAD_BIG)
 
         label_used_roi_spacing = tk.Label(self, text="Used ROI spacing:", bg='white', font=FONT_LABEL)
-        label_used_roi_spacing.grid(row=16, column=0, rowspan=2, columnspan=12, sticky='EW', padx=PAD_SMALL)
-        self.label_roi_spacing_status = NormalLabel(self, text="TBD", row=16, column=12, rowspan=2, columnspan=4,
+        label_used_roi_spacing.grid(row=16, column=0, rowspan=2, columnspan=10, sticky='EW', padx=PAD_SMALL)
+        self.label_roi_spacing_status = NormalLabel(self, text="TBD", row=16, column=10, rowspan=2, columnspan=6,
                                                     sticky='EW', padx=PAD_SMALL, font=FONT_LABEL)
 
         label_roi_size = tk.Label(self, text="ROI size", bg='white', font=FONT_LABEL)
-        label_roi_size.grid(row=18, column=0, columnspan=8, rowspan=2, sticky='EW', padx=PAD_SMALL)
+        label_roi_size.grid(row=18, column=0, columnspan=10, rowspan=2, sticky='EW', padx=PAD_SMALL)
         self.variable_roi_size = tk.StringVar(self)
         drop_roi_size = ttk.OptionMenu(self, self.variable_roi_size, roi_size_options[0], *roi_size_options)
-        drop_roi_size.grid(row=18, column=8, columnspan=8, rowspan=2, sticky='EW', padx=PAD_SMALL)
+        drop_roi_size.grid(row=18, column=10, columnspan=6, rowspan=2, sticky='EW', padx=PAD_SMALL)
 
         label_begin_frame = tk.Label(self, text="Begin frame", font=FONT_LABEL, bg='white')
         label_begin_frame.grid(row=16, column=16, rowspan=2, columnspan=8, sticky='EW', padx=PAD_BIG)
-        self.entry_begin_frame = EntryPlaceholder(self, "Leave empty for start", width=INPUT_BIG)
+        self.entry_begin_frame = EntryPlaceholder(self, "Leave empty for start")
         self.entry_begin_frame.grid(row=18, column=16, rowspan=2, columnspan=8, padx=PAD_SMALL)
 
         label_end_frame = tk.Label(self, text="End frame", font=FONT_LABEL, bg='white')
-        label_end_frame.grid(row=16, column=24, rowspan=2, columnspan=6, sticky='EW', padx=PAD_BIG)
-        self.entry_end_frame = EntryPlaceholder(self, "Leave empty for end", width=INPUT_BIG)
-        self.entry_end_frame.grid(row=18, column=24, rowspan=2, columnspan=6, padx=PAD_SMALL)
+        label_end_frame.grid(row=16, column=24, rowspan=2, columnspan=8, sticky='EW', padx=PAD_BIG)
+        self.entry_end_frame = EntryPlaceholder(self, "Leave empty for end")
+        self.entry_end_frame.grid(row=18, column=24, rowspan=2, columnspan=8, padx=PAD_SMALL)
 
     def add_to_queue(self):
         """
