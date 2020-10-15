@@ -155,11 +155,9 @@ def make_tt(ax, time_axis, result, method, roi_index):
     if "Gaussian" in method:
         ax.set_xlabel('Time (s)')
         ax.set_ylabel('Integrated intensity (counts)')
-        ax.set_title('Time trace ROI ' + str(roi_index + 1))
     else:
         ax.set_xlabel('Time (s)')
         ax.set_ylabel('Summed intensity (counts)')
-        ax.set_title('Time trace ROI ' + str(roi_index + 1))
 
 
 def set_range_and_ticks(ax, max_range):
@@ -176,6 +174,7 @@ def set_range_and_ticks(ax, max_range):
 def save_overview(experiment):
     mpl.use('agg', force=True)
     from matplotlib import pyplot as plt
+    mpl.rcParams['axes.titlesize'] = 'small'
 
     path = experiment.directory + "/Graphs"
     mkdir(path)
@@ -238,7 +237,7 @@ def save_overview(experiment):
         plot_rois(ax_frame, roi.get_roi(experiment.frame_for_rois, 7, [0, 0]))
         ax_frame.set_xlabel('x (pixels)')
         ax_frame.set_ylabel('y (pixels)')
-        ax_frame.set_title('Zoom-in ROI ' + str(roi.index + 1))
+        ax_frame.set_title('Zoom-in ROI {}'.format(roi.index + 1))
 
         for index_dataset, n_dataset in enumerate(hsm):
             ax_hsm = fig.add_subplot(gs[row + index_dataset, column + 1])
@@ -246,7 +245,7 @@ def save_overview(experiment):
                      experiment.datasets[n_dataset].wavelengths)
             ax_hsm.set_xlabel('wavelength (nm)')
             ax_hsm.set_ylabel('intensity (arb. units)')
-            ax_hsm.set_title('HSM Result ROI {}'.format(str(roi.index + 1)))
+            ax_hsm.set_title('HSM {} ROI {}'.format(experiment.datasets[n_dataset].name, roi.index + 1))
 
         for index_dataset, n_dataset in enumerate(tt):
             method = experiment.datasets[n_dataset].settings['method']
@@ -254,12 +253,14 @@ def save_overview(experiment):
             make_tt_scatter(ax_tt_scatter, roi.results[experiment.datasets[n_dataset].name_result]['result_post_drift'],
                             roi.results[experiment.datasets[n_dataset].name_result]['event_or_not'],
                             experiment.datasets[n_dataset])
-            ax_tt_scatter.set_title('Scatter ROI ' + str(roi.index + 1) + " post drift corr")
+            ax_tt_scatter.set_title('Scatter {} w/ drift corr ROI {}'.format(experiment.datasets[n_dataset].name,
+                                                                             roi.index + 1))
 
             if "Gaussian" in method or "Sum" in method:
                 ax_tt = fig.add_subplot(gs[row + max(len(hsm), 1) + index_dataset, column + 1])
                 make_tt(ax_tt, experiment.datasets[n_dataset].time_axis,
                         roi.results[experiment.datasets[n_dataset].name_result]['result'], method, roi.index)
+                ax_tt.set_title('TT {} ROI {}'.format(experiment.datasets[n_dataset].name, roi.index + 1))
 
     name = path + "/" + "_Overview.png"
     plt.tight_layout()
@@ -271,6 +272,7 @@ def save_overview(experiment):
 def individual_figures(experiment):
     mpl.use('agg', force=True)
     from matplotlib import pyplot as plt
+    mpl.rcParams['axes.titlesize'] = 'small'
 
     path = experiment.directory + "/Graphs"
 
@@ -291,7 +293,7 @@ def individual_figures(experiment):
         plot_rois(ax_frame, roi.get_roi(experiment.frame_for_rois, 7, [0, 0]))
         ax_frame.set_xlabel('x (pixels)')
         ax_frame.set_ylabel('y (pixels)')
-        ax_frame.set_title('Zoom-in ROI ' + str(roi.index + 1))
+        ax_frame.set_title('Zoom-in ROI {}'.format(roi.index + 1))
 
         for index_dataset, n_dataset in enumerate(hsm):
             ax_hsm = fig.add_subplot(per_roi_length, 2, 2 + index_dataset * 2)
@@ -299,7 +301,7 @@ def individual_figures(experiment):
                      experiment.datasets[n_dataset].wavelengths)
             ax_hsm.set_xlabel('wavelength (nm)')
             ax_hsm.set_ylabel('intensity (arb. units)')
-            ax_hsm.set_title('HSM Result ROI {}'.format(str(roi.index + 1)))
+            ax_hsm.set_title('HSM {} ROI {}'.format(experiment.datasets[n_dataset].name, str(roi.index + 1)))
 
         for index_dataset, n_dataset in enumerate(tt):
             method = experiment.datasets[n_dataset].settings['method']
@@ -307,12 +309,14 @@ def individual_figures(experiment):
             make_tt_scatter(ax_tt_scatter, roi.results[experiment.datasets[n_dataset].name_result]['result_post_drift'],
                             roi.results[experiment.datasets[n_dataset].name_result]['event_or_not'],
                             experiment.datasets[n_dataset])
-            ax_tt_scatter.set_title('Scatter ROI ' + str(roi.index + 1) + " post drift corr")
+            ax_tt_scatter.set_title('Scatter {} w/ drift corr ROI {}'.format(experiment.datasets[n_dataset].name,
+                                                                             roi.index + 1))
 
             if "Gaussian" in method or "Sum" in method:
                 ax_tt = fig.add_subplot(per_roi_length, 2, 2 + index_dataset * 2 + max(len(hsm), 1) * 2)
                 make_tt(ax_tt, experiment.datasets[n_dataset].time_axis,
                         roi.results[experiment.datasets[n_dataset].name_result]['result'], method, roi.index)
+                ax_tt.set_title('TT {} ROI {}'.format(experiment.datasets[n_dataset].name, roi.index + 1))
 
         name = path + "/" + "ROI" + str(roi.index+1)+".png"
         plt.tight_layout()
