@@ -21,7 +21,7 @@ __version__ = "2.0"
 __self_made__ = True
 
 # GENERAL IMPORTS
-from os import getcwd, mkdir, environ, listdir  # to get standard usage
+from os import getcwd, mkdir, environ, listdir, rmdir  # to get standard usage
 from tempfile import mkdtemp
 import sys
 import time  # for timekeeping
@@ -62,12 +62,13 @@ FILETYPES = [("ND2", ".nd2")]
 FILETYPES_LOAD_FROM_OTHER = [(".npy and .mat", ".npy"), (".npy and .mat", ".mat")]
 
 FONT_HEADER = "Verdana 14 bold"
-FONT_SUBHEADER = "Verdana 11 bold"
-FONT_STATUS = "Verdana 12"
-FONT_BUTTON = "Verdana 9"
-FONT_LABEL = "Verdana 10"
-FONT_DROP = "Verdana 10"
-FONT_BUTTON_BIG = "Verdana 20"
+FONT_SUBHEADER = "Verdana 12 bold"
+FONT_STATUS = "Verdana 11"
+FONT_ENTRY = "Verdana 11"
+FONT_BUTTON = "Verdana 11"
+FONT_LABEL = "Verdana 11"
+FONT_DROP = "Verdana 11"
+FONT_BUTTON_BIG = "Verdana 20 bold"
 PAD_BIG = 30
 PAD_SMALL = 10
 INPUT_BIG = 25
@@ -195,7 +196,7 @@ class EntryPlaceholder(ttk.Entry):
     """
 
     def __init__(self, master=None, placeholder="PLACEHOLDER", *args, **kwargs):
-        super().__init__(master, *args, style="Placeholder.TEntry", **kwargs)
+        super().__init__(master, *args, style="Placeholder.TEntry", font=FONT_ENTRY, **kwargs)
         self.placeholder = placeholder
 
         self.insert("0", self.placeholder)
@@ -415,12 +416,15 @@ class Footer(FooterBase):
             self.grid_columnconfigure(i, weight=1)
 
     def cancel(self):
-        if self.controller.experiment_to_link_name is None:
-            del self.controller.experiments[-1]
-        else:
-            experiment_to_link = [experiment for experiment in self.controller.experiments if
-                                  self.controller.experiment_to_link_name in experiment.name][0]
-            del experiment_to_link.datasets[-1]
+        if self.controller.current_page != LoadPage:
+            if self.controller.experiment_to_link_name is None:
+                if self.controller.experiments[-1].dir_made:
+                    rmdir(self.controller.experiments[-1].directory)
+                del self.controller.experiments[-1]
+            else:
+                experiment_to_link = [experiment for experiment in self.controller.experiments if
+                                      self.controller.experiment_to_link_name in experiment.name][0]
+                del experiment_to_link.datasets[-1]
         self.controller.show_page(MainPage)
 
 # %% Controller
@@ -458,7 +462,9 @@ class MbxPython(tk.Tk):
             page = to_load_page(container, self)
             self.pages[to_load_page] = page
             page.grid(row=0, column=0, sticky="nsew")
+        self.current_page = MainPage
         self.show_page(MainPage)
+
 
         self.additional_settings()
         self.deiconify()
@@ -476,12 +482,15 @@ class MbxPython(tk.Tk):
 
         ttk_style = ttk.Style(self)
         ttk_style.configure("Big.TButton", font=FONT_BUTTON_BIG)
-        ttk_style.configure("Placeholder.TEntry", foreground="Grey")
-        ttk_style.configure("TButton", font=FONT_BUTTON, background="Grey")
+        ttk_style.configure("Placeholder.TEntry", foreground="Grey", font=FONT_ENTRY)
+        ttk_style.configure("TEntry", font=FONT_ENTRY)
+        ttk_style.configure("TButton", font=FONT_BUTTON, background="White")
         ttk_style.configure("TSeparator", background="black")
         ttk_style.configure("TMenubutton", font=FONT_DROP, background="White")
+        ttk_style.configure("TCheckbutton", background="White")
 
     def show_page(self, page, experiment=None):
+        self.current_page = page
         if page == MainPage:
             self.footer.pack_forget()
             self.footer = FooterBase(self)
@@ -727,11 +736,17 @@ class ROIPage(BasePage):
         self.histogram_fig = None
         self.to_hist = None
 
-        label_name = tk.Label(self, text="Name", font=FONT_LABEL, bg='white')
+        label_name = tk.Label(self, text="Name", font=FONT_SUBHEADER, bg='white')
         label_name.grid(row=0, column=0, columnspan=8, sticky='EW', padx=PAD_BIG)
 
         self.entry_name = EntryPlaceholder(self, "TBD", width=INPUT_BIG)
         self.entry_name.grid(row=0, column=8, columnspan=24, sticky='EW')
+
+        line = ttk.Separator(self, orient='horizontal')
+        line.grid(row=1, column=0, rowspan=1, columnspan=40, sticky='we')
+
+        label_settings = tk.Label(self, text="Settings", font=FONT_SUBHEADER, bg='white')
+        label_settings.grid(row=2, column=16, columnspan=8, sticky='EW', padx=PAD_BIG)
 
         label_min_int = tk.Label(self, text="Minimum Intensity", font=FONT_LABEL, bg='white')
         label_min_int.grid(row=2, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
@@ -794,8 +809,7 @@ class ROIPage(BasePage):
         label_all_figures = tk.Label(self, text="All Figures", font=FONT_LABEL, bg='white')
         label_all_figures.grid(row=12, column=0, columnspan=5, sticky='EW', padx=PAD_SMALL)
         self.variable_all_figures = tk.StringVar(self, value=False)
-        check_figures = tk.Checkbutton(self, variable=self.variable_all_figures, onvalue=True, offvalue=False,
-                                       bg="white")
+        check_figures = ttk.Checkbutton(self, variable=self.variable_all_figures, onvalue=True, offvalue=False)
         check_figures.grid(row=12, column=5, columnspan=5, sticky='EW', padx=PAD_SMALL)
 
         label_filter_size = tk.Label(self, text="Filter size", bg='white', font=FONT_LABEL)
@@ -1083,12 +1097,12 @@ class AnalysisPageTemplate(BasePage):
 
         self.experiment = None
 
-        label_loaded_video = tk.Label(self, text="Loaded video", font=FONT_HEADER, bg='white')
+        label_loaded_video = tk.Label(self, text="Loaded:", font=FONT_SUBHEADER, bg='white')
         label_loaded_video.grid(row=0, column=0, columnspan=8, rowspan=1, sticky='EW', padx=PAD_SMALL)
         self.label_loaded_video_status = NormalLabel(self, text="XX", row=0, column=8, columnspan=16, rowspan=1,
                                                      sticky="ew", font=FONT_LABEL)
 
-        label_name = tk.Label(self, text="Name", font=FONT_LABEL, bg='white')
+        label_name = tk.Label(self, text="Name", font=FONT_SUBHEADER, bg='white')
         label_name.grid(row=1, column=0, columnspan=8, sticky='EW', padx=PAD_BIG)
 
         self.entry_name = EntryPlaceholder(self, "TBD", width=INPUT_BIG)
@@ -1180,17 +1194,20 @@ class TTPage(AnalysisPageTemplate):
     def __init__(self, container, controller):
         super().__init__(container, controller)
 
+        label_tt = tk.Label(self, text="TT settings", font=FONT_SUBHEADER, bg='white')
+        label_tt.grid(row=11, column=0, columnspan=48, sticky='EW', padx=PAD_SMALL)
+
         label_method = tk.Label(self, text="Method", font=FONT_LABEL, bg='white')
-        label_method.grid(row=12, column=0, columnspan=12, sticky='EW', padx=PAD_SMALL)
+        label_method.grid(row=12, column=0, columnspan=16, sticky='EW', padx=PAD_SMALL)
         self.variable_method = tk.StringVar(self)
         drop_method = ttk.OptionMenu(self, self.variable_method, fit_options[1], *fit_options)
-        drop_method.grid(row=13, column=0, columnspan=12, sticky="ew")
+        drop_method.grid(row=13, column=0, columnspan=16, sticky="ew")
 
         label_rejection = tk.Label(self, text="Rejection", bg='white', font=FONT_LABEL)
-        label_rejection.grid(row=12, column=12, columnspan=12, sticky='EW', padx=PAD_SMALL)
+        label_rejection.grid(row=12, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
         self.variable_rejection = tk.StringVar(self)
         drop_rejection = ttk.OptionMenu(self, self.variable_rejection, rejection_options[0], *rejection_options)
-        drop_rejection.grid(row=13, column=12, columnspan=12, sticky='EW', padx=PAD_SMALL)
+        drop_rejection.grid(row=13, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         label_cores = tk.Label(self, text="#cores", font=FONT_LABEL, bg='white')
         label_cores.grid(row=12, column=24, columnspan=6, sticky='EW', padx=PAD_BIG)
@@ -1206,26 +1223,26 @@ class TTPage(AnalysisPageTemplate):
         drop_dimension = ttk.OptionMenu(self, self.variable_dimensions, dimension_options[0], *dimension_options)
         drop_dimension.grid(row=13, column=30, columnspan=6, sticky='EW', padx=PAD_BIG)
 
-        label_used_roi_spacing = tk.Label(self, text="Used ROI spacing", bg='white', font=FONT_LABEL)
-        label_used_roi_spacing.grid(row=16, column=0, rowspan=2, columnspan=8, sticky='EW', padx=PAD_SMALL)
-        self.label_roi_spacing_status = NormalLabel(self, text="TBD", row=16, column=8, rowspan=2, columnspan=4,
+        label_used_roi_spacing = tk.Label(self, text="Used ROI spacing:", bg='white', font=FONT_LABEL)
+        label_used_roi_spacing.grid(row=16, column=0, rowspan=2, columnspan=12, sticky='EW', padx=PAD_SMALL)
+        self.label_roi_spacing_status = NormalLabel(self, text="TBD", row=16, column=12, rowspan=2, columnspan=4,
                                                     sticky='EW', padx=PAD_SMALL, font=FONT_LABEL)
 
         label_roi_size = tk.Label(self, text="ROI size", bg='white', font=FONT_LABEL)
-        label_roi_size.grid(row=18, column=0, columnspan=6, rowspan=2, sticky='EW', padx=PAD_SMALL)
+        label_roi_size.grid(row=18, column=0, columnspan=8, rowspan=2, sticky='EW', padx=PAD_SMALL)
         self.variable_roi_size = tk.StringVar(self)
         drop_roi_size = ttk.OptionMenu(self, self.variable_roi_size, roi_size_options[0], *roi_size_options)
-        drop_roi_size.grid(row=18, column=6, columnspan=6, rowspan=2, sticky='EW', padx=PAD_SMALL)
+        drop_roi_size.grid(row=18, column=8, columnspan=8, rowspan=2, sticky='EW', padx=PAD_SMALL)
 
         label_begin_frame = tk.Label(self, text="Begin frame", font=FONT_LABEL, bg='white')
-        label_begin_frame.grid(row=16, column=12, rowspan=2, columnspan=12, sticky='EW', padx=PAD_BIG)
+        label_begin_frame.grid(row=16, column=16, rowspan=2, columnspan=8, sticky='EW', padx=PAD_BIG)
         self.entry_begin_frame = EntryPlaceholder(self, "Leave empty for start", width=INPUT_BIG)
-        self.entry_begin_frame.grid(row=18, column=12, rowspan=2, columnspan=12)
+        self.entry_begin_frame.grid(row=18, column=16, rowspan=2, columnspan=8, padx=PAD_SMALL)
 
         label_end_frame = tk.Label(self, text="End frame", font=FONT_LABEL, bg='white')
         label_end_frame.grid(row=16, column=24, rowspan=2, columnspan=6, sticky='EW', padx=PAD_BIG)
         self.entry_end_frame = EntryPlaceholder(self, "Leave empty for end", width=INPUT_BIG)
-        self.entry_end_frame.grid(row=18, column=24, rowspan=2, columnspan=6)
+        self.entry_end_frame.grid(row=18, column=24, rowspan=2, columnspan=6, padx=PAD_SMALL)
 
     def add_to_queue(self):
         name = self.entry_name.get()
@@ -1270,6 +1287,9 @@ class TTPage(AnalysisPageTemplate):
 class HSMPage(AnalysisPageTemplate):
     def __init__(self, container, controller):
         super().__init__(container, controller)
+
+        label_hsm = tk.Label(self, text="HSM settings", font=FONT_SUBHEADER, bg='white')
+        label_hsm.grid(row=11, column=0, columnspan=48, sticky='EW', padx=PAD_SMALL)
 
         label_hsm_correct = tk.Label(self, text="Correction file:", font=FONT_LABEL, bg='white', anchor='e')
         label_hsm_correct.grid(row=13, column=0, columnspan=8, rowspan=2, sticky='EW', padx=PAD_SMALL)

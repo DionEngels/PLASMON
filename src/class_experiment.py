@@ -37,6 +37,7 @@ class Experiment:
     def __init__(self, created_by, filename, proceed_question, error_func, progress_updater, show_rois):
         self.created_by = created_by
         self.directory = filename
+        self.dir_made = False
         self.name = None
         self.datasets = []
         self.settings = None
@@ -90,11 +91,10 @@ class Experiment:
         file_dir = file_dir + date + "_" + name
 
         directory_try = 0
-        directory_success = False
-        while not directory_success:
+        while not self.dir_made:
             try:
                 mkdir(file_dir)
-                directory_success = True
+                self.dir_made = True
             except:
                 directory_try += 1
                 if directory_try == 1:
@@ -145,7 +145,6 @@ class Experiment:
                 figuring.individual_figures(self)
             except:
                 warn("Individual figure creation failed", RuntimeWarning)
-
 
         self.progress_updater.message("Converting to MATLAB coordinate system")
         tools.convert_to_matlab(self)
