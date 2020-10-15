@@ -53,7 +53,17 @@ __self_made__ = True
 
 
 class TimeTrace(Dataset):
+    """
+    TT Class for every time trace. Inherits from Dataset
+    """
     def __init__(self, experiment, nd2, name):
+        """
+        Initializer of TT. Sets frames, frame_for_roi and metadata
+        ------------------------
+        :param experiment: parent experiment
+        :param nd2: nd2 of TT
+        :param name: name of TT
+        """
         super().__init__(experiment, name)
         self.type = "TT"
         self.frames = nd2
@@ -67,28 +77,34 @@ class TimeTrace(Dataset):
         self.figure_range = None
 
     def prepare_run(self, settings):
-        check = self.experiment.proceed_question("Are you sure?",
-                                                 "You cannot change settings later. "
-                                                 "Are you sure everything is set up correctly?")
-        if not check:
+        """
+        Prepare run of TT. Takes users settings, asks some questions, and sets settings
+        :param settings: settings to put in
+        :return: None. Edits class
+        """
+        # check
+        if self.experiment.proceed_question("Are you sure?", "You cannot change settings later. "
+                                                             "Are you sure everything is set up correctly?") is False:
             return False
 
+        # check cores for Phasor
         if settings['#cores'] > 1 and "Phasor" in settings['method']:
-            cores_check = self.experiment.proceed_question("Just a heads up",
-                                                           """Phasor will be used with one core since the
-            overhead only slows it down""")
-            if not cores_check:
+            if self.experiment.proceed_question("Just a heads up", """Phasor will be used with one core since the
+            overhead only slows it down""") is False:
                 return False
             settings['#cores'] = 1
 
+        # set name and settings
         new_name = settings.pop('name', self.name)
         self.set_name(new_name)
         self.settings = settings
 
+        # set cores, slice video, and max_its
         self.n_cores = settings['#cores']
         self.slice, _ = self.parse_start_end(settings['frame_begin'], settings['frame_end'])
         max_its = self.find_max_its()
 
+        # initialiser fitter
         if settings['method'] == "Phasor + Intensity":
             self.fitter = Phasor(settings, self.roi_offset)
         elif settings['method'] == "Phasor":
@@ -103,22 +119,32 @@ class TimeTrace(Dataset):
             self.fitter = PhasorSum(settings, self.roi_offset)
 
     def find_max_its(self):
+        """
+        Finds maximum iterations needed based on intensity of particles found
+        ----------------
+        :return: max_its: integer of maximum iterations needed
+        """
+        # take first frame
         first_frame_index = self.slice.indices(3)[0]
         first_frame = np.asarray(self.frames[first_frame_index])
 
+        # create temp fitter
         fitter_tmp = GaussianBackground({'roi_size': 7, 'rejection': 'Loose', 'method': "Gaussian - Fit bg"},
                                         400, 6, self.roi_offset)
         int_list = []
 
+        # for every ROI, find intensity
         for roi in self.active_rois:
             my_roi = roi.get_roi(first_frame, 3, self.roi_offset)
             result, its, success = fitter_tmp.fit_gaussian(my_roi, roi.index)
             int_list.append(result[0])
 
+        # fit intensity
         mu, std = norm.fit(int_list)
         intensity_list2 = np.asarray(int_list)[int_list < mu]
         mu, std = norm.fit(intensity_list2)
 
+        # set max its depending on mean intensity
         if mu >= 2000:
             max_its = 100
         else:
@@ -128,9 +154,15 @@ class TimeTrace(Dataset):
         return int(max_its)
 
     def run(self):
+        """
+        Run TT analysis. Takes set slice of video, analyses it, and corrects for drift
+        :return: None. Edits results in experiment
+        """
+        # find frames to fit and time axis
         frames_to_fit = np.asarray(self.frames[self.slice])
         self.time_axis = self.metadata['timesteps'][self.slice]
 
+        # run analysis
         if "Phasor" in self.settings['method']:
             self.fitter.run(self, frames_to_fit, 0)
 
@@ -155,11 +187,10 @@ class TimeTrace(Dataset):
                                                  "raw": roi.get_frame_stack(frames_to_fit,
                                                                             self.fitter.roi_size_1D,
                                                                             self.roi_offset)}
-        
+        # correct fro drift
         self.experiment.progress_updater.message("Starting drift correction")
         self.drift_corrector = DriftCorrector(self.settings['method'])
         self.drift_corrector.main(self.active_rois, self.name_result, len(self.time_axis))
-
 
 # %% Gaussian fitter with estimated background
 
@@ -195,17 +226,12 @@ class Gaussian:
 
     def __init__(self, settings, max_its, num_fit_params, roi_offset):
         """
-
-        Parameters
+        Initializer of Gaussian fitter. Sets a lot of base values
         ----------
         :param settings: Fitting settings
-        max_its: number of iterations limit
+        :param: max_its: number of iterations limit
         :param num_fit_params: number of fitting parameters, 5 for without bg, 6 with bg
-
-        Returns
-        -------
-        None.
-
+        :param roi_offset: offset of ROIs in dataset
         """
         self.result = []
         self.roi_locations = []
@@ -615,6 +641,13 @@ class Gaussian:
         return frame_result
 
     def run(self, dataset, frames, start_frame):
+        """
+        Run of Gaussian fitter. Takes ROIs and fits them all. Return results
+        :param dataset: Dataset to fit
+        :param frames: Frames to fit
+        :param start_frame: start frame number
+        :return: self.result: all fits
+        """
         self.roi_locations = dataset.active_rois
         self.params = np.zeros((len(self.roi_locations), 2))
         try:
@@ -652,7 +685,6 @@ class GaussianBackground(Gaussian):
     """
     Gaussian fitter with fitted background, build upon Scipy Optimize Least-Squares
     """
-
     def phasor_guess(self, data):
         """
         Returns an initial guess based on phasor fitting
@@ -726,7 +758,6 @@ class GaussianBackground(Gaussian):
                 frame_result[roi.index, 1] = frame_index + start_frame
 
         return frame_result
-
 
 # %% Phasor for ROI loops
 
@@ -897,7 +928,6 @@ class PhasorDumb(Phasor):
     """
     Dumb Phasor. Does not return intensity of found location.
     """
-
     def phasor_fit_stack(self, frame_stack, roi_index, y, x):
         """
         Applies phasor fitting to an entire stack of frames of one ROI
@@ -944,7 +974,6 @@ class PhasorDumb(Phasor):
 
         return roi_result
 
-
 # %% Phasor with sum
 
 
@@ -952,7 +981,6 @@ class PhasorSum(Phasor):
     """
     Phasor Sum. Also returns summation of entire ROI
     """
-
     def phasor_fit_stack(self, frame_stack, roi_index, y, x):
         """
         Applies phasor fitting to an entire stack of frames of one ROI
