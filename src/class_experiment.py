@@ -19,6 +19,7 @@ v2.0: part of v2.0: 15/10/2020
 # GENERAL IMPORTS
 from os import mkdir  # to get standard usage
 from warnings import warn
+import time # for time keeping
 
 # OWN CODE
 from src.nd2_reading import ND2ReaderSelf
@@ -181,6 +182,7 @@ class Experiment:
         ---------------
         :return: None. Saves to disk
         """
+        start_time = time.time()
         for dataset in self.datasets:
             # iterate through datasets and update progress
             self.progress_updater.new_dataset(dataset.type)
@@ -194,9 +196,10 @@ class Experiment:
             dataset.frames = None
 
         # save
-        self.save()
+        time_taken = time.time() - start_time
+        self.save(time_taken)
 
-    def save(self):
+    def save(self, time_taken):
         """
         Saves experiment results
         -------------------
@@ -205,7 +208,7 @@ class Experiment:
         # save settings used to txt
         self.progress_updater.message("Starting saving")
         settings = self.settings_to_dict()
-        outputting.save_settings(self.directory, settings)
+        outputting.save_settings(self.directory, settings, time_taken)
 
         # save overview
         try:

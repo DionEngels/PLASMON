@@ -46,12 +46,13 @@ def save_to_mat(directory, name, to_save):
     savemat(directory + "/" + name + '.mat', to_save, long_field_names=True)
 
 
-def save_settings(directory, settings):
+def save_settings(directory, settings, time_taken):
     """
     Save settings to .txt file
     -------------------------------
     :param directory: directory to save to
     :param settings: settings dictionary to save
+    :param time_taken: time taken to do experiment analysis
     :return: None. Saves to disk.
     """
     with open(directory + "/" + "Settings" + ".txt", mode='w') as text_file:
@@ -64,6 +65,7 @@ def save_settings(directory, settings):
         text_file.write("Experiment \n------------\n")
         for key, value in settings_experiment.items():
             text_file.write(str(TRANSLATOR_DICT[key]) + ": " + str(value) + "\n")
+        text_file.write("Time taken: {:.1f} seconds".format(time_taken))
 
         # write ROI finder settings
         settings_roi_finder = settings.pop('ROIs')
