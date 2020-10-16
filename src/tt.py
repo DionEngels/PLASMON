@@ -163,34 +163,69 @@ class TimeTrace(Dataset):
         self.time_axis = self.metadata['timesteps'][self.slice]
 
         # run analysis
-        if "Phasor" in self.settings['method']:
-            self.fitter.run(self, frames_to_fit, 0)
+        if self.n_cores > 1:
+            pass
+        else:
+            self.fitter.run(self, frames_to_fit)
 
             for roi in self.active_rois:
                 if self.settings['pixels_or_nm'] == "nm":
                     roi.results[self.name_result]['result'] = \
                         change_to_nm(roi.results[self.name_result]['result'],
                                      self.metadata, self.settings['method'])
-        else:
-            results = np.array(1)
-            if self.n_cores > 1:
-                pass
-            else:
-                results = self.fitter.run(self, frames_to_fit, 0)
 
-            for roi in self.active_rois:
-                roi_results = results[results[:, 0] == roi.index, 1:]
-                if self.settings['pixels_or_nm'] == "nm":
-                    roi_results = change_to_nm(roi_results, self.metadata, self.settings['method'])
-
-                roi.results[self.name_result] = {"type": self.type, "result": roi_results[:, :],
-                                                 "raw": roi.get_frame_stack(frames_to_fit,
-                                                                            self.fitter.roi_size_1D,
-                                                                            self.roi_offset)}
         # correct fro drift
         self.experiment.progress_updater.message("Starting drift correction")
         self.drift_corrector = DriftCorrector(self.settings['method'])
         self.drift_corrector.main(self.active_rois, self.name_result, len(self.time_axis))
+
+# %% Base Run
+
+
+class BaseFitter:
+    """
+    Base fitter class. Used by all other fitters.
+    """
+    def __init__(self, settings, roi_offset):
+        self.roi_size = settings['roi_size']
+        self.roi_size_1D = int((self.roi_size - 1) / 2)
+        self.__name__ = settings['method']
+        self.threshold_method = settings['rejection']
+
+        self.roi_offset = roi_offset
+        self.roi_locations = []
+
+    def fitter(self, frame_stack, roi_index, y, x):
+        """
+        To be implemented depending on fitter
+        :param frame_stack: frame stack to be fitted of a single ROI
+        :param roi_index: the ROIs index
+        :param y: y-position of ROI center
+        :param x: x-position of ROI center
+        :return: roi results
+        """
+        pass
+
+    def run(self, dataset, frames):
+        """
+        Run of fitter. Takes ROIs and fits them all. Return results
+        :param dataset: Dataset to fit
+        :param frames: Frames to fit
+        :return: None. Edits dataset
+        """
+        self.roi_locations = dataset.active_rois
+
+        for roi in self.roi_locations:
+            frame_stack = roi.get_frame_stack(frames, self.roi_size_1D, self.roi_offset)
+
+            roi_result = self.fitter(frame_stack, roi.index, roi.y, roi.x)
+
+            result_dict = {"type": dataset.type, "result": roi_result, "raw": frame_stack}
+            roi.results[dataset.name_result] = result_dict
+
+            if len(self.roi_locations) > 10:
+                if roi.index % (round(len(self.roi_locations) / 10, 0)) == 0:
+                    dataset.experiment.progress_updater.status(roi.index, len(self.roi_locations))
 
 # %% Gaussian fitter with estimated background
 
@@ -219,7 +254,7 @@ EPS = np.finfo(float).eps
 
 
 # noinspection DuplicatedCode
-class Gaussian:
+class Gaussian(BaseFitter):
     """
     Gaussian fitter with estimated background, build upon Scipy Optimize Least-Squares
     """
@@ -233,17 +268,11 @@ class Gaussian:
         :param num_fit_params: number of fitting parameters, 5 for without bg, 6 with bg
         :param roi_offset: offset of ROIs in dataset
         """
-        self.result = []
-        self.roi_locations = []
-        self.roi_size = settings['roi_size']
-        self.roi_size_1D = int((self.roi_size - 1) / 2)
-        self.init_sig = 1.2  # Slightly on the high side probably
-        self.threshold_method = settings['rejection']
-        self.__name__ = settings['method']
-        self.roi_offset = roi_offset
+        super().__init__(settings, roi_offset)
 
+        self.init_sig = 1.2  # Slightly on the high side probably
         self.num_fit_params = num_fit_params
-        self.params = np.zeros((1000, 2))
+        self.params = np.zeros(2)
 
         self.x_scale = np.ones(num_fit_params)
         self.active_mask = np.zeros_like(self.x_scale, dtype=int)
@@ -582,100 +611,54 @@ class Gaussian:
 
         return pos_max, pos_min, int_max, int_min, sig_max, sig_min
 
-    def fitter(self, frame_index, frame, start_frame):
+    def fitter(self, frame_stack, roi_index, y, x):
         """
-        Fits all peaks by Gaussian least-squares fitting
-
-        Parameters
-        ----------
-        frame_index : Index of frame
-        frame : frame to be fitted
-        start_frame: in case of multiprocessing, the number of the first frame passed to this thread/process
-
-        Returns
-        -------
-        frame_result : fits of each frame
-
+        Does Gaussian fitting for all frames for a single ROI
+        --------------------------------------------------------
+        :param frame_stack: frame stack to be fitted of single ROI
+        :param roi_index: the ROIs index
+        :param y: y-position of ROI center
+        :param x: x-position of ROI center
+        :return: roi results
         """
         pos_max, pos_min, int_max, int_min, sig_max, sig_min = self.define_fitter_bounds()
 
-        frame_result = np.zeros([len(self.roi_locations), 9])
+        self.params = np.zeros(2)
+        roi_result = np.zeros([frame_stack.shape[0], 8])
 
-        for roi in self.roi_locations:
-            my_roi = roi.get_roi(frame, self.roi_size_1D, self.roi_offset)
+        for frame_index, my_roi in enumerate(frame_stack):
             my_roi_bg = self.fun_calc_bg(my_roi)
             my_roi = my_roi - my_roi_bg
-
-            result, its, success = self.fit_gaussian(my_roi, roi.index)
+            result, its, success = self.fit_gaussian(my_roi)
 
             if self.threshold_method == "None":
                 if success == 0 or result[0] == 0:
-                    self.params[roi.index, :] = [self.init_sig, self.init_sig]
+                    self.params = [self.init_sig, self.init_sig]
                     success = 0
             else:
                 if success == 0 or \
                         result[2] < pos_min or result[2] > pos_max or result[1] < pos_min or result[1] > pos_max or \
                         result[0] <= int_min or result[0] > int_max or \
                         result[3] < sig_min or result[3] > sig_max or result[4] < sig_min or result[4] > sig_max:
-                    self.params[roi.index, :] = [self.init_sig, self.init_sig]
+                    self.params = [self.init_sig, self.init_sig]
                     success = 0
 
             if success == 1:
-                self.params[roi.index, :] = result[3:5]
-
-                frame_result[roi.index, 0] = roi.index
-                frame_result[roi.index, 1] = frame_index + start_frame
+                self.params = result[3:5]
+                roi_result[frame_index, 0] = frame_index
                 # start position plus from center in ROI + half for indexing of pixels
-                frame_result[roi.index, 2] = result[1] + roi.y - self.roi_size_1D + 0.5  # y
-                frame_result[roi.index, 3] = result[2] + roi.x - self.roi_size_1D + 0.5  # x
-                frame_result[roi.index, 4] = result[0]*result[3]*result[4]*2*pi  # Integrated intensity
-                frame_result[roi.index, 5] = result[3]  # sigma y
-                frame_result[roi.index, 6] = result[4]  # sigma x
-                frame_result[roi.index, 7] = my_roi_bg
-                frame_result[roi.index, 8] = its
+                roi_result[frame_index, 1] = result[1] + y - self.roi_size_1D + 0.5  # y
+                roi_result[frame_index, 2] = result[2] + x - self.roi_size_1D + 0.5  # x
+                roi_result[frame_index, 3] = result[0]*result[3]*result[4]*2*pi  # Integrated intensity
+                roi_result[frame_index, 4] = result[3]  # sigma y
+                roi_result[frame_index, 5] = result[4]  # sigma x
+                roi_result[frame_index, 6] = my_roi_bg
+                roi_result[frame_index, 7] = its
             else:
-                frame_result[roi.index, :] = np.nan
-                frame_result[roi.index, 0] = roi.index
-                frame_result[roi.index, 1] = frame_index + start_frame
+                roi_result[frame_index, :] = np.nan
+                roi_result[frame_index, 0] = frame_index
 
-        return frame_result
-
-    def run(self, dataset, frames, start_frame):
-        """
-        Run of Gaussian fitter. Takes ROIs and fits them all. Return results
-        :param dataset: Dataset to fit
-        :param frames: Frames to fit
-        :param start_frame: start frame number
-        :return: self.result: all fits
-        """
-        self.roi_locations = dataset.active_rois
-        self.params = np.zeros((len(self.roi_locations), 2))
-        try:
-            n_frames = frames.shape[0]
-        except AttributeError:
-            n_frames = len(frames)
-
-        tot_fits = 0
-
-        for frame_index, frame in enumerate(frames):
-            if frame_index == 0:
-                frame_result = self.fitter(frame_index, frame, start_frame)
-                n_fits = frame_result.shape[0]
-                width = frame_result.shape[1]
-                height = len(frames) * len(self.roi_locations)
-                self.result = np.zeros((height, width))
-                self.result[tot_fits:tot_fits + n_fits, :] = frame_result
-                tot_fits += n_fits
-            else:
-                frame_result = self.fitter(frame_index, frame, start_frame)
-                n_fits = frame_result.shape[0]
-                self.result[tot_fits:tot_fits + n_fits, :] = frame_result
-                tot_fits += n_fits
-
-            if frame_index % (round(n_frames / 10, 0)) == 0:
-                dataset.experiment.progress_updater.status(frame_index, n_frames)
-
-        return self.result
+        return roi_result
 
 # %% Gaussian fitter including background
 
@@ -704,88 +687,60 @@ class GaussianBackground(Gaussian):
 
         return np.array([height, pos_y, pos_x, self.init_sig, self.init_sig, background])
 
-    def fitter(self, frame_index, frame, start_frame):
+    def fitter(self, frame_stack, roi_index, y, x):
         """
-        Fits all peaks by Gaussian least-squares fitting
-
-        Parameters
-        ----------
-        frame_index : Index of frame
-        frame : frame to be fitted
-        start_frame: in case of multiprocessing, the number of the first frame passed to this thread/process
-
-        Returns
-        -------
-        frame_result : fits of each frame
-
+        Does Gaussian fitting for all frames for a single ROI
+        --------------------------------------------------------
+        :param frame_stack: frame stack to be fitted of single ROI
+        :param roi_index: the ROIs index
+        :param y: y-position of ROI center
+        :param x: x-position of ROI center
+        :return: roi results
         """
         pos_max, pos_min, int_max, int_min, sig_max, sig_min = self.define_fitter_bounds()
+        self.params = np.zeros(2)
+        roi_result = np.zeros([frame_stack.shape[0], 8])
 
-        frame_result = np.zeros([len(self.roi_locations), 9])
-
-        for roi in self.roi_locations:
-            my_roi = roi.get_roi(frame, self.roi_size_1D, self.roi_offset)
-            result, its, success = self.fit_gaussian(my_roi, roi.index)
+        for frame_index, my_roi in enumerate(frame_stack):
+            result, its, success = self.fit_gaussian(my_roi)
 
             if self.threshold_method == "None":
                 if success == 0 or result[0] == 0:
-                    self.params[roi.index, :] = [self.init_sig, self.init_sig]
+                    self.params = [self.init_sig, self.init_sig]
                     success = 0
             else:
                 if success == 0 or \
                         result[2] < pos_min or result[2] > pos_max or result[1] < pos_min or result[1] > pos_max or \
                         result[0] <= int_min or result[0] > int_max or \
                         result[3] < sig_min or result[3] > sig_max or result[4] < sig_min or result[4] > sig_max:
-                    self.params[roi.index, :] = [self.init_sig, self.init_sig]
+                    self.params = [self.init_sig, self.init_sig]
                     success = 0
 
             if success == 1:
-                self.params[roi.index, :] = result[3:5]
+                self.params = result[3:5]
 
-                frame_result[roi.index, 0] = roi.index
-                frame_result[roi.index, 1] = frame_index + start_frame
+                roi_result[frame_index, 0] = frame_index
                 # start position plus from center in ROI + half for indexing of pixels
-                frame_result[roi.index, 2] = result[1] + roi.y - self.roi_size_1D + 0.5  # y
-                frame_result[roi.index, 3] = result[2] + roi.x - self.roi_size_1D + 0.5  # x
-                frame_result[roi.index, 4] = result[0]*result[3]*result[4]*2*pi  # Integrated intensity
-                frame_result[roi.index, 5] = result[3]  # sigma y
-                frame_result[roi.index, 6] = result[4]  # sigma x
-                frame_result[roi.index, 7] = result[5]  # background
-                frame_result[roi.index, 8] = its
+                roi_result[frame_index, 1] = result[1] + y - self.roi_size_1D + 0.5  # y
+                roi_result[frame_index, 2] = result[2] + x - self.roi_size_1D + 0.5  # x
+                roi_result[frame_index, 3] = result[0] * result[3] * result[4] * 2 * pi  # Integrated intensity
+                roi_result[frame_index, 4] = result[3]  # sigma y
+                roi_result[frame_index, 5] = result[4]  # sigma x
+                roi_result[frame_index, 6] = result[5]  # background
+                roi_result[frame_index, 7] = its
             else:
-                frame_result[roi.index, :] = np.nan
-                frame_result[roi.index, 0] = roi.index
-                frame_result[roi.index, 1] = frame_index + start_frame
+                roi_result[frame_index, :] = np.nan
+                roi_result[frame_index, 0] = frame_index
 
-        return frame_result
+        return roi_result
 
 # %% Phasor for ROI loops
 
 
-class Phasor:
+class Phasor(BaseFitter):
     """
     Phasor fitting using Fourier Transform. Also returns intensity of pixel in which Phasor position is found.
     """
-
-    def __init__(self, settings, roi_offset):
-        """
-        Parameters
-        ----------
-        :param settings: input settings
-
-        Returns
-        -------
-        None.
-
-        """
-        self.result = []
-        self.roi_locations = []
-        self.roi_size = settings['roi_size']
-        self.roi_size_1D = int((self.roi_size - 1) / 2)
-        self.threshold_method = settings['rejection']
-        self.__name__ = settings['method']
-        self.roi_offset = roi_offset
-
     def fun_find_max(self, roi):
         """
         Input ROI, returns max using FORTRAN
@@ -851,7 +806,7 @@ class Phasor:
 
         return pos_x, pos_y
 
-    def phasor_fit_stack(self, frame_stack, roi_index, y, x):
+    def fitter(self, frame_stack, roi_index, y, x):
         """
         Applies phasor fitting to an entire stack of frames of one ROI
 
@@ -904,23 +859,6 @@ class Phasor:
 
         return roi_result
 
-    def run(self, dataset, frames, _):
-        self.roi_locations = dataset.active_rois
-
-        tot_fits = 0
-
-        for roi in self.roi_locations:
-            frame_stack = roi.get_frame_stack(frames, self.roi_size_1D, self.roi_offset)
-            roi_result = self.phasor_fit_stack(frame_stack, roi.index, roi.y, roi.x)
-
-            result_dict = {"type": dataset.type, "result": roi_result, "raw": frame_stack}
-            roi.results[dataset.name_result] = result_dict
-            tot_fits += roi_result.shape[0]
-
-            if len(self.roi_locations) > 10:
-                if roi.index % (round(len(self.roi_locations) / 10, 0)) == 0:
-                    dataset.experiment.progress_updater.status(roi.index, len(self.roi_locations))
-
 # %% Dumb phasor ROI loop
 
 
@@ -928,7 +866,7 @@ class PhasorDumb(Phasor):
     """
     Dumb Phasor. Does not return intensity of found location.
     """
-    def phasor_fit_stack(self, frame_stack, roi_index, y, x):
+    def fitter(self, frame_stack, roi_index, y, x):
         """
         Applies phasor fitting to an entire stack of frames of one ROI
 
@@ -981,7 +919,7 @@ class PhasorSum(Phasor):
     """
     Phasor Sum. Also returns summation of entire ROI
     """
-    def phasor_fit_stack(self, frame_stack, roi_index, y, x):
+    def fitter(self, frame_stack, roi_index, y, x):
         """
         Applies phasor fitting to an entire stack of frames of one ROI
 
