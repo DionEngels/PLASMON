@@ -341,7 +341,7 @@ def save_overview(experiment):
                 # and if possible, time trace
                 ax_tt = fig.add_subplot(gs[row + max(len(hsm), 1) + index_dataset, column + 1])
                 make_tt(ax_tt, experiment.datasets[n_dataset].time_axis,
-                        roi.results[experiment.datasets[n_dataset].name_result]['result'], method, roi.index)
+                        roi.results[experiment.datasets[n_dataset].name_result]['result'], method)
                 ax_tt.set_title('TT {} ROI {}'.format(experiment.datasets[n_dataset].name, roi.index + 1))
 
     # save
@@ -413,7 +413,7 @@ def individual_figures(experiment):
                 # and if possible, time trace
                 ax_tt = fig.add_subplot(per_roi_length, 2, 2 + index_dataset * 2 + max(len(hsm), 1) * 2)
                 make_tt(ax_tt, experiment.datasets[n_dataset].time_axis,
-                        roi.results[experiment.datasets[n_dataset].name_result]['result'], method, roi.index)
+                        roi.results[experiment.datasets[n_dataset].name_result]['result'], method)
                 ax_tt.set_title('TT {} ROI {}'.format(experiment.datasets[n_dataset].name, roi.index + 1))
 
         # save
