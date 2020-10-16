@@ -185,10 +185,10 @@ class HSMDataset(Dataset):
         # for each frame, correct for background and save corrected frame
         for frame_index, frame in enumerate(self.frames):
             background = median_filter(frame, size=9, mode='constant')
-            frame = frame.astype(self.data_type) - background
+            frame = frame.astype(self.data_type_signed) - background
             img_corrected = np.round((frame[int(frame.shape[0] * 0.25 - 1):int(frame.shape[0] * 0.75),
                                       int(frame.shape[1] * 0.25 - 1):int(frame.shape[1] * 0.75)]),
-                                     0).astype(self.data_type)
+                                     0).astype(self.data_type_signed)
             # save to data_merged_helper to prevent doing background correction again
             data_merged_helper[frame_index, :, :] = frame.astype(self.data_type_signed)
             # after first frame, correlate with previous frame
@@ -334,8 +334,7 @@ class HSMDataset(Dataset):
             roi.results[self.name_result] = result_dict
 
             # progress update
-            if roi_index % (round(len(self.active_rois) / 5, 0)) == 0:
-                self.experiment.progress_updater.status(roi_index, len(self.active_rois))
+            self.experiment.progress_updater.update_progress()
 
     def fit_lorentzian(self, scattering, wavelength, split=False, verbose=False):
         """

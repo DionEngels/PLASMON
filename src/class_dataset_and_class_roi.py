@@ -240,7 +240,7 @@ def normxcorr2(b, a):
 
     c = conv2(a, np.flipud(np.fliplr(b)))
     a = conv2(a ** 2, np.ones(b.shape))
-    b = sum(b.flatten() ** 2)
+    b = int(sum(b.flatten().astype(np.int64) ** 2))
     c = c / np.sqrt(a * b)
     return c
 
