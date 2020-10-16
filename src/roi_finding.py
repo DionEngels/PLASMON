@@ -41,7 +41,7 @@ class RoiFinder:
     """
     Class to find ROIs
     """
-    def __init__(self, frame, settings=None):
+    def __init__(self, frame, signed_data_type, settings=None):
         """
         Initialises ROI finder
         -----------------------
@@ -53,6 +53,7 @@ class RoiFinder:
         # standard fitter settings
         fitter_settings = {'roi_size': 7, 'method': "Gaussian", 'rejection': "None"}
         self.fitter = fitting.Gaussian(fitter_settings, 300, 5, [0, 0])
+        self.data_type = signed_data_type
 
         # setup lists
         self.sigma_list = []
@@ -76,7 +77,7 @@ class RoiFinder:
 
             # correct for background
             background = median_filter(frame, size=self.filter_size)
-            self.frame_bg = frame.astype('float') - background
+            self.frame_bg = frame.astype(self.data_type) - background
 
             # find ROI locations
             self.roi_locations = self.main()
@@ -125,14 +126,14 @@ class RoiFinder:
         if settings['filter_size'] != self.filter_size:
             self.filter_size = settings['filter_size']
             background = median_filter(self.base_frame, size=self.filter_size)
-            self.frame_bg = self.base_frame.astype('float') - background
+            self.frame_bg = self.base_frame.astype(self.data_type) - background
         else:
             processed_frame = settings.pop('processed_frame', None)
             if processed_frame is not None:
                 self.frame_bg = processed_frame
             else:
                 background = median_filter(self.base_frame, size=self.filter_size)
-                self.frame_bg = self.base_frame.astype('float') - background
+                self.frame_bg = self.base_frame.astype(self.data_type) - background
 
     def get_settings(self):
         """

@@ -66,7 +66,7 @@ class Experiment:
         elif created_by == 'TT':
             self.init_new_tt(filename)
         self.frame_for_rois = self.datasets[-1].frame_for_rois
-        self.roi_finder = RoiFinder(self.frame_for_rois)
+        self.roi_finder = RoiFinder(self.frame_for_rois, self.datasets[-1].data_type_signed)
         self.rois = self.roi_finder.main()
 
     def init_new_hsm(self, filename):

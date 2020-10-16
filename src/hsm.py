@@ -56,7 +56,7 @@ class HSMDataset(Dataset):
         :param nd2: nd2 of HSM
         :param name: name of HSM
         """
-        super().__init__(experiment, name)
+        super().__init__(experiment, nd2, name)
         self.type = "HSM"
         self.frames = np.asarray(nd2)
         self.metadata = nd2.get_metadata(verbose=False)
@@ -177,20 +177,20 @@ class HSMDataset(Dataset):
         offset_from_zero = np.zeros((self.frames.shape[0], 2))
 
         frame = self.frames[0, :, :]
-        data_output = np.zeros(self.frames.shape, dtype=frame.dtype)
-        data_merged_helper = np.zeros(self.frames.shape, dtype=np.int32)
-        data_merged = np.zeros(frame.shape, dtype=np.int32)
+        data_output = np.zeros(self.frames.shape, dtype=self.data_type)
+        data_merged_helper = np.zeros(self.frames.shape, dtype=self.data_type_signed)
+        data_merged = np.zeros(frame.shape, dtype=self.data_type_signed)
         img_corrected_previous = 0
 
         # for each frame, correct for background and save corrected frame
         for frame_index, frame in enumerate(self.frames):
             background = median_filter(frame, size=9, mode='constant')
-            frame = frame.astype(np.int16) - background
+            frame = frame.astype(self.data_type) - background
             img_corrected = np.round((frame[int(frame.shape[0] * 0.25 - 1):int(frame.shape[0] * 0.75),
                                       int(frame.shape[1] * 0.25 - 1):int(frame.shape[1] * 0.75)]),
-                                     0).astype(np.int16)
+                                     0).astype(self.data_type)
             # save to data_merged_helper to prevent doing background correction again
-            data_merged_helper[frame_index, :, :] = frame.astype(np.int32)
+            data_merged_helper[frame_index, :, :] = frame.astype(self.data_type_signed)
             # after first frame, correlate with previous frame
             if frame_index > 0:
                 frame_convolution = normxcorr2(img_corrected, img_corrected_previous)
@@ -227,7 +227,7 @@ class HSMDataset(Dataset):
             data_output[frame_index, :, :] = helper_image[max_offset:size_frame[-2] + max_offset,
                                                           max_offset:size_frame[-1] + max_offset]
             # add to data merged by getting data_merged_helper
-            helper_image = np.zeros(helper_size, dtype=np.int32)
+            helper_image = np.zeros(helper_size, dtype=self.data_type_signed)
             helper_image[max_offset - shift_dist[-2]:size_frame[-2] + max_offset - shift_dist[-2],
                          max_offset - shift_dist[-1]:size_frame[-1] + max_offset - shift_dist[-1]] = \
                 data_merged_helper[frame_index, :, :]

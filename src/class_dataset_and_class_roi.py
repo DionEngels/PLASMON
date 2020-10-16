@@ -100,7 +100,7 @@ class Dataset:
     """
     Base dataset class. Each dataset type (HSM / TT) inherits from this
     """
-    def __init__(self, experiment, name):
+    def __init__(self, experiment, nd2, name):
         """
         Init for dataset class. Sets name, type, name_result (for MATLAB) and some other base things to None
         -----------------------------------
@@ -109,6 +109,14 @@ class Dataset:
         """
         self.type = "Dataset"
         self.experiment = experiment
+        self.data_type = nd2.pixel_type
+        bits = int("".join([s for s in str(self.data_type) if s.isdigit()]))  # complicated way to get #bits
+        if bits < 16:
+            self.data_type_signed = np.int16
+        elif bits < 32:
+            self.data_type_signed = np.int32
+        else:
+            self.data_type_signed = np.int64
         self.name = name.split(".")[0].split("/")[-1]
         self.filename = name
         self.name_result = 'res_{}'.format(self.name.replace(' ', '_'))

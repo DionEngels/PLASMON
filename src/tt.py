@@ -64,11 +64,11 @@ class TimeTrace(Dataset):
         :param nd2: nd2 of TT
         :param name: name of TT
         """
-        super().__init__(experiment, name)
+        super().__init__(experiment, nd2, name)
         self.type = "TT"
         self.frames = nd2
         background = median_filter(np.asarray(nd2[0]), size=9)
-        self.frame_for_rois = np.asarray(nd2[0]).astype(np.int32) - background
+        self.frame_for_rois = np.asarray(nd2[0]).astype(self.data_type_signed) - background
         self.metadata = nd2.get_metadata()
         self.time_axis = self.metadata['timesteps']
         self.slice = None
@@ -279,7 +279,6 @@ class Gaussian(BaseFitter):
         self.lb = np.resize(-np.inf, self.x_scale.shape)
         self.ub = np.resize(np.inf, self.x_scale.shape)
         self.use_one_sided = np.resize(False, self.x_scale.shape)
-        self.empty_background = np.zeros(self.roi_size * 2 + (self.roi_size - 2) * 2, dtype=np.uint16)
 
         self.rel_step = EPS ** (1 / 3)
         self.comp = np.ones(num_fit_params)
