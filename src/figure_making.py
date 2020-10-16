@@ -340,7 +340,7 @@ def save_overview(experiment):
             if "Gaussian" in method or "Sum" in method:
                 # and if possible, time trace
                 ax_tt = fig.add_subplot(gs[row + max(len(hsm), 1) + index_dataset, column + 1])
-                make_tt(ax_tt, experiment.datasets[n_dataset].time_axis,
+                make_tt(ax_tt, experiment.datasets[n_dataset].time_axis / 1000,
                         roi.results[experiment.datasets[n_dataset].name_result]['result'], method)
                 ax_tt.set_title('TT {} ROI {}'.format(experiment.datasets[n_dataset].name, roi.index + 1))
 
@@ -412,7 +412,7 @@ def individual_figures(experiment):
             if "Gaussian" in method or "Sum" in method:
                 # and if possible, time trace
                 ax_tt = fig.add_subplot(per_roi_length, 2, 2 + index_dataset * 2 + max(len(hsm), 1) * 2)
-                make_tt(ax_tt, experiment.datasets[n_dataset].time_axis,
+                make_tt(ax_tt, experiment.datasets[n_dataset].time_axis / 1000,  # convert from ms to s
                         roi.results[experiment.datasets[n_dataset].name_result]['result'], method)
                 ax_tt.set_title('TT {} ROI {}'.format(experiment.datasets[n_dataset].name, roi.index + 1))
 
