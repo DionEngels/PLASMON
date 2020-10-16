@@ -136,7 +136,7 @@ class TimeTrace(Dataset):
         # for every ROI, find intensity
         for roi in self.active_rois:
             my_roi = roi.get_roi(first_frame, 3, self.roi_offset)
-            result, its, success = fitter_tmp.fit_gaussian(my_roi, roi.index)
+            result, its, success = fitter_tmp.fit_gaussian(my_roi)
             int_list.append(result[0])
 
         # fit intensity
@@ -258,7 +258,6 @@ class Gaussian(BaseFitter):
     """
     Gaussian fitter with estimated background, build upon Scipy Optimize Least-Squares
     """
-
     def __init__(self, settings, max_its, num_fit_params, roi_offset):
         """
         Initializer of Gaussian fitter. Sets a lot of base values
@@ -563,14 +562,13 @@ class Gaussian(BaseFitter):
 
         return np.array([height, pos_y, pos_x, self.init_sig, self.init_sig])
 
-    def fit_gaussian(self, data, peak_index):
+    def fit_gaussian(self, data):
         """
         Gathers parameter estimate and calls fit.
 
         Parameters
         ----------
         data : ROI pixel values
-        peak_index : Number of ROI that is being fitter.
 
         Returns
         -------
@@ -579,11 +577,11 @@ class Gaussian(BaseFitter):
         p.success: success or failure
 
         """
-        if self.params[peak_index, 0] == 0:
+        if self.params[0] == 0:
             params = self.phasor_guess(data)
         else:
             params = self.phasor_guess(data)
-            params[3:5] = self.params[peak_index, :]
+            params[3:5] = self.params[:]
         p = self.least_squares(params, data, max_nfev=self.max_its)  # , ftol=1e-10, xtol=1e-10, gtol=1e-10)
 
         return [p.x, p.nfev, p.success]
@@ -806,6 +804,40 @@ class Phasor(BaseFitter):
 
         return pos_x, pos_y
 
+    def get_fft_values(self, frame_stack):
+        """
+        Converts frame stack to fft values
+        -----------------------
+        :param frame_stack: frame stack to convert
+        :return: fft_values: fft of frame_stack
+        """
+        roi_bb = empty_aligned(frame_stack.shape, dtype='float64')
+        roi_bf = empty_aligned((frame_stack.shape[0], self.roi_size, self.roi_size_1D + 1), dtype='complex128')
+        fft_values_list = FFTW(roi_bb, roi_bf, axes=(1, 2),
+                               flags=('FFTW_MEASURE',),
+                               direction='FFTW_FORWARD')
+        roi_bb = frame_stack
+        return fft_values_list(roi_bb)
+
+    def fit_and_reject(self, fft_values):
+        """
+        Takes fft values, fits and rejects if need be
+        ------------------------
+        :param fft_values: values to fit
+        :return: pos_x: x pos found
+        :return: pos_y: y pos found
+        :return: success: if fit was succeess
+        """
+        success = 1
+        pos_x, pos_y = self.fft_to_pos(fft_values)
+
+        if self.threshold_method != "None" and (pos_x > self.roi_size or pos_x < 0):
+            success = 0
+        if self.threshold_method != "None" and (pos_y > self.roi_size or pos_y < 0):
+            success = 0
+
+        return pos_x, pos_y, success
+
     def fitter(self, frame_stack, roi_index, y, x):
         """
         Applies phasor fitting to an entire stack of frames of one ROI
@@ -823,26 +855,13 @@ class Phasor(BaseFitter):
 
         """
         roi_result = np.zeros([frame_stack.shape[0], 5])
-
-        roi_bb = empty_aligned(frame_stack.shape, dtype='float64')
-        roi_bf = empty_aligned((frame_stack.shape[0], self.roi_size, self.roi_size_1D + 1), dtype='complex128')
-        fft_values_list = FFTW(roi_bb, roi_bf, axes=(1, 2),
-                               flags=('FFTW_MEASURE',),
-                               direction='FFTW_FORWARD')
-        roi_bb = frame_stack
-        fft_values_list = fft_values_list(roi_bb)
+        fft_values_list = self.get_fft_values(frame_stack)
 
         for frame_index, (fft_values, frame) in enumerate(zip(fft_values_list, frame_stack)):
-            success = 1
             my_frame_bg = self.fun_calc_bg(frame)
             frame_max = self.fun_find_max(frame)
 
-            pos_x, pos_y = self.fft_to_pos(fft_values)
-
-            if self.threshold_method != "None" and (pos_x > self.roi_size or pos_x < 0):
-                success = 0
-            if self.threshold_method != "None" and (pos_y > self.roi_size or pos_y < 0):
-                success = 0
+            pos_x, pos_y, success = self.fit_and_reject(fft_values)
             if frame_max == 0:
                 success = 0
 
@@ -883,23 +902,10 @@ class PhasorDumb(Phasor):
 
         """
         roi_result = np.zeros([frame_stack.shape[0], 3])
-
-        roi_bb = empty_aligned(frame_stack.shape, dtype='float64')
-        roi_bf = empty_aligned((frame_stack.shape[0], self.roi_size, self.roi_size_1D + 1), dtype='complex128')
-        fft_values_list = FFTW(roi_bb, roi_bf, axes=(1, 2),
-                               flags=('FFTW_MEASURE',),
-                               direction='FFTW_FORWARD')
-        roi_bb = frame_stack
-        fft_values_list = fft_values_list(roi_bb)
+        fft_values_list = self.get_fft_values(frame_stack)
 
         for frame_index, (fft_values, frame) in enumerate(zip(fft_values_list, frame_stack)):
-            success = 1
-            pos_x, pos_y = self.fft_to_pos(fft_values)
-
-            if self.threshold_method != "None" and (pos_x > self.roi_size or pos_x < 0):
-                success = 0
-            if self.threshold_method != "None" and (pos_y > self.roi_size or pos_y < 0):
-                success = 0
+            pos_x, pos_y, success = self.fit_and_reject(fft_values)
 
             if success == 1:
                 roi_result[frame_index, 0] = frame_index
@@ -936,25 +942,11 @@ class PhasorSum(Phasor):
 
         """
         roi_result = np.zeros([frame_stack.shape[0], 4])
-
-        roi_bb = empty_aligned(frame_stack.shape, dtype='float64')
-        roi_bf = empty_aligned((frame_stack.shape[0], self.roi_size, self.roi_size_1D + 1), dtype='complex128')
-        fft_values_list = FFTW(roi_bb, roi_bf, axes=(1, 2),
-                               flags=('FFTW_MEASURE',),
-                               direction='FFTW_FORWARD')
-        roi_bb = frame_stack
-        fft_values_list = fft_values_list(roi_bb)
+        fft_values_list = self.get_fft_values(frame_stack)
 
         for frame_index, (fft_values, frame) in enumerate(zip(fft_values_list, frame_stack)):
-            success = 1
             frame_sum = np.sum(frame)
-
-            pos_x, pos_y = self.fft_to_pos(fft_values)
-
-            if self.threshold_method != "None" and (pos_x > self.roi_size or pos_x < 0):
-                success = 0
-            if self.threshold_method != "None" and (pos_y > self.roi_size or pos_y < 0):
-                success = 0
+            pos_x, pos_y, success = self.fit_and_reject(fft_values)
             if frame_sum == 0:
                 success = 0
 

@@ -251,7 +251,7 @@ class RoiFinder:
             my_roi = roi.get_roi(self.frame_bg, self.roi_size_1d, [0, 0])
 
             # fits ROI
-            result, its, success = self.fitter.fit_gaussian(my_roi, roi_index)
+            result, its, success = self.fitter.fit_gaussian(my_roi)
 
             # return sigma or int if desired
             if return_sigmas:

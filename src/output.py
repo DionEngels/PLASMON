@@ -65,7 +65,7 @@ def save_settings(directory, settings, time_taken):
         text_file.write("Experiment \n------------\n")
         for key, value in settings_experiment.items():
             text_file.write(str(TRANSLATOR_DICT[key]) + ": " + str(value) + "\n")
-        text_file.write("Time taken: {:.1f} seconds".format(time_taken))
+        text_file.write("Time taken: {:.1f} seconds\n".format(time_taken))
 
         # write ROI finder settings
         settings_roi_finder = settings.pop('ROIs')

@@ -303,7 +303,7 @@ class HSMDataset(Dataset):
                     ax.set_title('Zoom-in ROI #{}, frame #{}'.format(roi.index, frame_index))
                     plt.show()
                 # fit
-                result, _, success = fitter.fit_gaussian(my_roi, roi.index)
+                result, _, success = fitter.fit_gaussian(my_roi)
                 # save fittings if success
                 if success == 0 or \
                         result[2] < pos_min or result[2] > pos_max or result[1] < pos_min or result[1] > pos_max \
