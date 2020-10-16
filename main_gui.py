@@ -366,17 +366,6 @@ class ProgressUpdaterGUI(ProgressUpdater):
         self.time_done_status = time_done_status
         self.start_time = time.time()
 
-    def status(self, progress, total):
-        """
-        Updates progress within dataset.
-        :param progress: progress within dataset
-        :param total: total within dataset
-        :return: Calls update
-        """
-        self.progress = progress  # this time without +1
-        self.total = total
-        self.update(False, False, False)
-
     def update(self, new_experiment, new_dataset, message_bool):
         """
         Update function. Does the actual communication.

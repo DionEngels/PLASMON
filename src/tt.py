@@ -223,9 +223,8 @@ class BaseFitter:
             result_dict = {"type": dataset.type, "result": roi_result, "raw": frame_stack}
             roi.results[dataset.name_result] = result_dict
 
-            if len(self.roi_locations) > 10:
-                if roi.index % (round(len(self.roi_locations) / 10, 0)) == 0:
-                    dataset.experiment.progress_updater.status(roi.index, len(self.roi_locations))
+            dataset.experiment.progress_updater.update_progress()
+
 
 # %% Gaussian fitter with estimated background
 

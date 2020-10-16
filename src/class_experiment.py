@@ -185,7 +185,11 @@ class Experiment:
         start_time = time.time()
         for dataset in self.datasets:
             # iterate through datasets and update progress
-            self.progress_updater.new_dataset(dataset.type)
+            if dataset.type == "TT":
+                self.progress_updater.new_dataset(dataset.type, len(dataset.active_rois),
+                                                  method=dataset.settings['method'])
+            else:
+                self.progress_updater.new_dataset(dataset.type, len(dataset.active_rois), method="HSM")
             dataset.run()
 
             # clear memory

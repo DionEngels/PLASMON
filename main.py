@@ -100,6 +100,7 @@ class ProgressUpdater:
         """
         self.current_type = None
         self.current_dataset = None
+        self.method = None
         self.total_datasets = None
         self.current_experiment = None
         self.total_experiments = None
@@ -120,13 +121,18 @@ class ProgressUpdater:
         for experiment in experiments:
             self.total_datasets += len(experiment.datasets)
 
-    def new_dataset(self, new_type):
+    def new_dataset(self, new_type, n_rois, method=None):
         """
         Called when new dataset is starting to be analyzed. Sets new type and updates dataset counter
         :param new_type: new type of dataset
+        :param n_rois: number of active ROIs in dataset
+        :param method: method of fitters if used
         :return: Calls update
         """
         self.current_type = new_type
+        self.method = method
+        self.total = n_rois
+        self.progress = 0
         self.current_dataset += 1
         self.update(False, True, False)
 
@@ -139,21 +145,27 @@ class ProgressUpdater:
         self.current_experiment = exp_index
         self.update(True, False, False)
 
-    def status(self, progress, total):
+    def update_progress(self):
         """
-        Updates progress within dataset. Adds one for ease-of-reading for user since Python starts at 0
-        :param progress: progress within dataset
-        :param total: total within dataset
-        :return: Calls update
+        Updates progress within dataset. Adds one to previous progress. Means that one ROI has been completed
+        :return: Calls update when need be
         """
-        self.progress = progress + 1
-        self.total = total
-        self.update(False, False, False)
+        self.progress += 1
+        # if HSM or Phasor, update every ten
+        if (self.method is "HSM" or "Phasor" in self.method) and self.progress % round(self.total / 10, 0) == 0 and \
+                self.total > 9:
+            self.update(False, False, False)
+        # if Gaussian, always update, because it is slow. Also call when only 9 or fewer ROIs
+        elif "Gaussian" in self.method or self.total < 10:
+            self.update(False, False, False)
+        # if complete, always update
+        elif self.total == self.progress:
+            self.update(False, False, False)
 
     def message(self, message_string):
         """
         Called when you want to print a message
-        :param message_string: Mesage to print
+        :param message_string: Message to print
         :return: Calls update
         """
         self.message_string = message_string
