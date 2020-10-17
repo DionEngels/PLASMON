@@ -1554,6 +1554,8 @@ class HSMPage(AnalysisPageTemplate):
         self.variable_hsm_correct.set("")
         self.entry_wavelength.updater()
 
+        self.button_add_to_queue.updater(state='disabled')
+
     def add_to_queue(self):
         """
         Add HSM dataset to queue and clears memory
