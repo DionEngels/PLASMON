@@ -618,7 +618,7 @@ class MainPage(BasePage):
         label_loaded = tk.Label(self, text="Loaded", font=FONT_HEADER, bg='white')
         label_loaded.grid(row=0, column=16, columnspan=16, sticky='EW', padx=PAD_SMALL)
 
-        self.listbox_loaded = tk.Listbox(self)
+        self.listbox_loaded = tk.Listbox(self, font=FONT_LABEL)
         self.listbox_loaded.grid(row=1, column=16, columnspan=16, rowspan=8, sticky='NSEW', padx=PAD_SMALL)
         self.listbox_loaded.configure(justify="center")
 
@@ -631,7 +631,7 @@ class MainPage(BasePage):
         label_queued = tk.Label(self, text="Queued", font=FONT_HEADER, bg='white')
         label_queued.grid(row=0, column=32, columnspan=16, sticky='EW', padx=PAD_SMALL)
 
-        self.listbox_queued = tk.Listbox(self)
+        self.listbox_queued = tk.Listbox(self, font=FONT_LABEL)
         self.listbox_queued.grid(row=1, column=32, columnspan=16, rowspan=8, sticky='NSEW', padx=PAD_SMALL)
         self.listbox_queued.configure(justify="center")
         self.listbox_queued.bindtags((self.listbox_queued, self, "all"))
