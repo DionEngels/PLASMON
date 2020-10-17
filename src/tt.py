@@ -125,7 +125,7 @@ class TimeTrace(Dataset):
         :return: max_its: integer of maximum iterations needed
         """
         # take first frame
-        first_frame_index = self.slice.indices(3)[0]
+        first_frame_index = self.slice.start
         first_frame = np.asarray(self.frames[first_frame_index])
 
         # create temp fitter
