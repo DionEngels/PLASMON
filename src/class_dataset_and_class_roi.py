@@ -19,6 +19,7 @@ v2.0: part of v2.0: 15/10/2020
 # GENERAL IMPORTS
 import scipy.fft as fft
 from scipy.signal import fftconvolve
+from skimage.feature import match_template
 import numpy as np
 
 __self_made__ = True
@@ -142,14 +143,27 @@ class Dataset:
         elif start == "Leave empty for start" and end != "Leave empty for end":
             return slice(0, int(end)), 0
         elif start != "Leave empty for start" and end == "Leave empty for end":
-            return slice(int(start), None), start
+            return slice(int(start), None), int(start)
         else:  # start != "Leave empty for start" and end != "Leave empty for end":
-            return slice(int(start), int(end)), start
+            return slice(int(start), int(end)), int(start)
 
     @staticmethod
-    def correlate_frames(frame_old, frame_new):
+    def correlate_frames_other_size(frame_small, frame_big):
         """
-        Correlates old frame with new frame and finds offset between the two
+        Correlates other sizes small and big frame and finds offset between the two
+        -----------------------
+        :param frame_small: Previous frame
+        :param frame_big: New frame to correlate with
+        :return: offset: the offset between the two frames
+        """
+        corr = match_template(frame_big, frame_small)
+        offset = -np.transpose(np.asarray(np.where(corr == np.amax(corr))))[0]
+        return offset
+
+    @staticmethod
+    def correlate_frames_same_size(frame_old, frame_new):
+        """
+        Correlates same sizes old frame and new frame and finds offset between the two
         -----------------------
         :param frame_old: Previous frame
         :param frame_new: New frame to correlate with
@@ -157,19 +171,31 @@ class Dataset:
         """
         # if same matrix
         if np.array_equal(frame_new, frame_old):
-            return [0, 0]
-
-        # if same size
-        if frame_old.shape == frame_new.shape:
+            offset = np.asarray([0, 0])
+        else:
             corr = normxcorr2(frame_old, frame_new)
             maxima = np.transpose(np.asarray(np.where(corr == np.amax(corr))))[0]
             offset = maxima - np.asarray(frame_old.shape) + np.asarray([1, 1])
-        else:
-            # if not same size
-            corr = normxcorr2_large(frame_old, frame_new)
-            maxima = np.transpose(np.asarray(np.where(corr == np.amax(corr))))[0]
-            offset = maxima - np.asarray(frame_old.shape) + np.asarray([1, 1])
+
         return offset
+
+    @staticmethod
+    def check_slice_validity(total_frame, x_slice, y_slice):
+        if x_slice.start is None:
+            x_slice = slice(0, x_slice.stop)
+        if y_slice.start is None:
+            y_slice = slice(0, y_slice.stop)
+        if x_slice.stop is None:
+            x_slice = slice(x_slice.start, total_frame.shape[1])
+        if y_slice.stop is None:
+            y_slice = slice(y_slice.start, total_frame.shape[0])
+
+        if x_slice.start > x_slice.stop or x_slice.start < 0 or x_slice.stop > total_frame.shape[1]:
+            return False
+        if y_slice.start > y_slice.stop or y_slice.start < 0 or y_slice.stop > total_frame.shape[0]:
+            return False
+
+        return True
 
     def correlate(self, settings):
         """
@@ -187,20 +213,40 @@ class Dataset:
         frame_shape = self.frame_for_rois.shape
 
         # if frame is larger than experiment frame
-        if frame_shape[0] > experiment_frame_shape[0] and frame_shape[1] > experiment_frame_shape[1]:
+        if frame_shape[0] > experiment_frame_shape[0] or frame_shape[1] > experiment_frame_shape[1]:
             small_frame = self.experiment.frame_for_rois
             cropped_frame = self.frame_for_rois[y_slice, x_slice]
-            offset = self.correlate_frames(small_frame, cropped_frame) - offset_crop
-        elif frame_shape[0] < experiment_frame_shape[0] and frame_shape[1] < experiment_frame_shape[1]:
+
+            # if slices are present, check validity
+            if self.check_slice_validity(self.frame_for_rois, x_slice, y_slice) is False:
+                self.experiment.error_func("Slice invalid", "Slice size is not valid")
+                return None
+
+            # check if sliced frame is valid
+            if small_frame.shape[0] > cropped_frame.shape[0] or small_frame.shape[1] > cropped_frame.shape[1]:
+                self.experiment.error_func("Crop too tight", "Cropped frame now smaller than previously smaller frame")
+                return None
+            offset = -self.correlate_frames_other_size(small_frame, cropped_frame) + offset_crop
+        elif frame_shape[0] < experiment_frame_shape[0] or frame_shape[1] < experiment_frame_shape[1]:
             # if other way around
             small_frame = self.frame_for_rois
             cropped_frame = self.experiment.frame_for_rois[y_slice, x_slice]
-            offset = self.correlate_frames(cropped_frame, small_frame) + offset_crop
+
+            # if slices are present, check validity
+            if self.check_slice_validity(self.experiment.frame_for_rois, x_slice, y_slice) is False:
+                self.experiment.error_func("Slice invalid", "Slice size is not valid")
+                return None
+
+            # check if sliced frame is valid
+            if small_frame.shape[0] > cropped_frame.shape[0] or small_frame.shape[1] > cropped_frame.shape[1]:
+                self.experiment.error_func("Crop too tight", "Cropped frame now smaller than previously smaller frame")
+                return None
+            offset = self.correlate_frames_other_size(small_frame, cropped_frame) - offset_crop
         else:
             # if same size
             old_frame = self.experiment.frame_for_rois
             new_frame = self.frame_for_rois
-            offset = self.correlate_frames(old_frame, new_frame)
+            offset = self.correlate_frames_same_size(old_frame, new_frame)
         return offset
 
     def find_rois(self, settings):
@@ -211,6 +257,8 @@ class Dataset:
         :return: None. Edits dataset class by self.active_rois and self.roi_offset
         """
         self.roi_offset = self.correlate(settings)
+        if self.roi_offset is None:
+            return
         self.active_rois = [roi for roi in self.experiment.rois if roi.in_frame(self.frame_for_rois.shape,
                                                                                 self.roi_offset,
                                                                                 self.experiment.
@@ -243,47 +291,3 @@ def normxcorr2(b, a):
     b = int(sum(b.flatten().astype(np.int64) ** 2))
     c = c / np.sqrt(a * b)
     return c
-
-
-def normxcorr2_large(template, image, mode="full"):
-    """
-    Correlation of frames with different sizes
-
-    Input arrays should be floating point numbers.
-    :param template: N-D array, of template or filter you are using for cross-correlation.
-    Must be less or equal dimensions to image.
-    Length of each dimension must be less than length of image.
-    :param image: N-D array
-    :param mode: Options, "full", "valid", "same"
-    full (Default): The output of fftconvolve is the full discrete linear convolution of the inputs.
-    Output size will be image size + 1/2 template size in each dimension.
-    valid: The output consists only of those elements that do not rely on the zero-padding.
-    same: The output is the same size as image, centered with respect to the ‘full’ output.
-    :return: N-D array of same dimensions as image. Size depends on mode parameter.
-    """
-    # If this happens, it is probably a mistake
-    if np.ndim(template) > np.ndim(image) or \
-            len([i for i in range(np.ndim(template)) if template.shape[i] > image.shape[i]]) > 0:
-        print("normxcorr2: TEMPLATE larger than IMG. Arguments may be swapped.")
-
-    template = template - np.mean(template)
-    image = image - np.mean(image)
-
-    a1 = np.ones(template.shape)
-    # Faster to flip up down and left right then use fftconvolve instead of scipy's correlate
-    ar = np.flipud(np.fliplr(template))
-    out = fftconvolve(image, ar.conj(), mode=mode)
-
-    image = fftconvolve(np.square(image), a1, mode=mode) - \
-            np.square(fftconvolve(image, a1, mode=mode)) / (np.prod(template.shape))
-
-    # Remove small machine precision errors after subtraction
-    image[np.where(image < 0)] = 0
-
-    template = np.sum(np.square(template))
-    out = out / np.sqrt(image * template)
-
-    # Remove any divisions by 0 or very close to 0
-    out[np.where(np.logical_not(np.isfinite(out)))] = 0
-
-    return out
