@@ -9,3 +9,4 @@ future~=0.18.2
 pywin32~=228
 cx_Freeze~=6.2
 mat73~=0.40
+scikit-image~=0.17.2
