@@ -58,7 +58,7 @@ def convert_to_matlab(experiment):
     :return: None. Changes experiment object
     """
     for dataset in experiment.datasets:
-        # set offset to MATLAB
+        # set offset to MATLAB coordinates
         dataset.roi_offset = offset_to_matlab(dataset.roi_offset)
         for roi in dataset.active_rois:
             if dataset.type == "TT":
@@ -68,11 +68,11 @@ def convert_to_matlab(experiment):
                 roi.results[dataset.name_result]['result_post_drift'] = \
                     result_to_matlab(roi.results[dataset.name_result]['result_post_drift'], dataset.settings['method'])
                 # change drift and raw to matlab
-                roi.results[dataset.name_result]['drift'] = switch_axis(roi.results[ dataset.name_result]['drift'])
-                roi.results[ dataset.name_result]['raw'] = raw_to_matlab(roi.results[ dataset.name_result]['raw'])
+                roi.results[dataset.name_result]['drift'] = switch_axis(roi.results[dataset.name_result]['drift'])
+                roi.results[dataset.name_result]['raw'] = raw_to_matlab(roi.results[dataset.name_result]['raw'])
             elif dataset.type == "HSM":
-                # change HSM to matalb
-                roi.results[ dataset.name_result]['raw'] = raw_to_matlab(roi.results[ dataset.name_result]['raw'])
+                # change HSM to matlab
+                roi.results[dataset.name_result]['raw'] = raw_to_matlab(roi.results[ dataset.name_result]['raw'])
             else:
                 pass
 
