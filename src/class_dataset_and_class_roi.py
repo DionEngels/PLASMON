@@ -139,7 +139,7 @@ class Dataset:
         :return: Slice from start to end value
         """
         if start == "Leave empty for start" and end == "Leave empty for end":
-            return slice(None), 0
+            return slice(0, None), 0
         elif start == "Leave empty for start" and end != "Leave empty for end":
             return slice(0, int(end)), 0
         elif start != "Leave empty for start" and end == "Leave empty for end":
@@ -181,10 +181,6 @@ class Dataset:
 
     @staticmethod
     def check_slice_validity(total_frame, x_slice, y_slice):
-        if x_slice.start is None:
-            x_slice = slice(0, x_slice.stop)
-        if y_slice.start is None:
-            y_slice = slice(0, y_slice.stop)
         if x_slice.stop is None:
             x_slice = slice(x_slice.start, total_frame.shape[1])
         if y_slice.stop is None:
