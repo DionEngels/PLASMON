@@ -64,9 +64,11 @@ FONT_HEADER = "Verdana 14 bold"
 FONT_SUBHEADER = "Verdana 12 bold"
 FONT_STATUS = "Verdana 11"
 FONT_ENTRY = "Verdana 11"
+FONT_ENTRY_SMALL = "Verdana 9"
 FONT_BUTTON = "Verdana 11"
 FONT_LABEL = "Verdana 11"
 FONT_DROP = "Verdana 11"
+FONT_LISTBOX = "Verdana 9"
 FONT_BUTTON_BIG = "Verdana 20 bold"
 PAD_BIG = 30
 PAD_SMALL = 10
@@ -214,8 +216,17 @@ class EntryPlaceholder(ttk.Entry):
     """
     Entry with a placeholder text in grey
     """
-    def __init__(self, master=None, placeholder="PLACEHOLDER", *args, **kwargs):
-        super().__init__(master, *args, style="Placeholder.TEntry", font=FONT_ENTRY, **kwargs)
+    def __init__(self, master=None, placeholder="PLACEHOLDER", small=False, *args, **kwargs):
+        if small:
+            self.placeholder_style = "PlaceholderSmall.TEntry"
+            self.normal_style = "Small.TEntry"
+            self.font = FONT_ENTRY_SMALL
+        else:
+            self.placeholder_style = "Placeholder.TEntry"
+            self.normal_style = "TEntry"
+            self.font = FONT_ENTRY
+
+        super().__init__(master, *args, style=self.placeholder_style, font=self.font, **kwargs)
         self.placeholder = placeholder
 
         self.insert("0", self.placeholder)
@@ -224,13 +235,13 @@ class EntryPlaceholder(ttk.Entry):
 
     def _clear_placeholder(self, e):
         self.delete("0", "end")
-        if self["style"] == "Placeholder.TEntry":
-            self["style"] = "TEntry"
+        if self["style"] == self.placeholder_style:
+            self["style"] = self.normal_style
 
     def _add_placeholder(self, e):
         if not self.get():
             self.insert("0", self.placeholder)
-            self["style"] = "Placeholder.TEntry"
+            self["style"] = self.placeholder_style
 
     def updater(self, text=None, placeholder=None):
         self.delete("0", "end")
@@ -239,10 +250,10 @@ class EntryPlaceholder(ttk.Entry):
 
         if text is None:
             self.insert("0", self.placeholder)
-            self["style"] = "Placeholder.TEntry"
+            self["style"] = self.placeholder_style
         else:
             self.insert("0", text)
-            self["style"] = "TEntry"
+            self["style"] = self.normal_style
 
 
 class NormalButton:
@@ -320,8 +331,8 @@ class NormalLabel:
     My normal label, again with an updater function to update the label.
     """
     def __init__(self, parent, text=None, font=None, bd=None, relief=None,
-                 row=None, column=None, rowspan=1, columnspan=1, sticky=None, padx=0, pady=0):
-        self._label = tk.Label(parent, text=text, font=font, bd=bd, relief=relief, bg='white')
+                 row=None, column=None, rowspan=1, columnspan=1, sticky=None, padx=0, pady=0, wrap=None):
+        self._label = tk.Label(parent, text=text, font=font, bd=bd, relief=relief, bg='white', wrap=wrap)
         self._label.grid(row=row, column=column, rowspan=rowspan, columnspan=columnspan,
                          sticky=sticky, padx=padx, pady=pady)
         self.parent = parent
@@ -541,6 +552,8 @@ class MbxPython(tk.Tk):
         ttk_style.configure("Big.TButton", font=FONT_BUTTON_BIG)
         ttk_style.configure("Placeholder.TEntry", foreground="Grey", font=FONT_ENTRY)
         ttk_style.configure("TEntry", font=FONT_ENTRY)
+        ttk_style.configure("PlaceholderSmall.TEntry", foreground="Grey", font=FONT_ENTRY_SMALL)
+        ttk_style.configure("Small.TEntry", font=FONT_ENTRY_SMALL)
         ttk_style.configure("TButton", font=FONT_BUTTON, background="White")
         ttk_style.configure("TSeparator", background="black")
         ttk_style.configure("TMenubutton", font=FONT_DROP, background="White")
@@ -618,7 +631,7 @@ class MainPage(BasePage):
         label_loaded = tk.Label(self, text="Loaded", font=FONT_HEADER, bg='white')
         label_loaded.grid(row=0, column=16, columnspan=16, sticky='EW', padx=PAD_SMALL)
 
-        self.listbox_loaded = tk.Listbox(self, font=FONT_LABEL)
+        self.listbox_loaded = tk.Listbox(self, font=FONT_LISTBOX)
         self.listbox_loaded.grid(row=1, column=16, columnspan=16, rowspan=8, sticky='NSEW', padx=PAD_SMALL)
         self.listbox_loaded.configure(justify="center")
 
@@ -631,7 +644,7 @@ class MainPage(BasePage):
         label_queued = tk.Label(self, text="Queued", font=FONT_HEADER, bg='white')
         label_queued.grid(row=0, column=32, columnspan=16, sticky='EW', padx=PAD_SMALL)
 
-        self.listbox_queued = tk.Listbox(self, font=FONT_LABEL)
+        self.listbox_queued = tk.Listbox(self, font=FONT_LISTBOX)
         self.listbox_queued.grid(row=1, column=32, columnspan=16, rowspan=8, sticky='NSEW', padx=PAD_SMALL)
         self.listbox_queued.configure(justify="center")
         self.listbox_queued.bindtags((self.listbox_queued, self, "all"))
@@ -777,9 +790,9 @@ class MainPage(BasePage):
         self.listbox_queued.delete(0, 'end')
 
         for index, experiment in enumerate(self.controller.experiments, 1):
-            self.listbox_loaded.insert('end', "Experiment {}: {}".format(index, experiment.name))
+            self.listbox_loaded.insert('end', "Exp {}: {}".format(index, experiment.name))
             for dataset in experiment.datasets:
-                self.listbox_queued.insert('end', "Experiment {}: {} ({})".format(index, dataset.name, dataset.type))
+                self.listbox_queued.insert('end', "Exp {}: {} ({})".format(index, dataset.name, dataset.type))
 
 # %% Loading page
 
@@ -868,7 +881,7 @@ class ROIPage(BasePage):
         label_name = tk.Label(self, text="Name", font=FONT_SUBHEADER, bg='white')
         label_name.grid(row=0, column=0, columnspan=8, sticky='EW', padx=PAD_BIG)
 
-        self.entry_name = EntryPlaceholder(self, "TBD", width=INPUT_BIG)
+        self.entry_name = EntryPlaceholder(self, "TBD", width=INPUT_BIG, small=True)
         self.entry_name.grid(row=0, column=8, columnspan=24, sticky='EW')
 
         line = ttk.Separator(self, orient='horizontal')
@@ -1278,12 +1291,12 @@ class AnalysisPageTemplate(BasePage):
         label_loaded_video = tk.Label(self, text="Loaded:", font=FONT_SUBHEADER, bg='white')
         label_loaded_video.grid(row=0, column=0, columnspan=16, rowspan=1, sticky='EW', padx=PAD_SMALL)
         self.label_loaded_video_status = NormalLabel(self, text="XX", row=1, column=0, columnspan=16, rowspan=1,
-                                                     sticky="ew", font=FONT_LABEL)
+                                                     sticky="ew", font=FONT_LABEL, wrap=400)
 
         label_name = tk.Label(self, text="Name", font=FONT_SUBHEADER, bg='white')
         label_name.grid(row=2, column=0, columnspan=16, sticky='EW', padx=PAD_BIG)
 
-        self.entry_name = EntryPlaceholder(self, "TBD")
+        self.entry_name = EntryPlaceholder(self, "TBD", small=True)
         self.entry_name.grid(row=3, column=0, columnspan=16, sticky='EW', padx=PAD_SMALL)
 
         label_x_min = tk.Label(self, text="x min", font=FONT_LABEL, bg='white')
