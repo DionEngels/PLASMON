@@ -254,6 +254,7 @@ class Dataset:
         """
         self.roi_offset = self.correlate(settings)
         if self.roi_offset is None:
+            self.active_rois = []
             return
         self.active_rois = [roi for roi in self.experiment.rois if roi.in_frame(self.frame_for_rois.shape,
                                                                                 self.roi_offset,
