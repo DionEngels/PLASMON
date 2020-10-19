@@ -19,6 +19,7 @@ v2.0: part of v2.0: 15/10/2020
 # GENERAL IMPORTS
 import scipy.fft as fft
 from scipy.signal import fftconvolve
+from skimage.feature import match_template
 import numpy as np
 
 __self_made__ = True
@@ -287,69 +288,3 @@ def normxcorr2(b, a):
     b = int(sum(b.flatten().astype(np.int64) ** 2))
     c = c / np.sqrt(a * b)
     return c
-
-
-def match_template(image, template, constant_values=0):
-    """
-    Taken from skimage.feature to prevent it from having to be exported when compiling
-    """
-
-    def _window_sum_2d(image, window_shape):
-
-        window_sum = np.cumsum(image, axis=0)
-        window_sum = (window_sum[window_shape[0]:-1]
-                      - window_sum[:-window_shape[0] - 1])
-
-        window_sum = np.cumsum(window_sum, axis=1)
-        window_sum = (window_sum[:, window_shape[1]:-1]
-                      - window_sum[:, :-window_shape[1] - 1])
-
-        return window_sum
-
-    if np.any(np.less(image.shape, template.shape)):
-        raise ValueError("Image must be larger than template.")
-
-    image_shape = image.shape
-
-    image = np.array(image, dtype=np.float64, copy=False)
-
-    pad_width = tuple((width, width) for width in template.shape)
-    image = np.pad(image, pad_width=pad_width, mode='constant',
-                   constant_values=constant_values)
-
-    # Use special case for 2-D images for much better performance in
-    # computation of integral images
-    image_window_sum = _window_sum_2d(image, template.shape)
-    image_window_sum2 = _window_sum_2d(image ** 2, template.shape)
-
-    template_mean = template.mean()
-    template_volume = np.prod(template.shape)
-    template_ssd = np.sum((template - template_mean) ** 2)
-
-    xcorr = fftconvolve(image, template[::-1, ::-1],
-                        mode="valid")[1:-1, 1:-1]
-
-    numerator = xcorr - image_window_sum * template_mean
-
-    denominator = image_window_sum2
-    np.multiply(image_window_sum, image_window_sum, out=image_window_sum)
-    np.divide(image_window_sum, template_volume, out=image_window_sum)
-    denominator -= image_window_sum
-    denominator *= template_ssd
-    np.maximum(denominator, 0, out=denominator)  # sqrt of negative number not allowed
-    np.sqrt(denominator, out=denominator)
-
-    response = np.zeros_like(xcorr, dtype=np.float64)
-
-    # avoid zero-division
-    mask = denominator > np.finfo(np.float64).eps
-
-    response[mask] = numerator[mask] / denominator[mask]
-
-    slices = []
-    for i in range(template.ndim):
-        d0 = template.shape[i] - 1
-        d1 = d0 + image_shape[i] - template.shape[i] + 1
-        slices.append(slice(d0, d1))
-
-    return response[tuple(slices)]
