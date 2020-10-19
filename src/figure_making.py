@@ -30,6 +30,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.lines import Line2D
 from matplotlib.gridspec import GridSpec
+from warnings import warn  # for throwing warnings
 
 __self_made__ = True
 DPI = 400
@@ -255,7 +256,7 @@ def save_overview(experiment):
     hsm = []
     for n_dataset, dataset in enumerate(experiment.datasets):
         if dataset.type == "TT":
-            dataset.figure_range = find_range(dataset.name_result, experiment.rois)
+            dataset.figure_range = find_range(dataset.name_result, experiment.dataset.active_rois)
             tt.append(n_dataset)
         elif dataset.type == "HSM":
             hsm.append(n_dataset)
@@ -300,6 +301,8 @@ def save_overview(experiment):
     # if not enough full rois, just randomly sample all ROIs
     if len(full_rois) < 4:
         full_rois = experiment.rois
+        warn("Too few ROIs that are active in all datasets. Overview figure might have some empty slots",
+             RuntimeWarning)
 
     # sample ROIs to put in overview
     roi_list = []
