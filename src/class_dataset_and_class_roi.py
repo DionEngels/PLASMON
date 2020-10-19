@@ -119,7 +119,7 @@ class Dataset:
             self.data_type_signed = np.int64
         self.name = name.split(".")[0].split("/")[-1]
         self.filename = name
-        self.name_result = 'res_{}'.format(self.name.replace(' ', '_'))
+        self.name_result = self.set_result_name(self.name)
         self.frames = None
         self.frame_for_rois = None
         self.metadata = None
@@ -127,6 +127,57 @@ class Dataset:
         self.roi_offset = None
         self.settings = None
         self.active_rois = []
+
+    @staticmethod
+    def check_name_validity(new_name):
+        """
+        Check if name for a dataset is conform MATLAB requirements
+        ---------------------------
+        :param new_name: string of new name
+        :return: return if valid or not
+        """
+        chars = set(new_name)
+
+        for i in range(0, 10):
+            chars.discard(str(i))
+
+        # loop over all letters
+        from string import ascii_letters
+        for char in ascii_letters:
+            chars.discard(char)
+
+        chars.discard('-')
+        chars.discard('_')
+        chars.discard(' ')
+
+        if len(chars) > 0:
+            return False
+        else:
+            return True
+
+    @staticmethod
+    def set_result_name(new_name):
+        """
+        Set name for result struct
+        --------------------
+        :param new_name: new name to adapt to self.name
+        :return:
+        """
+        # check matlab rules
+        tmp_name = new_name.replace(' ', '_')  # no spaces
+        tmp_name = tmp_name.replace('-', '_')  # no -
+        tmp_name = tmp_name[-59:]  # take only last 59 characters
+        return tmp_name
+
+    def set_name(self, new_name):
+        """
+        Set a name
+        -----------------
+        :param new_name: new name
+        :return: None. Edits class
+        """
+        self.name = new_name
+        self.name_result = self.set_result_name(new_name)
 
     @staticmethod
     def parse_start_end(start, end):
@@ -259,16 +310,6 @@ class Dataset:
                                                                                 self.roi_offset,
                                                                                 self.experiment.
                                                                                 roi_finder.side_distance)]
-
-    def set_name(self, new_name):
-        """
-        Set a name
-        -----------------
-        :param new_name: new name
-        :return: None. Edits class
-        """
-        self.name = new_name
-        self.name_result = 'res_{}'.format(self.name.replace(' ', '_'))
 
 # %% correlation
 

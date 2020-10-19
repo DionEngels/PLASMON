@@ -96,6 +96,11 @@ class TimeTrace(Dataset):
 
         # set name and settings
         new_name = settings.pop('name', self.name)
+        if self.check_name_validity(new_name) is False:
+            self.experiment.error_func("Invalid name", "MATLAB only accepts letters, numbers, and underscores. "
+                                                       "I also accept - and spaces (these will become underscores in "
+                                                       "MATLAB). Please only use these")
+            return False
         self.set_name(new_name)
         self.settings = settings
 
@@ -104,7 +109,7 @@ class TimeTrace(Dataset):
         self.slice, _ = self.parse_start_end(settings['frame_begin'], settings['frame_end'])
         max_its = self.find_max_its()
 
-        # initialiser fitter
+        # initializer fitter
         if settings['method'] == "Phasor + Intensity":
             self.fitter = Phasor(settings, self.roi_offset)
         elif settings['method'] == "Phasor":
