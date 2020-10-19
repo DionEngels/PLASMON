@@ -256,7 +256,7 @@ def save_overview(experiment):
     hsm = []
     for n_dataset, dataset in enumerate(experiment.datasets):
         if dataset.type == "TT":
-            dataset.figure_range = find_range(dataset.name_result, experiment.dataset.active_rois)
+            dataset.figure_range = find_range(dataset.name_result, dataset.active_rois)
             tt.append(n_dataset)
         elif dataset.type == "HSM":
             hsm.append(n_dataset)
