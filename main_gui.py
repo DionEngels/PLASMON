@@ -627,11 +627,11 @@ class MainPage(BasePage):
         label_new.grid(row=0, column=0, columnspan=16, rowspan=1, sticky='EW', padx=PAD_SMALL)
 
         self.button_new_experiment = BigButton(self, text="ADD EXPERIMENT", height=int(GUI_HEIGHT / 4),
-                                               width=int(GUI_WIDTH / 6), command=lambda: self.add_experiment())
+                                               width=int(GUI_WIDTH / 7), command=lambda: self.add_experiment())
         self.button_new_experiment.grid(row=1, column=0, columnspan=16, rowspan=4, sticky='EW', padx=PAD_SMALL)
 
         self.button_new_dataset = BigButton(self, text="ADD DATASET", height=int(GUI_HEIGHT / 4),
-                                            width=int(GUI_WIDTH / 6), command=lambda: self.add_dataset())
+                                            width=int(GUI_WIDTH / 7), command=lambda: self.add_dataset())
         self.button_new_dataset.grid(row=5, column=0, columnspan=16, rowspan=4, sticky='EW', padx=PAD_SMALL)
 
         label_loaded = tk.Label(self, text="Loaded", font=FONT_HEADER, bg='white')
@@ -1494,8 +1494,9 @@ class TTPage(AnalysisPageTemplate):
             return
 
         # set for now
-        tk.messagebox.showinfo("Multiprocessing not implemented yet", "Just a single core will be used for now")
-        n_processes = 1
+        if n_processes > 1:
+            tk.messagebox.showinfo("Multiprocessing not implemented yet", "Just a single core will be used for now")
+            n_processes = 1
 
         # make settings dict and set to input
         settings_runtime = {'method': method, 'rejection': rejection_type, '#cores': n_processes,
