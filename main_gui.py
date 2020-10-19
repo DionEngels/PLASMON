@@ -1493,6 +1493,10 @@ class TTPage(AnalysisPageTemplate):
             tk.messagebox.showerror("ERROR", "Frame begin and frame end must be integers")
             return
 
+        # set for now
+        tk.messagebox.showinfo("Multiprocessing not implemented yet", "Just a single core will be used for now")
+        n_processes = 1
+
         # make settings dict and set to input
         settings_runtime = {'method': method, 'rejection': rejection_type, '#cores': n_processes,
                             'roi_size': roi_size, "pixels_or_nm": dimension, 'name': name,
