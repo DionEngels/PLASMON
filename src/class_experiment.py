@@ -19,7 +19,7 @@ v2.0: part of v2.0: 15/10/2020
 # GENERAL IMPORTS
 from os import mkdir  # to get standard usage
 from warnings import warn
-import time # for time keeping
+import time  # for time keeping
 
 # OWN CODE
 from src.nd2_reading import ND2ReaderSelf
