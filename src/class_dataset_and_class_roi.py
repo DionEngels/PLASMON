@@ -18,7 +18,6 @@ v2.0: part of v2.0: 15/10/2020
 """
 # GENERAL IMPORTS
 import scipy.fft as fft
-from scipy.signal import fftconvolve
 from skimage.feature import match_template
 import numpy as np
 
