@@ -137,7 +137,8 @@ class TimeTrace(Dataset):
         for roi in self.active_rois:
             my_roi = roi.get_roi(first_frame, 3, self.roi_offset)
             result, its, success = fitter_tmp.fit_gaussian(my_roi)
-            int_list.append(result[0])
+            if result[0] > 0:
+                int_list.append(result[0])
 
         # fit intensity
         mu, std = norm.fit(int_list)
@@ -150,6 +151,10 @@ class TimeTrace(Dataset):
         else:
             int_under_which_more_its_are_needed = 2000
             max_its = np.ceil((int_under_which_more_its_are_needed - mu) / 1000) * 100 + 100
+
+        # final check
+        if max_its > 400:
+            max_its = 400
 
         return int(max_its)
 
