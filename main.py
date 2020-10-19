@@ -36,6 +36,9 @@ v2.0: Program v2: 15/10/2020
 # GENERAL IMPORTS
 import sys
 import warnings  # for warning diversion
+from os import getcwd, path  # create directory and check path
+from datetime import datetime  # current time
+from traceback import format_exc  # for error handling
 
 # Numpy and matplotlib, for linear algebra and plotting respectively
 import numpy as np
@@ -44,7 +47,6 @@ import matplotlib.pylab as plt
 # Own code
 from src.class_experiment import Experiment
 import src.figure_making as figuring
-from src.warnings import InputWarning
 
 __self_made__ = True
 
@@ -196,12 +198,37 @@ class DivertError:
     """
     Class to divert errors to user
     """
-    def error(self, *_):
+    def __init__(self):
+        self.log_file = getcwd() + "/Logging/" + "Error_" + datetime.now().strftime("%Y_%m_%d__%H_%M") + ".txt"
+
+    def write_to_log(self, error, message):
+        """
+        Writes the error or warning to log.
+        -------------------
+        :param error: Boolean if error or not
+        :param message: Message to write
+        :return:
+        """
+        if path.exists(self.log_file):
+            text_file = open(self.log_file, 'a')
+        else:
+            text_file = open(self.log_file, 'w')
+        if error:
+            text_file.write("ERROR ({})\n --------------------------------------\n"
+                            .format(datetime.now().strftime("%H:%M")))
+        else:
+            text_file.write("WARNING ({})\n --------------------------------------\n"
+                            .format(datetime.now().strftime("%H:%M")))
+        text_file.write(message + "\n\n\n")
+        text_file.close()
+
+    def error(self, *params):
         """
         Called when error is given
-        :param _: All unused error info
+        :param: All unused error info
         :return: Calls show
         """
+        self.write_to_log(True, format_exc(10, params[2]))
         traceback_details = self.extract_error()
         self.show(True, traceback_details)
 
@@ -216,13 +243,12 @@ class DivertError:
         :param line: line of warning
         :return: Calls show
         """
-        if category == InputWarning:
-            message = "Your input is shit"
-        elif "Z-levels details missing in metadata" in str(message):
+        if "Z-levels details missing in metadata" in str(message):
             return  # Only called by metadata loader, which is annoying, thus, not show
         else:
             message = warnings.formatwarning(message, category, filename, lineno)
             message = '\n'.join(message.split('\n')[:-2])
+            self.write_to_log(False, message)
         self.show(False, message)
 
     @staticmethod

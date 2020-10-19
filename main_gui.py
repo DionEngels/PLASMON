@@ -124,11 +124,17 @@ class DivertorErrorsGUI(DivertError):
         :return: Prints out
         """
         if error:
-            tk.messagebox.showerror("Critical error. Send screenshot to Dion. PROGRAM WILL STOP",
-                                    message=str(traceback_details))
+            tk.messagebox.showerror("Error. Send screenshot to Dion. PROGRAM WILL STOP",
+                                    message="Summary of error:\n{}\n\n"
+                                            "For full error, check the log file with current time."
+                                            "This can be found in installation directory \Logging"
+                                    .format(traceback_details))
         else:
             tk.messagebox.showerror("Warning. Take note. PROGRAM WILL CONTINUE",
-                                    message=str(traceback_details))
+                                    message="Summary of warning:\n{}\n\n"
+                                            "For full warning, check the log file with current time."
+                                            "This can be found in installation directory \Logging"
+                                    .format(traceback_details))
 
 # %% Close GUI
 
@@ -1606,6 +1612,6 @@ if __name__ == '__main__':
     warnings.showwarning = divertor.warning
     gui = MbxPython(proceed_question=proceed_question)
 
-    #  tk.Tk.report_callback_exception = divertor.error
+    tk.Tk.report_callback_exception = divertor.error
     plt.ioff()
     gui.mainloop()
