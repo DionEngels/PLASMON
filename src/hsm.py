@@ -325,7 +325,7 @@ class HSMDataset(Dataset):
             result, r_squared = self.fit_lorentzian(intensity, self.wavelengths, verbose=verbose)
 
             # save fits
-            hsm_result[0] = 1248 / result[2]  # SP lambda
+            hsm_result[0] = 1240 / result[2]  # SP lambda
             hsm_result[1] = 1000 * result[3]  # linewidth
             hsm_result[2] = r_squared
 
@@ -404,7 +404,7 @@ class HSMDataset(Dataset):
             return [np.nan, np.nan, np.nan, np.nan], 0
 
         # convert to eV
-        wavelength_ev = 1248 / wavelength
+        wavelength_ev = 1240 / wavelength
 
         # find max and min
         max_sca = np.nanmax(scattering[scattering < np.nanmax(scattering)])
@@ -423,7 +423,7 @@ class HSMDataset(Dataset):
 
         # if bad fit, try standard values
         if r_squared < 0.9:
-            result_full_std = least_squares(error_func, [-10, 100, 1248 / wavelength_ev[idx_max], 0.15],
+            result_full_std = least_squares(error_func, [-10, 100, 1240 / wavelength_ev[idx_max], 0.15],
                                             args=(wavelength_ev, scattering))
             result_std = result_full_std.x
             result_std[3] = abs(result_std[3])
