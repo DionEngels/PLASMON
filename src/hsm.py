@@ -138,7 +138,7 @@ class HSMDataset(Dataset):
         if self.check_name_validity(new_name) is False:
             self.experiment.error_func("Invalid name", "MATLAB only accepts letters, numbers, and underscores. "
                                                        "I also accept - and spaces (these will become underscores in "
-                                                       "MATLAB). Please only use these")
+                                                       "MATLAB). Please only use these.")
             return False
         self.set_name(new_name)
         self.settings = settings
