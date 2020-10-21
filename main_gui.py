@@ -27,7 +27,7 @@ from os import getcwd, environ, listdir, rmdir  # to get standard usage
 from tempfile import mkdtemp
 import sys
 import time  # for timekeeping
-from win32api import GetSystemMetrics  # Get sys info
+import ctypes  # Get sys info
 import warnings  # for warning diversion
 
 environ['MPLCONFIGDIR'] = mkdtemp()
@@ -75,8 +75,9 @@ PAD_SMALL = 10
 INPUT_BIG = 25
 INPUT_SMALL = 5
 
-SCREEN_WIDTH = GetSystemMetrics(0)
-SCREEN_HEIGHT = GetSystemMetrics(1)
+user32 = ctypes.windll.user32
+SCREEN_WIDTH = user32.GetSystemMetrics(0)
+SCREEN_HEIGHT = user32.GetSystemMetrics(1)
 GUI_WIDTH = 1344  # int(width * 0.70)
 GUI_HEIGHT = 756  # int(height * 0.70)
 GUI_WIDTH_START = int((SCREEN_WIDTH - GUI_WIDTH) / 2)
