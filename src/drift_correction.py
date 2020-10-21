@@ -100,8 +100,13 @@ class DriftCorrector:
             event_or_not = [False]*roi_results.shape[0]
 
         # get drift
-        roi_drift_y = roi_results[:, 1] - roi_results[self.find_first_non_nan(roi_results[:, 1]), 1]
-        roi_drift_x = roi_results[:, 2] - roi_results[self.find_first_non_nan(roi_results[:, 2]), 2]
+
+        if self.find_first_non_nan(roi_results[:, 1]) is not None:
+            roi_drift_y = roi_results[:, 1] - roi_results[self.find_first_non_nan(roi_results[:, 1]), 1]
+            roi_drift_x = roi_results[:, 2] - roi_results[self.find_first_non_nan(roi_results[:, 2]), 2]
+        else:  # in case only NaNs at result, just pass normal results
+            roi_drift_y = roi_results[:, 1]
+            roi_drift_x = roi_results[:, 2]
 
         return roi_drift_x, roi_drift_y, event_or_not
 
