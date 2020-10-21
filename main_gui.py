@@ -400,10 +400,8 @@ class ProgressUpdaterGUI(ProgressUpdater):
         elif new_dataset:
             overall_progress = progress_dataset
 
-            self.style.configure('task.Horizontal.TProgressbar', text='{:.2f} %'.format(0))
-            self.progress_task_status['value'] = 0
-            self.style.configure('overall.Horizontal.TProgressbar', text='{:.2f} %'.format(overall_progress * 100))
-            self.progress_overall_status['value'] = overall_progress * 100
+            self.progress_task_status.updater(text="0%")
+            self.progress_overall_status.updater(text="{:.2f}%".format(overall_progress * 100))
 
             self.current_task_status.updater(text="Experiment #{}: Dataset #{}: {}".format(self.current_experiment + 1,
                                                                                            self.current_dataset,
@@ -412,10 +410,8 @@ class ProgressUpdaterGUI(ProgressUpdater):
             progress_task = 1
             progress_overall = progress_task * progress_per_dataset + progress_dataset
 
-            self.style.configure('task.Horizontal.TProgressbar', text='{:.2f} %'.format(progress_task * 100))
-            self.progress_task_status['value'] = progress_task * 100
-            self.style.configure('overall.Horizontal.TProgressbar', text='{:.2f} %'.format(progress_overall * 100))
-            self.progress_overall_status['value'] = progress_overall * 100
+            self.progress_task_status.updater(text="{:.2f}%".format(progress_task * 100))
+            self.progress_overall_status.updater(text="{:.2f}%".format(progress_overall * 100))
 
             self.current_task_status.updater(text="Experiment {}: ".format(self.current_experiment + 1) +
                                                   self.message_string)
@@ -423,10 +419,8 @@ class ProgressUpdaterGUI(ProgressUpdater):
             progress_task = self.progress / self.total
             progress_overall = progress_task * progress_per_dataset + progress_dataset
 
-            self.style.configure('task.Horizontal.TProgressbar', text='{:.2f} %'.format(progress_task * 100))
-            self.progress_task_status['value'] = progress_task * 100
-            self.style.configure('overall.Horizontal.TProgressbar', text='{:.2f} %'.format(progress_overall * 100))
-            self.progress_overall_status['value'] = progress_overall * 100
+            self.progress_task_status.updater(text="{:.2f}%".format(progress_task*100))
+            self.progress_overall_status.updater(text="{:.2f}%".format(progress_overall*100))
 
             if progress_overall != 0:
                 time_taken = time.time() - self.start_time
@@ -573,21 +567,6 @@ class MbxPython(tk.Tk):
         ttk_style.configure("TMenubutton", font=FONT_DROP, background="White")
         ttk_style.configure("TCheckbutton", background="White")
 
-        # progress bars
-        ttk_style.layout('overall.Horizontal.TProgressbar', [('Horizontal.Progressbar.trough',
-                                                           {'children': [('Horizontal.Progressbar.pbar',
-                                                                          {'side': 'left', 'sticky': 'ns'})],
-                                                            'sticky': 'nswe'}),
-                                                          ('Horizontal.Progressbar.label', {'sticky': ''})])
-        ttk_style.configure('overall.Horizontal.TProgressbar', text='Not yet started', font=FONT_LABEL)
-
-        ttk_style.layout('task.Horizontal.TProgressbar', [('Horizontal.Progressbar.trough',
-                                                              {'children': [('Horizontal.Progressbar.pbar',
-                                                                             {'side': 'left', 'sticky': 'ns'})],
-                                                               'sticky': 'nswe'}),
-                                                             ('Horizontal.Progressbar.label', {'sticky': ''})])
-        ttk_style.configure('task.Horizontal.TProgressbar', text='Not yet started', font=FONT_LABEL)
-
     def show_page(self, page, experiment=None):
         """
         Show other page
@@ -687,18 +666,12 @@ class MainPage(BasePage):
         label_progress_overall = tk.Label(self, text="Overall Progress", font=FONT_HEADER, bg='white')
         label_progress_overall.grid(row=15, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
-        self.progress_task = ttk.Progressbar(self, style='task.Horizontal.TProgressbar')
-        self.progress_task.grid(row=13, column=8, columnspan=8, rowspan=2, sticky="ew")
-
-        self.progress_overall = ttk.Progressbar(self, style='overall.Horizontal.TProgressbar')
-        self.progress_overall.grid(row=15, column=8, columnspan=8, rowspan=2, sticky="ew")
-
-        #self.label_progress_task_status = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
-        #                                              row=13, column=8, columnspan=8, rowspan=2,
-        #                                              sticky="ew", font=FONT_LABEL)
-        #self.label_progress_overall_status = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
-        #                                                 row=15, column=8, columnspan=8, rowspan=2,
-        #                                                 sticky="ew", font=FONT_LABEL)
+        self.label_progress_task_status = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
+                                                      row=13, column=8, columnspan=8, rowspan=2,
+                                                      sticky="ew", font=FONT_LABEL)
+        self.label_progress_overall_status = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
+                                                         row=15, column=8, columnspan=8, rowspan=2,
+                                                         sticky="ew", font=FONT_LABEL)
 
         label_current_task = tk.Label(self, text="Current Task", font=FONT_HEADER, bg='white')
         label_current_task.grid(row=13, column=24, columnspan=8, rowspan=2, sticky='EW', padx=PAD_SMALL)
@@ -715,8 +688,8 @@ class MainPage(BasePage):
                                                   sticky="ew", font=FONT_LABEL)
 
         # set progress updater to control created labels
-        self.controller.progress_updater = ProgressUpdaterGUI(self, self.progress_task,
-                                                              self.progress_overall,
+        self.controller.progress_updater = ProgressUpdaterGUI(self, self.label_progress_task_status,
+                                                              self.label_progress_overall_status,
                                                               self.label_current_task_status,
                                                               self.label_time_done_status)
 
