@@ -834,7 +834,7 @@ class Phasor(BaseFitter):
         :param fft_values: values to fit
         :return: pos_x: x pos found
         :return: pos_y: y pos found
-        :return: success: if fit was succeess
+        :return: success: if fit was success
         """
         success = 1
         pos_x, pos_y = self.fft_to_pos(fft_values)
