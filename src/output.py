@@ -84,17 +84,17 @@ def save_settings(directory, settings, time_taken):
                     text_file.write("Meaning of variables in Localizations output: \n")
                     if value == "Phasor + Intensity":
                         text_file.write(
-                            "Frame index | ROI index | x position | y position | Pixel intensity peak | Background \n")
+                            "Frame index | x position | y position | Pixel intensity peak | Background \n")
                     elif value == "Phasor":
-                        text_file.write("Frame index | ROI index | x position | y position \n")
+                        text_file.write("Frame index | x position | y position \n")
                     elif value == "Phasor + Sum":
                         text_file.write(
-                            "Frame index | ROI index | x position | y position | Sum of ROI pixel values \n")
+                            "Frame index | x position | y position | Sum of ROI pixel values \n")
                     elif value == "Gaussian - Fit bg":
-                        text_file.write("Frame index | ROI index | x position | y position | Integrated intensity | "
+                        text_file.write("Frame index | x position | y position | Integrated intensity | "
                                         "Sigma x | Sigma y | Background (fitted) | Iterations needed to converge \n")
                     else:
-                        text_file.write("Frame index | ROI index | x position | y position | Integrated intensity | "
+                        text_file.write("Frame index | x position | y position | Integrated intensity | "
                                         "Sigma x | Sigma y | Background (estimate) | Iterations needed to converge \n")
                 else:
                     text_file.write(str(TRANSLATOR_DICT[key]) + ": " + str(value) + "\n")
