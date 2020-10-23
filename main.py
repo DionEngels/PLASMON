@@ -36,7 +36,6 @@ v2.0: Program v2: 15/10/2020
 # GENERAL IMPORTS
 import sys
 import warnings  # for warning diversion
-warnings.simplefilter('always', RuntimeWarning)
 
 from os import getcwd, path  # create directory and check path
 from datetime import datetime  # current time

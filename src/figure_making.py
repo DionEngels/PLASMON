@@ -30,7 +30,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.lines import Line2D
 from matplotlib.gridspec import GridSpec
-from warnings import warn  # for throwing warnings
+from warnings import warn, simplefilter  # for throwing warnings
 
 __self_made__ = True
 DPI = 400
@@ -249,6 +249,7 @@ def save_overview(experiment):
     # make graphs directory
     path = experiment.directory + "/Graphs"
     mkdir(path)
+    name = path + "/" + "_Overview.png"
 
     # determine number of datasets in experiment and required figure size
     figure_length_base = 6
@@ -265,110 +266,118 @@ def save_overview(experiment):
     total_length = figure_length_base + 2 * per_roi_length
 
     # make figure and grid in figure
-    fig = plt.figure(constrained_layout=True, figsize=(16, total_length*4), dpi=DPI)
+    fig = plt.figure(constrained_layout=True, figsize=(16, total_length * 4), dpi=DPI)
     widths = [1] * 4
     heights = [1] * total_length
     gs = GridSpec(total_length, 4, figure=fig, width_ratios=widths, height_ratios=heights)
-    # create base figures, overview, sigma histogram, and intensity histogram
-    ax_overview = fig.add_subplot(gs[0:4, :])
-    ax_sigma = fig.add_subplot(gs[4:6, :2])
-    ax_int = fig.add_subplot(gs[4:6, 2:])
+    try:
+        # create base figures, overview, sigma histogram, and intensity histogram
+        ax_overview = fig.add_subplot(gs[0:4, :])
+        ax_sigma = fig.add_subplot(gs[4:6, :2])
+        ax_int = fig.add_subplot(gs[4:6, 2:])
 
-    # plot ROIs to overview
-    plot_rois(ax_overview, experiment.frame_for_rois, roi_locations=experiment.rois, roi_size=7, font_size='large')
-    ax_overview.set_xlabel('x (pixels)')
-    ax_overview.set_ylabel('y (pixels)')
-    ax_overview.set_title('Full first frame')
+        # plot ROIs to overview
+        plot_rois(ax_overview, experiment.frame_for_rois, roi_locations=experiment.rois, roi_size=7, font_size='large')
+        ax_overview.set_xlabel('x (pixels)')
+        ax_overview.set_ylabel('y (pixels)')
+        ax_overview.set_title('Full first frame')
 
-    # Histogram of intensities
-    ax_int.hist(experiment.roi_finder.int_list, bins=100)
-    ax_int.set_xlabel('Integrated intensity (counts)')
-    ax_int.set_ylabel('Occurrence')
-    ax_int.set_title('Integrated intensity occurrence')
+        # Histogram of intensities
+        ax_int.hist(experiment.roi_finder.int_list, bins=100)
+        ax_int.set_xlabel('Integrated intensity (counts)')
+        ax_int.set_ylabel('Occurrence')
+        ax_int.set_title('Integrated intensity occurrence')
 
-    # Histogram of sigma
-    ax_sigma.hist(experiment.roi_finder.sigma_list, bins=50)
-    ax_sigma.set_xlabel('Sigma (pixels)')
-    ax_sigma.set_ylabel('Occurrence')
-    ax_sigma.set_title('Sigmas occurrence')
+        # Histogram of sigma
+        ax_sigma.hist(experiment.roi_finder.sigma_list, bins=50)
+        ax_sigma.set_xlabel('Sigma (pixels)')
+        ax_sigma.set_ylabel('Occurrence')
+        ax_sigma.set_title('Sigmas occurrence')
 
-    # find the ROIs with all datasets if possible
-    full_rois = []
-    for roi in experiment.rois:
-        if len(roi.results) == len(experiment.datasets):
-            full_rois.append(roi)
+        # find the ROIs with all datasets if possible
+        full_rois = []
+        for roi in experiment.rois:
+            if len(roi.results) == len(experiment.datasets):
+                full_rois.append(roi)
 
-    # if not enough full rois, just randomly sample all ROIs
-    if len(full_rois) < 4:
-        full_rois = experiment.rois
-        warn("Too few ROIs that are active in all datasets. Overview figure might have some empty slots",
-             RuntimeWarning)
+        # if not enough full rois, just randomly sample all ROIs
+        if len(full_rois) < 4:
+            full_rois = experiment.rois
+            warn("Too few ROIs that are active in all datasets. Overview figure might have some empty slots",
+                 RuntimeWarning)
 
-    # sample ROIs to put in overview
-    roi_list = []
-    if len(full_rois) > 3:  # if 4 or more, just take those using modulo
-        for roi in full_rois:
-            if roi.index % int(len(full_rois) / 3) == 0:
-                roi_list.append(roi)
-        if len(roi_list) < 4:  # sometimes modulo does give four due to small mismatch. This adds a fourth ROI.
-            roi_list.append(full_rois[-1])
-        while len(roi_list) > 4:
-            roi_list.pop()
-    else:
-        for i in range(4):  # otherwise, double sample. Always get four
-            value = i % len(full_rois)
-            roi_list.append(full_rois[value])
+        # sample ROIs to put in overview
+        roi_list = []
+        if len(full_rois) > 3:  # if 4 or more, just take those using modulo
+            for roi in full_rois:
+                if roi.index % int(len(full_rois) / 3) == 0:
+                    roi_list.append(roi)
+            if len(roi_list) < 4:  # sometimes modulo does give four due to small mismatch. This adds a fourth ROI.
+                roi_list.append(full_rois[-1])
+            while len(roi_list) > 4:
+                roi_list.pop()
+        else:
+            for i in range(4):  # otherwise, double sample. Always get four
+                value = i % len(full_rois)
+                roi_list.append(full_rois[value])
 
-    # for each ROI, plot all datasets
-    for n_roi, roi in enumerate(roi_list):
-        row = figure_length_base + int(floor(n_roi / 2)) * per_roi_length
-        column = (n_roi % 2) * 2
+        # for each ROI, plot all datasets
+        for n_roi, roi in enumerate(roi_list):
+            row = figure_length_base + int(floor(n_roi / 2)) * per_roi_length
+            column = (n_roi % 2) * 2
 
-        # first zoomed in frame
-        ax_frame = fig.add_subplot(gs[row, column])
-        plot_rois(ax_frame, roi.get_roi(experiment.frame_for_rois, 7, [0, 0]))
-        ax_frame.set_xlabel('x (pixels)')
-        ax_frame.set_ylabel('y (pixels)')
-        ax_frame.set_title('Zoom-in ROI {}'.format(roi.index + 1))
+            # first zoomed in frame
+            ax_frame = fig.add_subplot(gs[row, column])
+            plot_rois(ax_frame, roi.get_roi(experiment.frame_for_rois, 7, [0, 0]))
+            ax_frame.set_xlabel('x (pixels)')
+            ax_frame.set_ylabel('y (pixels)')
+            ax_frame.set_title('Zoom-in ROI {}'.format(roi.index + 1))
 
-        for index_dataset, n_dataset in enumerate(hsm):
-            try:
-                # then each HSM
-                ax_hsm = fig.add_subplot(gs[row + index_dataset, column + 1])
-                plot_hsm(ax_hsm, roi.results[experiment.datasets[n_dataset].name_result],
-                         experiment.datasets[n_dataset].wavelengths)
-                ax_hsm.set_xlabel('wavelength (nm)')
-                ax_hsm.set_ylabel('intensity (arb. units)')
-                ax_hsm.set_title('HSM {} ROI {}'.format(experiment.datasets[n_dataset].name, roi.index + 1))
-            except:
-                pass  # if this ROI does not have results for that dataset, skip
+            for index_dataset, n_dataset in enumerate(hsm):
+                try:
+                    # then each HSM
+                    ax_hsm = fig.add_subplot(gs[row + index_dataset, column + 1])
+                    plot_hsm(ax_hsm, roi.results[experiment.datasets[n_dataset].name_result],
+                             experiment.datasets[n_dataset].wavelengths)
+                    ax_hsm.set_xlabel('wavelength (nm)')
+                    ax_hsm.set_ylabel('intensity (arb. units)')
+                    ax_hsm.set_title('HSM {} ROI {}'.format(experiment.datasets[n_dataset].name, roi.index + 1))
+                except:
+                    pass  # if this ROI does not have results for that dataset, skip
 
-        for index_dataset, n_dataset in enumerate(tt):
-            try:
-                # then each TT, first scatter
-                method = experiment.datasets[n_dataset].settings['method']
-                ax_tt_scatter = fig.add_subplot(gs[row + max(len(hsm), 1) + index_dataset, column])
-                make_tt_scatter(ax_tt_scatter,
-                                roi.results[experiment.datasets[n_dataset].name_result]['result_post_drift'],
-                                roi.results[experiment.datasets[n_dataset].name_result]['event_or_not'],
-                                experiment.datasets[n_dataset])
-                ax_tt_scatter.set_title('Scatter {} w/ drift corr ROI {}'.format(experiment.datasets[n_dataset].name,
-                                                                                 roi.index + 1))
-                if "Gaussian" in method or "Sum" in method:
-                    # and if possible, time trace
-                    ax_tt = fig.add_subplot(gs[row + max(len(hsm), 1) + index_dataset, column + 1])
-                    make_tt(ax_tt, experiment.datasets[n_dataset].time_axis / 1000,
-                            roi.results[experiment.datasets[n_dataset].name_result]['result'], method)
-                    ax_tt.set_title('TT {} ROI {}'.format(experiment.datasets[n_dataset].name, roi.index + 1))
-            except:
-                pass  # if this ROI does not have results for that dataset, skip
+            for index_dataset, n_dataset in enumerate(tt):
+                try:
+                    # then each TT, first scatter
+                    method = experiment.datasets[n_dataset].settings['method']
+                    ax_tt_scatter = fig.add_subplot(gs[row + max(len(hsm), 1) + index_dataset, column])
+                    make_tt_scatter(ax_tt_scatter,
+                                    roi.results[experiment.datasets[n_dataset].name_result]['result_post_drift'],
+                                    roi.results[experiment.datasets[n_dataset].name_result]['event_or_not'],
+                                    experiment.datasets[n_dataset])
+                    ax_tt_scatter.set_title('Scatter {} w/ drift corr ROI {}'.format(experiment.datasets[n_dataset].name,
+                                                                                     roi.index + 1))
+                    if "Gaussian" in method or "Sum" in method:
+                        # and if possible, time trace
+                        ax_tt = fig.add_subplot(gs[row + max(len(hsm), 1) + index_dataset, column + 1])
+                        make_tt(ax_tt, experiment.datasets[n_dataset].time_axis / 1000,
+                                roi.results[experiment.datasets[n_dataset].name_result]['result'], method)
+                        ax_tt.set_title('TT {} ROI {}'.format(experiment.datasets[n_dataset].name, roi.index + 1))
+                except:
+                    pass  # if this ROI does not have results for that dataset, skip
 
-    # save
-    name = path + "/" + "_Overview.png"
-    plt.tight_layout()
-    fig.savefig(name, bbox_inches='tight')
-    fig.clear()
-    plt.close(fig)
+        # save
+        plt.tight_layout()
+        fig.savefig(name, bbox_inches='tight')
+        fig.clear()
+        plt.close(fig)
+    except:
+        # throw warning
+        warn("Overview figure creation failed", RuntimeWarning)
+        # in case of crash, just save what you got
+        plt.tight_layout()
+        fig.savefig(name, bbox_inches='tight')
+        fig.clear()
+        plt.close(fig)
 
 
 def individual_figures(experiment):
@@ -378,6 +387,8 @@ def individual_figures(experiment):
     :param experiment: Experiment to make overview figure of
     :return: None. Saves figures to disk
     """
+    # set warnings to show
+    simplefilter('always', RuntimeWarning)
     # force agg backend. Otherwise breaks due to threading
     mpl.use('agg', force=True)
     from matplotlib import pyplot as plt

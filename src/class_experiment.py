@@ -18,7 +18,7 @@ v2.0: part of v2.0: 15/10/2020
 """
 # GENERAL IMPORTS
 from os import mkdir  # to get standard usage
-from warnings import warn
+from warnings import warn, simplefilter  # for throwing warnings
 import time  # for time keeping
 
 # OWN CODE
@@ -209,17 +209,16 @@ class Experiment:
         -------------------
         :return: None. Saves to disk
         """
+        # set warnings to show
+        simplefilter('always', RuntimeWarning)
         # save settings used to txt
         self.progress_updater.message("Starting saving")
         settings = self.settings_to_dict()
         outputting.save_settings(self.directory, settings, time_taken)
 
         # save overview
-        try:
-            self.progress_updater.message("Saving overview")
-            figuring.save_overview(self)
-        except:
-            warn("Overview figure creation failed", RuntimeWarning)
+        self.progress_updater.message("Saving overview")
+        figuring.save_overview(self)  # try except statement within function
 
         # save individual figures if selected
         if self.settings['All Figures'] is True:

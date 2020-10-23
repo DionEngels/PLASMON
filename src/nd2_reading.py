@@ -16,11 +16,12 @@ v1.1: None prevention: 10/08/2020
 v2.0: Part of GUI v2.0: 15/10/2020
 
 """
-from warnings import warn
 from src.warnings import DataWarning
 from pims_nd2 import ND2_Reader
 from nd2reader import ND2Reader
 from nd2reader.parser import Parser
+from warnings import warn, simplefilter  # for throwing warnings
+
 __self_made__ = True
 
 
@@ -52,6 +53,8 @@ class ND2ReaderForMetadata(ND2Reader):
         """
         Get metadata. Reads out nd2 and returns the metadata
         """
+        # set warnings to show
+        simplefilter('always', DataWarning)
         # get base metadata
         metadata_dict = self.metadata
 
