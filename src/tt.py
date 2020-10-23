@@ -134,7 +134,7 @@ class TimeTrace(Dataset):
         first_frame = np.asarray(self.frames[first_frame_index])
 
         # create temp fitter
-        fitter_tmp = GaussianBackground({'roi_size': 7, 'rejection': 'Loose', 'method': "Gaussian - Fit bg"},
+        fitter_tmp = GaussianBackground({'roi_size': 7, 'rejection': True, 'method': "Gaussian - Fit bg"},
                                         400, 6, self.roi_offset)
         int_list = []
 
@@ -200,7 +200,7 @@ class BaseFitter:
         self.roi_size = settings['roi_size']
         self.roi_size_1D = int((self.roi_size - 1) / 2)
         self.__name__ = settings['method']
-        self.threshold_method = settings['rejection']
+        self.rejection = settings['rejection']
 
         self.roi_offset = roi_offset
         self.roi_locations = []
@@ -637,7 +637,7 @@ class Gaussian(BaseFitter):
             my_roi = my_roi - my_roi_bg
             result, its, success = self.fit_gaussian(my_roi)
 
-            if self.threshold_method == "None":
+            if self.rejection is False:
                 if success == 0 or result[0] == 0:
                     self.params = [self.init_sig, self.init_sig]
                     success = 0
@@ -710,7 +710,7 @@ class GaussianBackground(Gaussian):
         for frame_index, my_roi in enumerate(frame_stack):
             result, its, success = self.fit_gaussian(my_roi)
 
-            if self.threshold_method == "None":
+            if self.rejection is False:
                 if success == 0 or result[0] == 0:
                     self.params = [self.init_sig, self.init_sig]
                     success = 0
@@ -839,9 +839,9 @@ class Phasor(BaseFitter):
         success = 1
         pos_x, pos_y = self.fft_to_pos(fft_values)
 
-        if self.threshold_method != "None" and (pos_x > self.roi_size or pos_x < 0):
+        if self.rejection is True and (pos_x > self.roi_size or pos_x < 0):
             success = 0
-        if self.threshold_method != "None" and (pos_y > self.roi_size or pos_y < 0):
+        if self.rejection is True and (pos_y > self.roi_size or pos_y < 0):
             success = 0
 
         return pos_x, pos_y, success

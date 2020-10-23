@@ -88,7 +88,6 @@ DPI = 100
 
 fit_options = ["Gaussian - Fit bg", "Gaussian - Estimate bg",
                "Phasor + Intensity", "Phasor + Sum", "Phasor"]
-rejection_options = ["Loose", "None"]
 roi_size_options = ["7x7", "9x9"]
 dimension_options = ["nm", "pixels"]
 
@@ -1436,9 +1435,9 @@ class TTPage(AnalysisPageTemplate):
 
         label_rejection = tk.Label(self, text="Rejection", bg='white', font=FONT_LABEL)
         label_rejection.grid(row=12, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
-        self.variable_rejection = tk.StringVar(self)
-        drop_rejection = ttk.OptionMenu(self, self.variable_rejection, rejection_options[0], *rejection_options)
-        drop_rejection.grid(row=13, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.variable_rejection = tk.BooleanVar(self, value=False)
+        check_rejection = ttk.Checkbutton(self, variable=self.variable_rejection, onvalue=True, offvalue=False)
+        check_rejection.grid(row=13, column=16, columnspan=8, padx=PAD_SMALL)
 
         label_cores = tk.Label(self, text="#cores", font=FONT_LABEL, bg='white')
         label_cores.grid(row=12, column=24, columnspan=8, sticky='EW', padx=PAD_BIG)
@@ -1524,7 +1523,7 @@ class TTPage(AnalysisPageTemplate):
         self.label_roi_spacing_status.updater(text=self.experiment.roi_finder.get_settings()['inter_roi'])
 
         self.variable_method.set(fit_options[1])
-        self.variable_rejection.set(rejection_options[0])
+        self.variable_rejection.set(True)
         self.variable_cores.set(1)
         self.variable_dimensions.set(dimension_options[0])
         self.variable_roi_size.set(roi_size_options[0])

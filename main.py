@@ -66,7 +66,7 @@ fit_options = ["Gaussian - Fit bg", "Gaussian - Estimate bg",
 
 ALL_FIGURES = False
 METHOD = "Gaussian - Fit bg"
-THRESHOLD_METHOD = "Loose"  # "Loose", or "None"
+REJECTION = True  # True or False
 CORRECTION = "SN_objTIRF_PFS_510-800"  # "Matej_670-890"
 NM_OR_PIXELS = "nm"
 FRAME_BEGIN = "Leave empty for start"  # number or "Leave empty for start"
@@ -373,7 +373,7 @@ if __name__ == '__main__':
     experiment.show_rois("Dataset")
 
     # finalize TT dataset
-    settings_runtime = {'method': METHOD, 'rejection': THRESHOLD_METHOD, '#cores': 1, "pixels_or_nm": NM_OR_PIXELS,
+    settings_runtime = {'method': METHOD, 'rejection': REJECTION, '#cores': 1, "pixels_or_nm": NM_OR_PIXELS,
                         'roi_size': ROI_SIZE, 'name': '1nMimager_newGNRs_100mW_TT',
                         'frame_begin': FRAME_BEGIN, 'frame_end': FRAME_END}
     if experiment.add_to_queue(settings_runtime) is False:

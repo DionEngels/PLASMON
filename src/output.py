@@ -27,7 +27,7 @@ TRANSLATOR_DICT = {'int_max': 'Maximum Intensity', 'int_min': 'Minimum Intensity
                    'roi_size': "ROI size", 'filter_size': "Filter size",
                    'roi_side': "Side spacing", 'inter_roi': "ROI spacing",
                    'max_its': "Maximum number of iterations for fitter", 'All Figures': "All Figures",
-                   'rejection': "Rejection method", '#cores': "Number of cores used",
+                   'rejection': "Rejection used", '#cores': "Number of cores used",
                    'pixels_or_nm': "Pixels or nanometer output",
                    'frame_begin': "First frame fitted", 'frame_end': 'Last frame fitted', 'Type': "Type of dataset",
                    'Offset': "Offset compared to ROI finding frame", 'correction_file': "HSM spectral correction",

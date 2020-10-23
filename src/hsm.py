@@ -285,7 +285,7 @@ class HSMDataset(Dataset):
         # prep for fitting
         roi_size = 9
         roi_size_1d = int((roi_size - 1) / 2)
-        fitter = fitting.GaussianBackground({'roi_size': roi_size, 'rejection': 'Loose', 'method': "Gaussian - Fit bg"},
+        fitter = fitting.GaussianBackground({'roi_size': roi_size, 'rejection': True, 'method': "Gaussian - Fit bg"},
                                             600, 6, self)
         pos_max = roi_size
         pos_min = 0
