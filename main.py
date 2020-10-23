@@ -36,6 +36,8 @@ v2.0: Program v2: 15/10/2020
 # GENERAL IMPORTS
 import sys
 import warnings  # for warning diversion
+warnings.simplefilter('always', RuntimeWarning)
+
 from os import getcwd, path  # create directory and check path
 from datetime import datetime  # current time
 from traceback import format_exc  # for error handling
@@ -154,7 +156,7 @@ class ProgressUpdater:
         """
         self.progress += 1
         # if HSM or Phasor, update every ten
-        if (self.method is "HSM" or "Phasor" in self.method) and self.progress % round(self.total / 10, 0) == 0 and \
+        if (self.method == "HSM" or "Phasor" in self.method) and self.progress % round(self.total / 10, 0) == 0 and \
                 self.total > 9:
             self.update(False, False, False)
         # if Gaussian, always update, because it is slow. Also call when only 9 or fewer ROIs
