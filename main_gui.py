@@ -60,29 +60,53 @@ mpl.use("TkAgg")  # set back end to TK
 FILETYPES = [("ND2", ".nd2")]
 FILETYPES_LOAD_FROM_OTHER = [(".npy and .mat", ".npy"), (".npy and .mat", ".mat")]
 
-FONT_HEADER = "Verdana 14 bold"
-FONT_SUBHEADER = "Verdana 12 bold"
-FONT_STATUS = "Verdana 11"
-FONT_ENTRY = "Verdana 11"
-FONT_ENTRY_SMALL = "Verdana 9"
-FONT_BUTTON = "Verdana 11"
-FONT_LABEL = "Verdana 11"
-FONT_DROP = "Verdana 11"
-FONT_LISTBOX = "Verdana 9"
-FONT_BUTTON_BIG = "Verdana 20 bold"
-PAD_BIG = 30
-PAD_SMALL = 10
-INPUT_BIG = 25
-INPUT_SMALL = 5
+
 
 user32 = ctypes.windll.user32
 SCREEN_WIDTH = user32.GetSystemMetrics(0)
 SCREEN_HEIGHT = user32.GetSystemMetrics(1)
-GUI_WIDTH = 1344  # int(width * 0.70)
-GUI_HEIGHT = 756  # int(height * 0.70)
+DPI = 100
+
+if SCREEN_WIDTH > 1280 and SCREEN_HEIGHT > 720:
+    # 1080p version
+    GUI_WIDTH = 1440  # int(width * 0.75)
+    GUI_HEIGHT = 810  # int(height * 0.75)
+    FONT_HEADER = "Verdana 14 bold"
+    FONT_SUBHEADER = "Verdana 12 bold"
+    FONT_STATUS = "Verdana 11"
+    FONT_ENTRY = "Verdana 11"
+    FONT_ENTRY_SMALL = "Verdana 11"
+    FONT_BUTTON = "Verdana 11"
+    FONT_LABEL = "Verdana 11"
+    FONT_DROP = "Verdana 11"
+    FONT_LISTBOX = "Verdana 8"
+    FONT_BUTTON_BIG = "Verdana 20 bold"
+    PAD_BIG = 30
+    PAD_SMALL = 10
+    INPUT_BIG = 25
+    INPUT_SMALL = 5
+else:
+    # 720p version
+    GUI_WIDTH = 1152  # int(width * 0.90)
+    GUI_HEIGHT = 648  # int(height * 0.90)
+    FONT_HEADER = "Verdana 12 bold"
+    FONT_SUBHEADER = "Verdana 10 bold"
+    FONT_STATUS = "Verdana 9"
+    FONT_ENTRY = "Verdana 9"
+    FONT_ENTRY_SMALL = "Verdana 9"
+    FONT_BUTTON = "Verdana 9"
+    FONT_LABEL = "Verdana 9"
+    FONT_DROP = "Verdana 9"
+    FONT_LISTBOX = "Verdana 6"
+    FONT_BUTTON_BIG = "Verdana 16 bold"
+    PAD_BIG = 20
+    PAD_SMALL = 5
+    INPUT_BIG = 15
+    INPUT_SMALL = 3
+
 GUI_WIDTH_START = int((SCREEN_WIDTH - GUI_WIDTH) / 2)
 GUI_HEIGHT_START = int((SCREEN_HEIGHT - GUI_HEIGHT) / 2)
-DPI = 100
+
 
 # %% Options for dropdown menus
 
@@ -448,11 +472,17 @@ class FooterBase(tk.Frame):
                                  anchor='w')
         label_version.grid(row=0, column=0, columnspan=20, sticky='EW', padx=PAD_SMALL)
 
+        button_resize = ttk.Button(self, text="Restore size", command=lambda: self.resize())
+        button_resize.grid(row=0, column=40, columnspan=4, sticky='EW', padx=PAD_SMALL)
+
         button_quit = ttk.Button(self, text="Quit", command=lambda: quit_gui(self.controller))
         button_quit.grid(row=0, column=44, columnspan=4, sticky='EW', padx=PAD_SMALL)
 
         for i in range(48):
             self.grid_columnconfigure(i, weight=1)
+
+    def resize(self):
+        self.controller.geometry("{}x{}+{}+{}".format(GUI_WIDTH, GUI_HEIGHT, GUI_WIDTH_START, GUI_HEIGHT_START))
 
 
 class Footer(FooterBase):
@@ -889,7 +919,7 @@ class ROIPage(BasePage):
         label_name.grid(row=0, column=0, columnspan=8, sticky='EW', padx=PAD_BIG)
 
         self.entry_name = EntryPlaceholder(self, "TBD", width=INPUT_BIG, small=True)
-        self.entry_name.grid(row=0, column=8, columnspan=24, sticky='EW')
+        self.entry_name.grid(row=0, column=8, columnspan=40, sticky='EW')
 
         line = ttk.Separator(self, orient='horizontal')
         line.grid(row=1, column=0, rowspan=1, columnspan=40, sticky='we')
@@ -908,10 +938,6 @@ class ROIPage(BasePage):
                                                             row=3, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
         self.button_max_int_histogram_select = NormalButton(self, text="Select max", state='disabled',
                                                             row=3, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
-        button_min_int_histogram_select = ttk.Button(self, text="Select min",
-                                                     command=lambda: self.histogram_select("min_int"))
-        button_max_int_histogram_select = ttk.Button(self, text="Select max",
-                                                     command=lambda: self.histogram_select("max_int"))
 
         label_max_int = tk.Label(self, text="Maximum Intensity", font=FONT_LABEL, bg='white')
         label_max_int.grid(row=2, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
@@ -999,7 +1025,7 @@ class ROIPage(BasePage):
         button_save.grid(row=17, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         self.figure = FigureFrame(self, height=GUI_WIDTH * 0.4, width=GUI_WIDTH * 0.4, dpi=DPI)
-        self.figure.grid(row=0, column=40, columnspan=8, rowspan=18, sticky='EW', padx=PAD_SMALL)
+        self.figure.grid(row=1, column=40, columnspan=8, rowspan=17, sticky='EW', padx=PAD_SMALL)
 
         button_accept = ttk.Button(self, text="Accept & Continue", command=lambda: self.accept())
         button_accept.grid(row=18, column=44, columnspan=4, rowspan=2, sticky='EW', padx=PAD_SMALL)
@@ -1338,15 +1364,14 @@ class AnalysisPageTemplate(BasePage):
         self.experiment = None
 
         label_loaded_video = tk.Label(self, text="Loaded:", font=FONT_SUBHEADER, bg='white')
-        label_loaded_video.grid(row=0, column=0, columnspan=16, rowspan=1, sticky='EW', padx=PAD_SMALL)
-        self.label_loaded_video_status = NormalLabel(self, text="XX", row=1, column=0, columnspan=16, rowspan=1,
-                                                     sticky="ew", font=FONT_LABEL, wrap=400)
+        label_loaded_video.grid(row=0, column=0, columnspan=8, rowspan=1, sticky='EW', padx=PAD_SMALL)
+        self.label_loaded_video_status = NormalLabel(self, text="XX", row=0, column=8, columnspan=40, rowspan=1,
+                                                     sticky="w", font=FONT_LABEL)
 
         label_name = tk.Label(self, text="Name", font=FONT_SUBHEADER, bg='white')
-        label_name.grid(row=2, column=0, columnspan=16, sticky='EW', padx=PAD_BIG)
-
+        label_name.grid(row=1, column=0, columnspan=8, sticky='EW', padx=PAD_BIG)
         self.entry_name = EntryPlaceholder(self, "TBD", small=True)
-        self.entry_name.grid(row=3, column=0, columnspan=16, sticky='EW', padx=PAD_SMALL)
+        self.entry_name.grid(row=1, column=8, columnspan=40, sticky='EW', padx=PAD_SMALL)
 
         label_x_min = tk.Label(self, text="x min", font=FONT_LABEL, bg='white')
         label_x_min.grid(row=4, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
@@ -1370,10 +1395,10 @@ class AnalysisPageTemplate(BasePage):
         button_find_rois.grid(row=8, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         self.figure_dataset = FigureFrame(self, height=GUI_WIDTH * 0.35, width=GUI_WIDTH * 0.35, dpi=DPI)
-        self.figure_dataset.grid(row=0, column=16, columnspan=16, rowspan=8, sticky='EW', padx=PAD_SMALL)
+        self.figure_dataset.grid(row=2, column=16, columnspan=16, rowspan=7, sticky='EW', padx=PAD_SMALL)
 
         self.figure_experiment = FigureFrame(self, height=GUI_WIDTH * 0.35, width=GUI_WIDTH * 0.35, dpi=DPI)
-        self.figure_experiment.grid(row=0, column=32, columnspan=16, rowspan=8, sticky='EW', padx=PAD_SMALL)
+        self.figure_experiment.grid(row=2, column=32, columnspan=16, rowspan=7, sticky='EW', padx=PAD_SMALL)
 
         line = ttk.Separator(self, orient='horizontal')
         line.grid(row=9, column=0, rowspan=1, columnspan=48, sticky='we')
