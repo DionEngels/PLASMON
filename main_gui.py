@@ -902,15 +902,16 @@ class ROIPage(BasePage):
         self.slider_min_int = NormalSlider(self, from_=0, to=1000,
                                            row=3, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
-        button_min_int_histogram = ttk.Button(self, text="Graph",
-                                              command=lambda: self.fun_histogram("min_int"))
-        button_min_int_histogram.grid(row=3, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.button_min_int_histogram = NormalButton(self, text="Graph", command=lambda: self.fun_histogram("min_int"),
+                                                     row=3, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.button_min_int_histogram_select = NormalButton(self, text="Select min", state='disabled',
+                                                            row=3, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.button_max_int_histogram_select = NormalButton(self, text="Select max", state='disabled',
+                                                            row=3, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
         button_min_int_histogram_select = ttk.Button(self, text="Select min",
                                                      command=lambda: self.histogram_select("min_int"))
-        button_min_int_histogram_select.grid(row=3, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
         button_max_int_histogram_select = ttk.Button(self, text="Select max",
                                                      command=lambda: self.histogram_select("max_int"))
-        button_max_int_histogram_select.grid(row=3, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         label_max_int = tk.Label(self, text="Maximum Intensity", font=FONT_LABEL, bg='white')
         label_max_int.grid(row=2, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
@@ -922,15 +923,15 @@ class ROIPage(BasePage):
         self.slider_min_sigma = NormalSlider(self, from_=0, to=5, resolution=0.01,
                                              row=5, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
-        button_min_sigma_histogram = ttk.Button(self, text="Graph",
-                                                command=lambda: self.fun_histogram("min_sigma"))
-        button_min_sigma_histogram.grid(row=5, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
-        button_min_sigma_histogram_select = ttk.Button(self, text="Select min",
-                                                       command=lambda: self.histogram_select("min_sigma"))
-        button_min_sigma_histogram_select.grid(row=5, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
-        button_max_sigma_histogram_select = ttk.Button(self, text="Select max",
-                                                       command=lambda: self.histogram_select("max_sigma"))
-        button_max_sigma_histogram_select.grid(row=5, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.button_min_sigma_histogram = NormalButton(self, text="Graph",
+                                                       command=lambda: self.fun_histogram("min_sigma"),
+                                                       row=5, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.button_min_sigma_histogram_select = NormalButton(self, text="Select min", state='disabled',
+                                                              row=5, column=8, columnspan=8, sticky='EW',
+                                                              padx=PAD_SMALL)
+        self.button_max_sigma_histogram_select = NormalButton(self, text="Select max", state='disabled',
+                                                              row=5, column=24, columnspan=8, sticky='EW',
+                                                              padx=PAD_SMALL)
 
         label_max_sigma = tk.Label(self, text="Maximum Sigma", font=FONT_LABEL, bg='white')
         label_max_sigma.grid(row=4, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
@@ -948,12 +949,12 @@ class ROIPage(BasePage):
         self.slider_min_corr = NormalSlider(self, from_=0, to=1, resolution=0.005,
                                             row=10, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
-        button_min_corr_histogram = ttk.Button(self, text="Graph",
-                                               command=lambda: self.fun_histogram("corr_min"))
-        button_min_corr_histogram.grid(row=10, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
-        button_min_corr_histogram_select = ttk.Button(self, text="Graph select",
-                                                      command=lambda: self.histogram_select("corr_min"))
-        button_min_corr_histogram_select.grid(row=10, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.button_min_corr_histogram = NormalButton(self, text="Graph",
+                                                      command=lambda: self.fun_histogram("corr_min"),
+                                                      row=10, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.button_min_corr_histogram_select = NormalButton(self, text="Graph select", state='disabled',
+                                                             row=10, column=8, columnspan=8, sticky='EW',
+                                                             padx=PAD_SMALL)
 
         label_all_figures = tk.Label(self, text="All Figures", font=FONT_LABEL, bg='white')
         label_all_figures.grid(row=12, column=0, columnspan=5, sticky='EW', padx=PAD_SMALL)
@@ -1016,8 +1017,6 @@ class ROIPage(BasePage):
         # find variable to make histogram of
         if variable == "min_int" or variable == "max_int":
             self.to_hist = self.experiment.roi_finder.main(return_int=True)
-        elif variable == "peak_min":
-            self.to_hist = np.ravel(self.experiment.frame_for_rois)
         elif variable == "corr_min":
             self.to_hist = self.experiment.roi_finder.main(return_corr=True)
         else:
@@ -1025,9 +1024,11 @@ class ROIPage(BasePage):
 
         # make histogram
         self.histogram_fig = plt.figure(figsize=(6.4 * 1.2, 4.8 * 1.2))
-        self.make_histogram(variable)
+        self.histogram_fig.canvas.mpl_connect('close_event', self.histogram_close)
+        self.histogram_open(variable)
+        self.histogram_make(variable)
 
-    def make_histogram(self, variable):
+    def histogram_make(self, variable):
         """
         Makes histograms of parameters.
         Parameters
@@ -1049,27 +1050,33 @@ class ROIPage(BasePage):
         min_corr = self.slider_min_corr.get()
 
         # draw sliders
-        if variable == "min_int" or variable == "max_int":
-            # reset bins
-            self.histogram_fig.clear()
-            logbins = np.logspace(np.log10(bins[0]), np.log10(bins[-1]), len(bins))
-            plt.hist(self.to_hist, bins=logbins)
-            plt.title("Intensity. Use graph select to change threshold")
-            plt.axvline(x=min_int, color='red', linestyle='--')
-            plt.axvline(x=max_int, color='red', linestyle='--')
-            plt.xscale('log')
-        elif variable == "min_sigma" or variable == "max_sigma":
-            plt.title("Sigma. Use graph select to change threshold")
-            plt.axvline(x=min_sigma, color='red', linestyle='--')
-            plt.axvline(x=max_sigma, color='red', linestyle='--')
+        if variable == "min_sigma" or variable == "max_sigma":
+            fig_sub.set_title("Sigma. Use graph select to change threshold")
+            fig_sub.axvline(x=min_sigma, color='red', linestyle='--')
+            fig_sub.axvline(x=max_sigma, color='red', linestyle='--')
+            fig_sub.set_xlabel('Sigma (pixels)')
+            fig_sub.set_ylabel('Occurrence')
         else:
+
             # reset bins
             self.histogram_fig.clear()
+            del fig_sub
             logbins = np.logspace(np.log10(bins[0]), np.log10(bins[-1]), len(bins))
-            plt.hist(self.to_hist, bins=logbins)
-            plt.title("Correlation values for ROIs. Use graph select to change threshold")
-            plt.axvline(x=min_corr, color='red', linestyle='--')
-            plt.xscale('log')
+            fig_sub = self.histogram_fig.add_subplot(111)
+            fig_sub.hist(self.to_hist, bins=logbins)
+            if variable == "min_int" or variable == "max_int":
+                # intensity
+                fig_sub.set_title("Intensity. Use graph select to change threshold")
+                fig_sub.axvline(x=min_int, color='red', linestyle='--')
+                fig_sub.axvline(x=max_int, color='red', linestyle='--')
+                fig_sub.set_xlabel('Peak Intensity (counts)')
+            else:
+                # correlation
+                fig_sub.set_title("Correlation values for ROIs. Use graph select to change threshold")
+                fig_sub.axvline(x=min_corr, color='red', linestyle='--')
+                fig_sub.set_xlabel('Correlation (arb. un.)')
+            fig_sub.set_xscale('log')
+            fig_sub.set_ylabel('Occurrence')
 
         # show figure
         self.histogram_fig.show()
@@ -1105,7 +1112,42 @@ class ROIPage(BasePage):
 
         # clear histogram and make new figure
         self.histogram_fig.clear()
-        self.make_histogram(variable)
+        self.histogram_fig.canvas.mpl_connect('close_event', self.histogram_close)
+        self.histogram_make(variable)
+
+    def histogram_open(self, variable):
+        # enable the right button to select from graph with
+        if variable == "min_int" or variable == "max_int":
+            self.button_max_int_histogram_select.updater(state='enabled',
+                                                         command=lambda: self.histogram_select("max_int"))
+            self.button_min_int_histogram_select.updater(state='enabled',
+                                                         command=lambda: self.histogram_select("min_int"))
+        elif variable == "corr_min":
+            self.button_min_corr_histogram_select.updater(state='enabled',
+                                                          command=lambda: self.histogram_select("corr_min"))
+        else:
+            self.button_max_sigma_histogram_select.updater(state='enabled',
+                                                           command=lambda: self.histogram_select("max_sigma"))
+            self.button_min_sigma_histogram_select.updater(state='enabled',
+                                                           command=lambda: self.histogram_select("min_sigma"))
+
+        # disable opening other graphs
+        self.button_min_corr_histogram.updater(state='disabled')
+        self.button_min_int_histogram.updater(state='disabled')
+        self.button_min_sigma_histogram.updater(state='disabled')
+
+    def histogram_close(self, _):
+        # enable opening other graphs
+        self.button_min_corr_histogram.updater(state='enabled', command=lambda: self.fun_histogram("corr_min"))
+        self.button_min_int_histogram.updater(state='enabled', command=lambda: self.fun_histogram("min_int"))
+        self.button_min_sigma_histogram.updater(state='enabled', command=lambda: self.fun_histogram("min_sigma"))
+
+        # disable select from graphs
+        self.button_max_int_histogram_select.updater(state='disabled')
+        self.button_min_int_histogram_select.updater(state='disabled')
+        self.button_min_corr_histogram_select.updater(state='disabled')
+        self.button_max_sigma_histogram_select.updater(state='disabled')
+        self.button_min_sigma_histogram_select.updater(state='disabled')
 
     def read_out_settings(self):
         """
@@ -1618,6 +1660,6 @@ if __name__ == '__main__':
     warnings.showwarning = divertor.warning
     gui = MbxPython(proceed_question=proceed_question)
 
-    tk.Tk.report_callback_exception = divertor.error
+    # tk.Tk.report_callback_exception = divertor.error
     plt.ioff()
     gui.mainloop()
