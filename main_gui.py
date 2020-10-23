@@ -1685,6 +1685,6 @@ if __name__ == '__main__':
     warnings.showwarning = divertor.warning
     gui = MbxPython(proceed_question=proceed_question)
 
-    # tk.Tk.report_callback_exception = divertor.error
+    tk.Tk.report_callback_exception = divertor.error
     plt.ioff()
     gui.mainloop()
