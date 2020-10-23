@@ -295,7 +295,7 @@ class RoiFinder:
         # for corr list, save actual corr and use a different one for now
         if return_corr:
             saved_corr_min = self.corr_min
-            self.corr_min = 0.005
+            self.corr_min = 0.01
             self.find_particles(return_corr)
             self.corr_min = saved_corr_min
             return self.corr_list
