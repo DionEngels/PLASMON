@@ -167,7 +167,7 @@ class Dataset:
         tmp_name = new_name.replace(' ', '_')  # no spaces
         tmp_name = tmp_name.replace('-', '_')  # no -
         tmp_name = tmp_name[-59:]  # take only last 59 characters
-        return tmp_name
+        return "res_" + tmp_name
 
     def set_name(self, new_name):
         """
