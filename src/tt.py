@@ -39,13 +39,14 @@ from scipy.stats import norm
 
 import src.mbx_fortran as fortran_linalg  # for fast self-made operations for Gaussian fitter
 import src.mbx_fortran_tools as fortran_tools  # for fast self-made general operations
-from src.class_dataset_and_class_roi import Dataset  # base dataset
+from src.class_dataset_and_class_roi import Dataset, Roi  # base dataset
 from src.tools import change_to_nm
 from src.drift_correction import DriftCorrector
 
 from pyfftw import empty_aligned, FFTW  # for FFT for Phasor
 from math import pi, atan2  # general mathematics
 from cmath import phase  # general mathematics
+import multiprocessing as mp
 
 __self_made__ = True
 
@@ -169,25 +170,95 @@ class TimeTrace(Dataset):
         :return: None. Edits results in experiment
         """
         # find frames to fit and time axis
-        frames_to_fit = np.asarray(self.frames[self.slice])
         self.time_axis = self.metadata['timesteps'][self.slice]
 
         # run analysis
         if self.n_cores > 1:
-            pass
-        else:
-            self.fitter.run(self, frames_to_fit)
+            split_rois = self.mp_split_rois()
+            if mp.current_process().name == "MainProcess":
+                print("setting up")
+                shared_dicts = []
+                processes = []
+                q = mp.Queue()
+                manager = mp.Manager()
 
+                # create processes
+                for i in range(self.n_cores):
+                    shared_dict = manager.dict()
+                    processes.append(mp.Process(target=self.run_mp, args=(self.fitter, self.filename, self.slice,
+                                                                          split_rois[i], shared_dict, q)))
+                    shared_dicts.append(shared_dict)
+
+                print("created processes")
+
+                # start
+                for p in processes:
+                    p.start()
+
+                print("Checking queue")
+                # wait for updates until 95% done
+                while self.experiment.progress_updater.progress / self.experiment.progress_updater.total < 0.95:
+                    q.get()
+                    self.experiment.progress_updater.update_progress()
+
+                for p in processes:
+                    p.join()
+
+                print("Merging")
+                # merge resulting data
+                index = 0
+                for shared_dict in shared_dicts:
+                    for _, value in shared_dict.items():
+                        self.active_rois[index].results[self.name_result] = value
+                        index += 1
+        else:
+            # find frames to fit and fit
+            frames_to_fit = np.asarray(self.frames[self.slice])
+            self.fitter.run(frames_to_fit, self.active_rois, dataset=self)
+
+        # set to nm if desired
+        if self.settings['pixels_or_nm'] == "nm":
             for roi in self.active_rois:
-                if self.settings['pixels_or_nm'] == "nm":
-                    roi.results[self.name_result]['result'] = \
-                        change_to_nm(roi.results[self.name_result]['result'],
-                                     self.metadata, self.settings['method'])
+                roi.results[self.name_result]['result'] = change_to_nm(roi.results[self.name_result]['result'],
+                                                                       self.metadata, self.settings['method'])
 
         # correct fro drift
         self.experiment.progress_updater.message("Starting drift correction")
         self.drift_corrector = DriftCorrector(self.settings['method'])
         self.drift_corrector.main(self.active_rois, self.name_result, len(self.time_axis))
+
+    def mp_split_rois(self):
+
+        # calculate length and add one to first set to complete
+        length = len(self.active_rois) // self.n_cores
+        remainder = len(self.active_rois) - length * self.n_cores
+        lengths = [length] * self.n_cores
+        for i in range(remainder):
+            lengths[i] += 1
+
+        offset = 0
+        split_rois = []
+
+        # take rois out of active rois, recreate them without any data attached and split them up
+        for length in lengths:
+            rois = []
+            for roi in self.active_rois[offset:offset+length]:
+                new_roi = Roi(roi.x, roi.y)
+                new_roi.set_index(roi.index)
+                rois.append(new_roi)
+
+            split_rois.append(rois)
+            offset += length
+
+        return split_rois
+
+    @staticmethod
+    def run_mp(fitter, name, slice_to_do, rois, shared_dict, q):
+        from src.nd2_reading import ND2ReaderSelf
+        print("Process starting")
+        nd2 = ND2ReaderSelf(name)
+        frames_to_fit = np.asarray(nd2[slice_to_do])
+        fitter.run(frames_to_fit, rois, q=q, res_dict=shared_dict)
 
 # %% Base Run
 
@@ -216,24 +287,28 @@ class BaseFitter:
         """
         pass
 
-    def run(self, dataset, frames):
+    def run(self, frames, rois, dataset=None, q=None, res_dict=None):
         """
         Run of fitter. Takes ROIs and fits them all. Return results
         :param dataset: Dataset to fit
         :param frames: Frames to fit
         :return: None. Edits dataset
         """
-        self.roi_locations = dataset.active_rois
+        self.roi_locations = rois
 
         for roi in self.roi_locations:
             frame_stack = roi.get_frame_stack(frames, self.roi_size_1D, self.roi_offset)
 
             roi_result = self.fitter(frame_stack, roi.index, roi.y, roi.x)
 
-            result_dict = {"type": dataset.type, "result": roi_result, "raw": frame_stack}
-            roi.results[dataset.name_result] = result_dict
+            result_dict = {"type": 'TT', "result": roi_result, "raw": frame_stack}
 
-            dataset.experiment.progress_updater.update_progress()
+            if dataset is not None:
+                roi.results[dataset.name_result] = result_dict
+                dataset.experiment.progress_updater.update_progress()
+            else:
+                res_dict["ROI {}".format(roi.index)] = result_dict
+                q.put(1)
 
 
 # %% Gaussian fitter with estimated background
