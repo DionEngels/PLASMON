@@ -159,10 +159,10 @@ class ProgressUpdater:
                 self.total > 9:
             self.update(False, False, False)
         # if Gaussian, update every five, since it is slower than Phasor
-        elif "Gaussian" in self.method and self.progress % round(self.total / 5, 0) == 0 and self.total > 4:
+        elif "Gaussian" in self.method and self.progress % round(self.total / 20, 0) == 0 and self.total > 19:
             self.update(False, False, False)
-        # if complete, always update. Also call when only 9 or fewer ROIs
-        elif self.total == self.progress or self.total < 10:
+        # if complete, always update. Also call when only 19 or fewer ROIs
+        elif self.total == self.progress or self.total < 20:
             self.update(False, False, False)
 
     def message(self, message_string):
