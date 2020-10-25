@@ -111,6 +111,9 @@ class ProgressUpdater:
         self.total = None
         self.message_string = None
 
+        self.experiment_ind_figures = None
+        self.experiment_rois = None
+
     def start(self, experiments):
         """
         Called when run starts. Sets length of run
@@ -139,13 +142,17 @@ class ProgressUpdater:
         self.current_dataset += 1
         self.update(False, True, False)
 
-    def new_experiment(self, exp_index):
+    def new_experiment(self, exp_index, ind_figures, n_rois):
         """
         Called when new dataset is starting to be analyzed. Sets new experiment index
         :param exp_index: #experiment
+        :param ind_figures: Boolean whether or not individual figures are going to be printed
+        :param n_rois: the number of rois to print individual figures for
         :return: Calls update
         """
         self.current_experiment = exp_index
+        self.experiment_ind_figures = ind_figures
+        self.experiment_rois = n_rois
         self.update(True, False, False)
 
     def update_progress(self):
@@ -335,7 +342,7 @@ def run(experiments, progress_updater):
     """
     progress_updater.start(experiments)
     for exp_index, experiment in enumerate(experiments, start=1):
-        progress_updater.new_experiment(exp_index)
+        progress_updater.new_experiment(exp_index, experiment.settings['All Figures'], len(experiment.rois))
         experiment.run()
 
 # %% Main loop cell

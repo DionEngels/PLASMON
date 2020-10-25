@@ -60,8 +60,6 @@ mpl.use("TkAgg")  # set back end to TK
 FILETYPES = [("ND2", ".nd2")]
 FILETYPES_LOAD_FROM_OTHER = [(".npy and .mat", ".npy"), (".npy and .mat", ".mat")]
 
-
-
 user32 = ctypes.windll.user32
 SCREEN_WIDTH = user32.GetSystemMetrics(0)
 SCREEN_HEIGHT = user32.GetSystemMetrics(1)
@@ -107,7 +105,6 @@ else:
 GUI_WIDTH_START = int((SCREEN_WIDTH - GUI_WIDTH) / 2)
 GUI_HEIGHT_START = int((SCREEN_HEIGHT - GUI_HEIGHT) / 2)
 
-
 # %% Options for dropdown menus
 
 fit_options = ["Gaussian - Fit bg", "Gaussian - Estimate bg",
@@ -115,12 +112,8 @@ fit_options = ["Gaussian - Fit bg", "Gaussian - Estimate bg",
 roi_size_options = ["7x7", "9x9"]
 dimension_options = ["nm", "pixels"]
 
-
-# %% Multiprocessing main
-
-# TO DO
-
 # %% Proceed Question
+
 
 def proceed_question(title, text):
     """
@@ -448,6 +441,10 @@ class ProgressUpdaterGUI(ProgressUpdater):
             if progress_overall != 0:
                 time_taken = time.time() - self.start_time
                 time_done_estimate = time_taken * 1 / progress_overall + self.start_time
+                time_done_estimate += 20  # 20 seconds for overview figure
+                if self.experiment_ind_figures is True:
+                    time_done_estimate += 1.5 * self.experiment_rois  # add 1.5 seconds per individual figure
+
                 tr = time.localtime(time_done_estimate)
                 time_text = "{:02d}:{:02d}:{:02d} {:02d}/{:02d}".format(tr[3], tr[4], tr[5], tr[2], tr[1])
                 self.time_done_status.updater(text=time_text)
@@ -772,7 +769,8 @@ class MainPage(BasePage):
         """
         # analyze experiments
         for exp_index, experiment in enumerate(self.controller.experiments):
-            self.controller.progress_updater.new_experiment(exp_index)
+            self.controller.progress_updater.new_experiment(exp_index, experiment.settings['All Figures'],
+                                                            len(experiment.rois))
             experiment.run()
 
         # close down thread
