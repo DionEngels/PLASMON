@@ -42,11 +42,13 @@ import src.mbx_fortran_tools as fortran_tools  # for fast self-made general oper
 from src.class_dataset_and_class_roi import Dataset, Roi  # base dataset
 from src.tools import change_to_nm
 from src.drift_correction import DriftCorrector
+from src.nd2_reading import ND2ReaderSelf
 
-from pyfftw import empty_aligned, FFTW  # for FFT for Phasor
+from pyfftw import empty_aligned, FFTW    # for FFT for Phasor
 from math import pi, atan2  # general mathematics
 from cmath import phase  # general mathematics
 import multiprocessing as mp
+import _thread
 
 __self_made__ = True
 
@@ -179,7 +181,7 @@ class TimeTrace(Dataset):
                 print("setting up")
                 shared_dicts = []
                 processes = []
-                q = mp.Queue()
+                q = mp.SimpleQueue()
                 manager = mp.Manager()
 
                 # create processes
@@ -196,10 +198,8 @@ class TimeTrace(Dataset):
                     p.start()
 
                 print("Checking queue")
-                # wait for updates until 95% done
-                while self.experiment.progress_updater.progress / self.experiment.progress_updater.total < 0.95:
-                    q.get()
-                    self.experiment.progress_updater.update_progress()
+                # Separate thread will check progress
+                _thread.start_new_thread(self.mp_track_progress, (q,))
 
                 for p in processes:
                     p.join()
@@ -226,6 +226,11 @@ class TimeTrace(Dataset):
         self.experiment.progress_updater.message("Starting drift correction")
         self.drift_corrector = DriftCorrector(self.settings['method'])
         self.drift_corrector.main(self.active_rois, self.name_result, len(self.time_axis))
+
+    def mp_track_progress(self, q):
+        while self.experiment.progress_updater.progress != self.experiment.progress_updater.total:
+            q.get()
+            self.experiment.progress_updater.update_progress()
 
     def mp_split_rois(self):
 
@@ -254,7 +259,6 @@ class TimeTrace(Dataset):
 
     @staticmethod
     def run_mp(fitter, name, slice_to_do, rois, shared_dict, q):
-        from src.nd2_reading import ND2ReaderSelf
         print("Process starting")
         nd2 = ND2ReaderSelf(name)
         frames_to_fit = np.asarray(nd2[slice_to_do])
