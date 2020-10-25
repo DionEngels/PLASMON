@@ -176,26 +176,26 @@ class TimeTrace(Dataset):
 
         # run analysis
         if self.n_cores > 1:
+            # split rois into lists per process
             split_rois = self.mp_split_rois()
             if mp.current_process().name == "MainProcess":
-                print("setting up")
+                # created shared dictionaries (these will hold the results) and
+                # the queue (which will get progress updates)
                 shared_dicts = []
                 q = mp.SimpleQueue()
                 manager = mp.Manager()
 
-                # create processes
+                # create processes, each with its own shared_dict to prevent large amount of data to be shraed
                 for i in range(self.n_cores):
                     shared_dict = manager.dict()
-                    _thread.start_new_thread(self.mp_create_process, (i, shared_dict, split_rois[i], q))
+                    _thread.start_new_thread(self.mp_create_process, (shared_dict, split_rois[i], q))
                     shared_dicts.append(shared_dict)
 
-                print("Checking queue")
                 # Check progress
                 while self.experiment.progress_updater.progress != self.experiment.progress_updater.total:
                     q.get()
                     self.experiment.progress_updater.update_progress()
 
-                print("Merging")
                 # merge resulting data
                 index = 0
                 for shared_dict in shared_dicts:
@@ -218,17 +218,26 @@ class TimeTrace(Dataset):
         self.drift_corrector = DriftCorrector(self.settings['method'])
         self.drift_corrector.main(self.active_rois, self.name_result, len(self.time_axis))
 
-    def mp_create_process(self, index, shared_dict, split_rois, q):
-        print("Thread {}".format(index))
+    def mp_create_process(self, shared_dict, split_rois, q):
+        """
+        Called by threads to start a process, monitors it, and joins it at the end
+        ----------------------------------------------------
+        :param shared_dict: The shared_dictionary of results
+        :param split_rois: The ROIs to be fitted by this thread
+        :param q: The queue in which updates will be put
+        :return: None. Process changes shared_dict
+        """
         p = mp.Process(target=self.run_mp, args=(self.fitter, self.filename, self.slice,
                                                  split_rois, shared_dict, q))
         p.start()
-        print("Started {}".format(index))
         p.join()
-        print("Joined {}".format(index))
 
     def mp_split_rois(self):
-
+        """
+        Function to split the active rois into even parts for MP
+        :return: split_rois. A list of ROIs to be fitted per process.
+                 The ROIs in this list are blank to prevent large data to be prevented
+        """
         # calculate length and add one to first set to complete
         length = len(self.active_rois) // self.n_cores
         remainder = len(self.active_rois) - length * self.n_cores
@@ -238,7 +247,6 @@ class TimeTrace(Dataset):
 
         offset = 0
         split_rois = []
-
         # take rois out of active rois, recreate them without any data attached and split them up
         for length in lengths:
             rois = []
@@ -254,12 +262,20 @@ class TimeTrace(Dataset):
 
     @staticmethod
     def run_mp(fitter, name, slice_to_do, rois, shared_dict, q):
-        print("Process starting")
+        """
+        The run for each individual process for MP. Reloads the nd2 (this takes a while), and fits it
+        ----------------------
+        :param fitter: The fitter to use to fit
+        :param name: The name of the nd2 to use
+        :param slice_to_do: The frame slice to fit
+        :param rois: The rois to fit
+        :param shared_dict: The shared dictionary to place the results in
+        :param q: The queue to place updates in
+        :return: None, changes the shared_dict
+        """
         nd2 = ND2ReaderSelf(name)
         frames_to_fit = np.asarray(nd2[slice_to_do])
         fitter.run(frames_to_fit, rois, q=q, res_dict=shared_dict)
-
-        print("Process done")
 
 # %% Base Run
 
@@ -275,7 +291,6 @@ class BaseFitter:
         self.rejection = settings['rejection']
 
         self.roi_offset = roi_offset
-        self.roi_locations = []
 
     def fitter(self, frame_stack, roi_index, y, x):
         """
@@ -290,14 +305,17 @@ class BaseFitter:
 
     def run(self, frames, rois, dataset=None, q=None, res_dict=None):
         """
-        Run of fitter. Takes ROIs and fits them all. Return results
-        :param dataset: Dataset to fit
+        Run of fitter. Takes ROIs and fits them all. Return results.
+        In case of MP, q and res_dict are given, and the results wil be placed in there.
+        -------------------------------
         :param frames: Frames to fit
+        :param rois: ROIs to fit
+        :param dataset: The dataset to fit. Only used when single core is used
+        :param q: Queue to place updates in when MP is used. Each time a ROI is finished, 1 is placed in it
+        :param res_dict: The shared dictionary to save results to. Only used for MP
         :return: None. Edits dataset
         """
-        self.roi_locations = rois
-
-        for roi in self.roi_locations:
+        for roi in rois:
             frame_stack = roi.get_frame_stack(frames, self.roi_size_1D, self.roi_offset)
 
             roi_result = self.fitter(frame_stack, roi.index, roi.y, roi.x)
