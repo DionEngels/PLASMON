@@ -180,29 +180,20 @@ class TimeTrace(Dataset):
             if mp.current_process().name == "MainProcess":
                 print("setting up")
                 shared_dicts = []
-                processes = []
                 q = mp.SimpleQueue()
                 manager = mp.Manager()
 
                 # create processes
                 for i in range(self.n_cores):
                     shared_dict = manager.dict()
-                    processes.append(mp.Process(target=self.run_mp, args=(self.fitter, self.filename, self.slice,
-                                                                          split_rois[i], shared_dict, q)))
+                    _thread.start_new_thread(self.mp_create_process, (i, shared_dict, split_rois[i], q))
                     shared_dicts.append(shared_dict)
 
-                print("created processes")
-
-                # start
-                for p in processes:
-                    p.start()
-
                 print("Checking queue")
-                # Separate thread will check progress
-                _thread.start_new_thread(self.mp_track_progress, (q,))
-
-                for p in processes:
-                    p.join()
+                # Check progress
+                while self.experiment.progress_updater.progress != self.experiment.progress_updater.total:
+                    q.get()
+                    self.experiment.progress_updater.update_progress()
 
                 print("Merging")
                 # merge resulting data
@@ -227,10 +218,14 @@ class TimeTrace(Dataset):
         self.drift_corrector = DriftCorrector(self.settings['method'])
         self.drift_corrector.main(self.active_rois, self.name_result, len(self.time_axis))
 
-    def mp_track_progress(self, q):
-        while self.experiment.progress_updater.progress != self.experiment.progress_updater.total:
-            q.get()
-            self.experiment.progress_updater.update_progress()
+    def mp_create_process(self, index, shared_dict, split_rois, q):
+        print("Thread {}".format(index))
+        p = mp.Process(target=self.run_mp, args=(self.fitter, self.filename, self.slice,
+                                                 split_rois, shared_dict, q))
+        p.start()
+        print("Started {}".format(index))
+        p.join()
+        print("Joined {}".format(index))
 
     def mp_split_rois(self):
 
@@ -263,6 +258,8 @@ class TimeTrace(Dataset):
         nd2 = ND2ReaderSelf(name)
         frames_to_fit = np.asarray(nd2[slice_to_do])
         fitter.run(frames_to_fit, rois, q=q, res_dict=shared_dict)
+
+        print("Process done")
 
 # %% Base Run
 
@@ -307,11 +304,12 @@ class BaseFitter:
 
             result_dict = {"type": 'TT', "result": roi_result, "raw": frame_stack}
 
+            # else triggered when multiprocessing active
             if dataset is not None:
                 roi.results[dataset.name_result] = result_dict
                 dataset.experiment.progress_updater.update_progress()
             else:
-                res_dict["ROI {}".format(roi.index)] = result_dict
+                res_dict["{}".format(roi.index)] = result_dict
                 q.put(1)
 
 
