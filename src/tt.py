@@ -118,10 +118,10 @@ class TimeTrace(Dataset):
         elif settings['method'] == "Phasor":
             self.fitter = PhasorDumb(settings, self.roi_offset)
         elif settings['method'] == "Gaussian - Fit bg":
-            self.fitter = GaussianBackground(settings, max_its, 6, self.roi_offset)
+            self.fitter = GaussianBackground(settings, max_its, 6, self.roi_offset, self.frames.sizes)
             self.settings['max_its'] = max_its
         elif settings['method'] == "Gaussian - Estimate bg":
-            self.fitter = Gaussian(settings, max_its, 5, self.roi_offset)
+            self.fitter = Gaussian(settings, max_its, 5, self.roi_offset, self.frames.sizes)
             self.settings['max_its'] = max_its
         else:
             self.fitter = PhasorSum(settings, self.roi_offset)
@@ -137,8 +137,9 @@ class TimeTrace(Dataset):
         first_frame = np.asarray(self.frames[first_frame_index])
 
         # create temp fitter
+        size = {'y': first_frame.shape[0], 'x': first_frame.shape[1]}
         fitter_tmp = GaussianBackground({'roi_size': 7, 'rejection': True, 'method': "Gaussian - Fit bg"},
-                                        400, 6, self.roi_offset)
+                                        400, 6, self.roi_offset, size)
         int_list = []
 
         # for every ROI, find intensity
@@ -204,7 +205,7 @@ class TimeTrace(Dataset):
                         index += 1
         else:
             # find frames to fit and fit
-            frames_to_fit = np.asarray(self.frames[self.slice])
+            frames_to_fit = self.frames[self.slice]
             self.fitter.run(frames_to_fit, self.active_rois, dataset=self)
 
         # set to nm if desired
@@ -274,7 +275,7 @@ class TimeTrace(Dataset):
         :return: None, changes the shared_dict
         """
         nd2 = ND2ReaderSelf(name)
-        frames_to_fit = np.asarray(nd2[slice_to_do])
+        frames_to_fit = nd2[slice_to_do]
         fitter.run(frames_to_fit, rois, q=q, res_dict=shared_dict)
 
 # %% Base Run
@@ -291,6 +292,8 @@ class BaseFitter:
         self.rejection = settings['rejection']
 
         self.roi_offset = roi_offset
+
+        self.shape = None
 
     def fitter(self, frame_stack, roi_index, y, x):
         """
@@ -316,11 +319,11 @@ class BaseFitter:
         :return: None. Edits dataset
         """
         for roi in rois:
-            frame_stack = roi.get_frame_stack(frames, self.roi_size_1D, self.roi_offset)
+            frame_stack = roi.get_frame_stack(frames, self.roi_size_1D, self.roi_offset, self.shape)
 
             roi_result = self.fitter(frame_stack, roi.index, roi.y, roi.x)
 
-            result_dict = {"type": 'TT', "result": roi_result, "raw": frame_stack}
+            result_dict = {"type": 'TT', "result": roi_result, "raw": np.asarray(frame_stack)}
 
             # else triggered when multiprocessing active
             if dataset is not None:
@@ -362,7 +365,7 @@ class Gaussian(BaseFitter):
     """
     Gaussian fitter with estimated background, build upon Scipy Optimize Least-Squares
     """
-    def __init__(self, settings, max_its, num_fit_params, roi_offset):
+    def __init__(self, settings, max_its, num_fit_params, roi_offset, frame_size):
         """
         Initializer of Gaussian fitter. Sets a lot of base values
         ----------
@@ -370,6 +373,7 @@ class Gaussian(BaseFitter):
         :param: max_its: number of iterations limit
         :param num_fit_params: number of fitting parameters, 5 for without bg, 6 with bg
         :param roi_offset: offset of ROIs in dataset
+        :param frame_size: the size of the frame
         """
         super().__init__(settings, roi_offset)
 
@@ -388,6 +392,10 @@ class Gaussian(BaseFitter):
         self.comp = np.ones(num_fit_params)
 
         self.max_its = max_its
+
+        self.shape = np.zeros(2)
+        self.shape[0] = frame_size['y']
+        self.shape[1] = frame_size['x']
 
     def fun_find_max(self, roi):
         """
@@ -725,7 +733,7 @@ class Gaussian(BaseFitter):
         pos_max, pos_min, int_max, int_min, sig_max, sig_min = self.define_fitter_bounds()
 
         self.params = np.zeros(2)
-        roi_result = np.zeros([frame_stack.shape[0], 8])
+        roi_result = np.zeros([len(frame_stack), 8])
 
         for frame_index, my_roi in enumerate(frame_stack):
             my_roi_bg = self.fun_calc_bg(my_roi)

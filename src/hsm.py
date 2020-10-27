@@ -285,8 +285,9 @@ class HSMDataset(Dataset):
         # prep for fitting
         roi_size = 9
         roi_size_1d = int((roi_size - 1) / 2)
+        size = {'y': self.merged.shape[0], 'x': self.merged.shape[1]}
         fitter = fitting.GaussianBackground({'roi_size': roi_size, 'rejection': True, 'method': "Gaussian - Fit bg"},
-                                            600, 6, self)
+                                            600, 6, self, size)
         pos_max = roi_size
         pos_min = 0
         sig_min = 0
@@ -297,7 +298,7 @@ class HSMDataset(Dataset):
             raw_intensity = np.zeros(self.frames.shape[0])
             intensity = np.zeros(self.frames.shape[0])
             hsm_result = np.zeros(3)
-            frame_stack = roi.get_frame_stack(self.corrected, roi_size_1d, self.roi_offset)
+            frame_stack = roi.get_frame_stack_np(self.corrected, roi_size_1d, self.roi_offset)
             for frame_index, my_roi in enumerate(frame_stack):
                 # if verbose, show ROI
                 if verbose:

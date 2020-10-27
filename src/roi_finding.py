@@ -52,7 +52,8 @@ class RoiFinder:
         self.base_frame = frame
         # standard fitter settings
         fitter_settings = {'roi_size': 7, 'method': "Gaussian", 'rejection': False}
-        self.fitter = fitting.Gaussian(fitter_settings, 300, 5, [0, 0])
+        size = {'y': frame.shape[0], 'x': frame.shape[1]}
+        self.fitter = fitting.Gaussian(fitter_settings, 300, 5, [0, 0], size)
         self.data_type = signed_data_type
 
         # setup lists

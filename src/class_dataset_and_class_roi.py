@@ -20,6 +20,7 @@ v2.0: part of v2.0: 15/10/2020
 import scipy.fft as fft
 from skimage.feature import match_template
 import numpy as np
+from pims.process import crop
 
 __self_made__ = True
 
@@ -63,9 +64,22 @@ class Roi:
         return frame[self.y + offset[0] - roi_size_1d:self.y + offset[0] + roi_size_1d + 1,
                      self.x + offset[1] - roi_size_1d:self.x + offset[1] + roi_size_1d + 1]
 
-    def get_frame_stack(self, frames, roi_size_1d, offset):
+    def get_frame_stack(self, frames, roi_size_1d, offset, shape):
         """
         Gets ROI for a certain frame stack, offset, and ROI size
+        ------------------------------------
+        :param frames: frames to get ROI of
+        :param roi_size_1d: ROI size
+        :param offset: offset of current ROI in that frame
+        :param shape: shape of the frame
+        :return: Something by Something ROI around the x/y position of this ROI, in time
+        """
+        return crop(frames, ((self.y + offset[0] - roi_size_1d, shape[0] + offset[0] - self.y - roi_size_1d - 1),
+                             (self.x + offset[1] - roi_size_1d, shape[1] + offset[1] - self.x - roi_size_1d - 1)))
+
+    def get_frame_stack_np(self, frames, roi_size_1d, offset):
+        """
+        Gets ROI for a certain frame stack, offset, and ROI size. This is for numpy implementation
         ------------------------------------
         :param frames: frames to get ROI of
         :param roi_size_1d: ROI size
