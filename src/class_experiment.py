@@ -187,7 +187,7 @@ class Experiment:
             # iterate through datasets and update progress
             if dataset.type == "TT":
                 self.progress_updater.new_dataset(dataset.type, len(dataset.active_rois),
-                                                  method=dataset.settings['method'])
+                                                  method=dataset.settings['method'], tt_parts=len(dataset.tt_parts))
             else:
                 self.progress_updater.new_dataset(dataset.type, len(dataset.active_rois), method="HSM")
             dataset.run()

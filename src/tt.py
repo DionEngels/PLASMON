@@ -52,6 +52,8 @@ import _thread
 
 __self_made__ = True
 
+MAX_BYTES = 4294967296 // 1  # 4 GB, // 1 for easy tuning
+
 # %% Time trace class
 
 
@@ -74,10 +76,14 @@ class TimeTrace(Dataset):
         self.frame_for_rois = np.asarray(nd2[0]).astype(self.data_type_signed) - background
         self.metadata = nd2.get_metadata()
         self.time_axis = self.metadata['timesteps']
-        self.slice = None
         self.drift_corrector = None
+        # parts that the TT dataset is split into
+        self.tt_parts = None
+        self.tt_parts_done = 0
+        # cores used for fitting
         self.n_cores = 1
-        self.figure_range = None
+        # correlation used for long measurement drift
+        self.correlation_interval = None
 
     def prepare_run(self, settings):
         """
@@ -107,9 +113,17 @@ class TimeTrace(Dataset):
         self.set_name(new_name)
         self.settings = settings
 
-        # set cores, slice video, and max_its
+        # set cores
         self.n_cores = settings['#cores']
-        self.slice, _ = self.parse_start_end(settings['frame_begin'], settings['frame_end'])
+        # set correlation interval (TO BE IMPLEMENTED)
+        #  self.correlation_interval = settings['correlation_interval']
+        # take slices and create TTParts
+        slices_user, _ = self.parse_start_end(settings['frame_begin'], settings['frame_end'])
+        if slices_user.stop is None:
+            slices_user = slice(slices_user.start, len(self.frames))
+        self.tt_parts = self.slices_create_setup(slices_user)
+
+        # set max its
         max_its = self.find_max_its()
 
         # initializer fitter
@@ -126,6 +140,129 @@ class TimeTrace(Dataset):
         else:
             self.fitter = PhasorSum(settings, self.roi_offset)
 
+    def slices_create_setup(self, slices_user):
+        """
+        Takes the user input for what part he/she wants fitted of the TT, #cores, max RAM usage, and correlation
+        interval, and uses that to create TTParts, parts of the TT dataset to be fitted by a single process
+        -----------------------
+        :param slices_user: user input for which part of the TT to be fitted
+        :return: a list of tt_parts, classes which hold a part of the TT Dataset
+        """
+        # max frame length to fit in memory
+        max_length_memory = MAX_BYTES // self.frame_for_rois.astype(self.data_type).nbytes
+        # n_parts to split in to remain in memory
+        n_parts = int((slices_user.stop - slices_user.start) // max_length_memory + 1)
+        if n_parts > 1:
+            # if more than one part needed to remain in memory
+            if self.correlation_interval is not None:  # if correlation interval
+                split_length = self.correlation_interval
+                slices = self.slices_create_fixed_length(slices_user, split_length)
+                tt_parts = [TTPart(self.filename, self.frames, part_slice) for part_slice in slices]
+                while max_length_memory < split_length * self.n_cores:  # if it still doesn't fit in memory, split again
+                    slices, tt_parts = self.slices_split_in_two(slices)
+            else:
+                # split in even parts for memory
+                slices = self.slices_create(slices_user, n_parts)
+                tt_parts = [TTPart(self.filename, self.frames, part_slice) for part_slice in slices]
+                if self.n_cores > 1:  # split for cores if needed
+                    slices, tt_parts = self.slices_split_for_cores(slices)
+        else:  # if fits in memory in one go
+            if self.correlation_interval is not None:  # if correlation interval
+                slices = self.slices_create_fixed_length(slices_user, self.correlation_interval)
+                tt_parts = [TTPart(self.filename, self.frames, part_slice) for part_slice in slices]
+                while len(slices) < self.n_cores:  # if fewer slices than cores, split slices
+                    slices, tt_parts = self.slices_split_in_two(slices)
+            elif self.n_cores > 1:  # if MP
+                slices = self.slices_create(slices_user, self.n_cores)
+                tt_parts = [TTPart(self.filename, self.frames, part_slice) for part_slice in slices]
+            else:  # if single process
+                slices = [slices_user]
+                tt_parts = [TTPart(self.filename, self.frames, part_slice) for part_slice in slices]
+
+        return tt_parts
+
+    def slices_split_in_two(self, slices):
+        """
+        Takes a slice and splits it in two. Also creates tt_parts
+        --------------------
+        :param slices: slices to split in two
+        :return: new_slices: new slices
+        :return: new_tt_parts: new_tt_parts build with the new slices
+        """
+        new_slices = []
+        new_tt_parts = []
+        for one_slice in slices:
+            new_slices_part = self.slices_create(one_slice, 2)
+            new_tt_parts.append(TTPart(self.filename, self.frames, new_slices_part[0]))
+            new_tt_parts.append(TTPart(self.filename, self.frames, new_slices_part[1], corr=False))
+        return new_slices, new_tt_parts
+
+    def slices_split_for_cores(self, slices):
+        """
+        Takes a slice and splits it in n parts (the number of cores). Also creates tt_parts
+        --------------------
+        :param slices: slices to split in two
+        :return: new_slices: new slices
+        :return: new_tt_parts: new_tt_parts build with the new slices
+        """
+        new_slices = []
+        new_tt_parts = []
+        for one_slice in slices:
+            new_slices_part = self.slices_create(one_slice, self.n_cores)
+            new_tt_parts.append(TTPart(self.filename, self.frames, new_slices_part[0]))
+            for index, new_slice_ind in enumerate(new_slices_part):
+                if index == 0:
+                    new_tt_parts.append(TTPart(self.filename, self.frames, new_slice_ind))
+                else:
+                    new_tt_parts.append(TTPart(self.filename, self.frames, new_slice_ind, corr=False))
+
+        return new_slices, new_tt_parts
+
+    @staticmethod
+    def slices_create(main_slice, n_parts):
+        """
+        The actual workhorse that splits a slice in n_parts
+        --------------------------
+        :param main_slice: the slice to be split
+        :param n_parts: the number of parts to split in
+        :return: slices: the new slices created from main_slice in n_parts
+        """
+        length = (main_slice.stop - main_slice.start) // n_parts
+        remainder = (main_slice.stop - main_slice.start) - length * n_parts
+        lengths = [length] * n_parts
+        for i in range(remainder):
+            lengths[i] += 1
+
+        slices = []
+        counter = 0
+        for length in lengths:
+            slices.append(slice(counter, counter + length))
+            counter += length
+
+        return slices
+
+    @staticmethod
+    def slices_create_fixed_length(main_slice, length):
+        """
+        The actual workhorse that splits a slice in a fixed length
+        -------------------------
+        :param main_slice: the slice to be split
+        :param length: the length of the parts to split in
+        :return: slices: the new slices created from main_slice with length
+        """
+        total_length = (main_slice.stop - main_slice.start)
+        remainder = length % total_length
+        parts = total_length // length
+
+        slices = []
+        counter = 0
+        for i in range(parts):
+            slices.append(slice(counter, counter + length))
+            counter += length
+        if remainder > 0:
+            slices.append(slice(counter, main_slice.stop))
+        return slices
+
     def find_max_its(self):
         """
         Finds maximum iterations needed based on intensity of particles found
@@ -133,7 +270,7 @@ class TimeTrace(Dataset):
         :return: max_its: integer of maximum iterations needed
         """
         # take first frame
-        first_frame_index = self.slice.start
+        first_frame_index = self.tt_parts[0].slice.start
         first_frame = np.asarray(self.frames[first_frame_index])
 
         # create temp fitter
@@ -166,116 +303,211 @@ class TimeTrace(Dataset):
 
         return int(max_its)
 
+    def correlate_tt_parts(self):
+        """
+        Function to correlate the first frame of each TTPart.
+        ----------------------------------------------------
+        :return: None. Changes TTPart classes by setting offset_from_base
+        """
+        last_non_nan_offset = np.asarray([0, 0])
+        old_frame = None
+        for index, tt_part in enumerate(self.tt_parts):
+            if index == 0:
+                tt_part.offset_from_base = last_non_nan_offset
+                old_frame = np.asarray(tt_part.frame_zero)
+                background = median_filter(old_frame, size=9, mode='constant')
+                old_frame = old_frame.astype(self.data_type_signed) - background
+            else:
+                if tt_part.corr:
+                    new_frame = np.asarray(tt_part.frame_zero)
+                    background = median_filter(new_frame, size=9, mode='constant')
+                    new_frame = new_frame.astype(self.data_type_signed) - background
+                    last_non_nan_offset += np.asarray(self.correlate_frames_same_size(old_frame, new_frame))
+                    old_frame = new_frame
+                tt_part.offset_from_base = last_non_nan_offset
+
     def run(self):
         """
         Run TT analysis. Takes set slice of video, analyses it, and corrects for drift
         :return: None. Edits results in experiment
         """
-        # find frames to fit and time axis
-        self.time_axis = self.metadata['timesteps'][self.slice]
+        if mp.current_process().name == "MainProcess":
+            # find frames to fit and time axis
+            self.time_axis = self.metadata['timesteps'][slice(self.tt_parts[0].slice.start,
+                                                              self.tt_parts[-1].slice.stop)]
+            # find correlation between tt_parts
+            self.correlate_tt_parts()
+            # run
+            if len(self.tt_parts) > 1:
+                if self.n_cores > 1:
+                    self.tt_parts_done = 0
+                    tt_parts_created = 0
+                    # created shared dictionaries (these will hold the results) and
+                    # the queue (which will get progress updates)
+                    dicts_list = []
+                    q = mp.SimpleQueue()
+                    manager = mp.Manager()
 
-        # run analysis
-        if self.n_cores > 1:
-            # split rois into lists per process
-            split_rois = self.mp_split_rois()
-            if mp.current_process().name == "MainProcess":
-                # created shared dictionaries (these will hold the results) and
-                # the queue (which will get progress updates)
-                shared_dicts = []
-                q = mp.SimpleQueue()
-                manager = mp.Manager()
+                    while self.tt_parts_done < len(self.tt_parts):
+                        # create processes, each with its own shared_dict to prevent large amount of data to be shared
+                        for i in range(self.n_cores):
+                            # break if enough parts created
+                            if tt_parts_created == len(self.tt_parts):
+                                break
+                            shared_dict = manager.dict()
+                            _thread.start_new_thread(self.mp_create_process, (self.tt_parts[tt_parts_created],
+                                                                              shared_dict, q))
+                            dicts_list.append(shared_dict)
+                            tt_parts_created += 1
 
-                # create processes, each with its own shared_dict to prevent large amount of data to be shraed
-                for i in range(self.n_cores):
-                    shared_dict = manager.dict()
-                    _thread.start_new_thread(self.mp_create_process, (shared_dict, split_rois[i], q))
-                    shared_dicts.append(shared_dict)
+                        # Check progress
+                        while not self.experiment.progress_updater.dataset_completed:
+                            q.get()
+                            self.experiment.progress_updater.update_progress()
 
-                # Check progress
-                while self.experiment.progress_updater.progress != self.experiment.progress_updater.total:
-                    q.get()
-                    self.experiment.progress_updater.update_progress()
+                else:
+                    dicts_list = []
+                    for _ in range(len(self.tt_parts)):
+                        dicts_list.append({})
+                    for index, tt_part in enumerate(self.tt_parts):
+                        tt_part.run(self.fitter, self.active_rois, res_dict=dicts_list[index], dataset=self)
 
-                # merge resulting data
-                index = 0
-                for shared_dict in shared_dicts:
-                    for _, value in shared_dict.items():
-                        self.active_rois[index].results[self.name_result] = value
-                        index += 1
-        else:
-            # find frames to fit and fit
-            frames_to_fit = np.asarray(self.frames[self.slice])
-            self.fitter.run(frames_to_fit, self.active_rois, dataset=self)
+                # merge data
+                self.merge_data(dicts_list)
+            else:
+                self.tt_parts[0].run(self.fitter, self.active_rois, dataset=self)
 
-        # set to nm if desired
-        if self.settings['pixels_or_nm'] == "nm":
-            for roi in self.active_rois:
-                roi.results[self.name_result]['result'] = change_to_nm(roi.results[self.name_result]['result'],
-                                                                       self.metadata, self.settings['method'])
+            # set to nm if desired
+            if self.settings['pixels_or_nm'] == "nm":
+                for roi in self.active_rois:
+                    roi.results[self.name_result]['result'] = change_to_nm(roi.results[self.name_result]['result'],
+                                                                           self.metadata, self.settings['method'])
 
-        # correct fro drift
-        self.experiment.progress_updater.message("Starting drift correction")
-        self.drift_corrector = DriftCorrector(self.settings['method'])
-        self.drift_corrector.main(self.active_rois, self.name_result, len(self.time_axis))
+            # correct for drift
+            self.experiment.progress_updater.message("Starting drift correction")
+            self.drift_corrector = DriftCorrector(self.settings['method'])
+            self.drift_corrector.main(self.active_rois, self.name_result, len(self.time_axis))
 
-    def mp_create_process(self, shared_dict, split_rois, q):
+    def merge_data(self, dicts_list):
+        """
+        Merges the data in the case that a TT Dataset was split in TTParts
+        ----------------------
+        :param dicts_list: dictionaries that hold all the individual results of the split TTParts
+        -----------------------
+        :return: None. Changes the active ROIs by saving the results there.
+        """
+
+        for roi in self.active_rois:
+            roi_result = np.zeros((self.tt_parts[-1].slice.stop - self.tt_parts[0].frame_start,
+                                   dicts_list[0]["{}".format(roi.index)]['result'].shape[1]))
+            roi_raw = np.zeros((self.tt_parts[-1].slice.stop - self.tt_parts[0].frame_start,
+                                self.fitter.roi_size, self.fitter.roi_size), dtype=self.data_type)
+            counter = 0
+            for tt_part_dict in dicts_list:
+                part_dict = tt_part_dict.pop("{}".format(roi.index), None)
+                # no longer within frame, stop
+                if part_dict is None:
+                    roi_result[counter:-1, :] = np.nan
+                    roi_raw[counter:-1, :, :] = np.nan
+                    break
+                else:
+                    roi_result[counter:counter + part_dict["result"].shape[0], :] = part_dict["result"]
+                    roi_raw[counter:counter + part_dict["result"].shape[0], :, :] = part_dict["raw"]
+                    counter += part_dict["result"].shape[0]
+
+            roi.results[self.name_result] = {"type": 'TT', "result": roi_result, "raw": roi_raw}
+
+    def mp_create_process(self, tt_part, shared_dict, q):
         """
         Called by threads to start a process, monitors it, and joins it at the end
         ----------------------------------------------------
+        :param tt_part: The TT part to be fitted by this process
         :param shared_dict: The shared_dictionary of results
-        :param split_rois: The ROIs to be fitted by this thread
         :param q: The queue in which updates will be put
         :return: None. Process changes shared_dict
         """
-        p = mp.Process(target=self.run_mp, args=(self.fitter, self.filename, self.slice,
-                                                 split_rois, shared_dict, q))
+        p = mp.Process(target=self.run_mp, args=(self.fitter, tt_part, self.active_rois, shared_dict, q))
         p.start()
         p.join()
-
-    def mp_split_rois(self):
-        """
-        Function to split the active rois into even parts for MP
-        :return: split_rois. A list of ROIs to be fitted per process.
-                 The ROIs in this list are blank to prevent large data to be prevented
-        """
-        # calculate length and add one to first set to complete
-        length = len(self.active_rois) // self.n_cores
-        remainder = len(self.active_rois) - length * self.n_cores
-        lengths = [length] * self.n_cores
-        for i in range(remainder):
-            lengths[i] += 1
-
-        offset = 0
-        split_rois = []
-        # take rois out of active rois, recreate them without any data attached and split them up
-        for length in lengths:
-            rois = []
-            for roi in self.active_rois[offset:offset+length]:
-                new_roi = Roi(roi.x, roi.y)
-                new_roi.set_index(roi.index)
-                rois.append(new_roi)
-
-            split_rois.append(rois)
-            offset += length
-
-        return split_rois
+        self.tt_parts_done += 1
 
     @staticmethod
-    def run_mp(fitter, name, slice_to_do, rois, shared_dict, q):
+    def run_mp(fitter, tt_part, rois, shared_dict, q):
         """
         The run for each individual process for MP. Reloads the nd2 (this takes a while), and fits it
         ----------------------
         :param fitter: The fitter to use to fit
-        :param name: The name of the nd2 to use
-        :param slice_to_do: The frame slice to fit
+        :param tt_part: The TT part to be fitted by this process
         :param rois: The rois to fit
         :param shared_dict: The shared dictionary to place the results in
         :param q: The queue to place updates in
         :return: None, changes the shared_dict
         """
-        nd2 = ND2ReaderSelf(name)
-        frames_to_fit = np.asarray(nd2[slice_to_do])
-        fitter.run(frames_to_fit, rois, q=q, res_dict=shared_dict)
+        # load in slice of video
+        full_frame_stack = np.asarray(ND2ReaderSelf(tt_part.name)[tt_part.slice])
+        # create frame stacks of each ROIs
+        frame_stacks = []
+        total_offset = fitter.roi_offset + tt_part.offset_from_base
+        for roi in rois:
+            if roi.in_frame(full_frame_stack[0].shape, total_offset, 0):
+                frame_stacks.append(roi.get_frame_stack(full_frame_stack, fitter.roi_size_1D, total_offset))
+            else:
+                # if not in frame, append a None to ensure same length
+                frame_stacks.append(None)
+        # delete full frame from memory
+        del full_frame_stack
+        # run
+        fitter.run(frame_stacks, rois, tt_part, q=q, res_dict=shared_dict)
+
+# %% TT Part
+
+
+class TTPart:
+    """
+    Class that holds a part of a TT Dataset, and the offset of that part to the beginning.
+    Used when datasets are too large for memory, multiprocessing or when drift-correction during experiment is desired
+    """
+    def __init__(self, name, nd2, video_slice, corr=True):
+        """
+        Initialisation of TTPart. Takes start info
+        ----------------------------
+        :param name: name of nd2
+        :param nd2: actual nd2 to be used to get frame_zero from for correlation
+        :param video_slice: slice of the video for this part
+        :param corr: Whether or not correlation should be done on this TTPart. Only False for MP created TTParts
+        """
+        self.name = name
+        self.slice = video_slice
+        self.frame_start = video_slice.start
+        self.frame_zero = np.asarray(nd2[self.frame_start])
+        self.corr = corr
+        self.offset_from_base = [0, 0]
+
+    def run(self, fitter, rois, res_dict=None, dataset=None):
+        """
+        The run for each individual process for single process. Takes the slice of the ND2 and fits it
+        ----------------------
+        :param fitter: The fitter to use to fit
+        :param rois: The rois to fit
+        :param res_dict: The result dictionary to place the results in, only used if more than one TTPart
+        :param dataset: Information of the dataset. Used when single process used.
+        :return: None. Changes the res_dict or the ROIs
+        """
+        # load in slice of video
+        full_frame_stack = np.asarray(ND2ReaderSelf(self.name)[self.slice])
+        # create frame stacks of each ROIs
+        frame_stacks = []
+        total_offset = fitter.roi_offset + self.offset_from_base
+        for roi in rois:
+            if roi.in_frame(full_frame_stack[0].shape, total_offset, 0):
+                frame_stacks.append(roi.get_frame_stack(full_frame_stack, fitter.roi_size_1D, total_offset))
+            else:
+                # if not in frame, append a None to ensure same length
+                frame_stacks.append(None)
+        # delete full frame from memory
+        del full_frame_stack
+        # run
+        fitter.run(frame_stacks, rois, self, res_dict=res_dict, dataset=dataset)
 
 # %% Base Run
 
@@ -292,42 +524,49 @@ class BaseFitter:
 
         self.roi_offset = roi_offset
 
-    def fitter(self, frame_stack, roi_index, y, x):
+    def fitter(self, frame_stack, roi_index, y, x, tt_part):
         """
         To be implemented depending on fitter
         :param frame_stack: frame stack to be fitted of a single ROI
         :param roi_index: the ROIs index
         :param y: y-position of ROI center
         :param x: x-position of ROI center
+        :param tt_part: information about which part of the TT is being fitted
         :return: roi results
         """
         pass
 
-    def run(self, frames, rois, dataset=None, q=None, res_dict=None):
+    def run(self, frame_stacks, rois, tt_part, dataset=None, q=None, res_dict=None):
         """
         Run of fitter. Takes ROIs and fits them all. Return results.
         In case of MP, q and res_dict are given, and the results wil be placed in there.
         -------------------------------
-        :param frames: Frames to fit
+        :param frame_stacks: Frame stacks to fit
         :param rois: ROIs to fit
+        :param tt_part: information about which part of the TT is being fitted
         :param dataset: The dataset to fit. Only used when single core is used
         :param q: Queue to place updates in when MP is used. Each time a ROI is finished, 1 is placed in it
         :param res_dict: The shared dictionary to save results to. Only used for MP
         :return: None. Edits dataset
         """
-        for roi in rois:
-            frame_stack = roi.get_frame_stack(frames, self.roi_size_1D, self.roi_offset)
+        if res_dict is not None:
+            res_dict["start_frame"] = tt_part.frame_start
 
-            roi_result = self.fitter(frame_stack, roi.index, roi.y, roi.x)
+        for frame_stack, roi in zip(frame_stacks, rois):
+            if frame_stack is not None:
+                roi_result = self.fitter(frame_stack, roi.index, roi.y, roi.x, tt_part)
+                result_dict = {"type": 'TT', "result": roi_result, "raw": frame_stack}
 
-            result_dict = {"type": 'TT', "result": roi_result, "raw": frame_stack}
+                # else triggered when split dataset in parts
+                if res_dict is None:
+                    roi.results[dataset.name_result] = result_dict
+                else:
+                    res_dict["{}".format(roi.index)] = result_dict
 
-            # else triggered when multiprocessing active
+            # regardless of frame_stack None or not, send update
             if dataset is not None:
-                roi.results[dataset.name_result] = result_dict
                 dataset.experiment.progress_updater.update_progress()
             else:
-                res_dict["{}".format(roi.index)] = result_dict
                 q.put(1)
 
 
@@ -712,7 +951,7 @@ class Gaussian(BaseFitter):
 
         return pos_max, pos_min, int_max, int_min, sig_max, sig_min
 
-    def fitter(self, frame_stack, roi_index, y, x):
+    def fitter(self, frame_stack, roi_index, y, x, tt_part):
         """
         Does Gaussian fitting for all frames for a single ROI
         --------------------------------------------------------
@@ -720,6 +959,7 @@ class Gaussian(BaseFitter):
         :param roi_index: the ROIs index
         :param y: y-position of ROI center
         :param x: x-position of ROI center
+        :param tt_part: information about which part of the TT is being fitted
         :return: roi results
         """
         pos_max, pos_min, int_max, int_min, sig_max, sig_min = self.define_fitter_bounds()
@@ -746,10 +986,10 @@ class Gaussian(BaseFitter):
 
             if success == 1:
                 self.params = result[3:5]
-                roi_result[frame_index, 0] = frame_index
+                roi_result[frame_index, 0] = frame_index + tt_part.frame_start
                 # start position plus from center in ROI + half for indexing of pixels
-                roi_result[frame_index, 1] = result[1] + y - self.roi_size_1D + 0.5  # y
-                roi_result[frame_index, 2] = result[2] + x - self.roi_size_1D + 0.5  # x
+                roi_result[frame_index, 1] = result[1] + y - self.roi_size_1D + 0.5 + tt_part.offset_from_base[0]  # y
+                roi_result[frame_index, 2] = result[2] + x - self.roi_size_1D + 0.5 + tt_part.offset_from_base[1]  # x
                 roi_result[frame_index, 3] = result[0]*result[3]*result[4]*2*pi  # Integrated intensity
                 roi_result[frame_index, 4] = result[3]  # sigma y
                 roi_result[frame_index, 5] = result[4]  # sigma x
@@ -757,7 +997,7 @@ class Gaussian(BaseFitter):
                 roi_result[frame_index, 7] = its
             else:
                 roi_result[frame_index, :] = np.nan
-                roi_result[frame_index, 0] = frame_index
+                roi_result[frame_index, 0] = frame_index + tt_part.frame_start
 
         return roi_result
 
@@ -788,7 +1028,7 @@ class GaussianBackground(Gaussian):
 
         return np.array([height, pos_y, pos_x, self.init_sig, self.init_sig, background])
 
-    def fitter(self, frame_stack, roi_index, y, x):
+    def fitter(self, frame_stack, roi_index, y, x, tt_part):
         """
         Does Gaussian fitting for all frames for a single ROI
         --------------------------------------------------------
@@ -796,6 +1036,7 @@ class GaussianBackground(Gaussian):
         :param roi_index: the ROIs index
         :param y: y-position of ROI center
         :param x: x-position of ROI center
+        :param tt_part: information about which part of the TT is being fitted
         :return: roi results
         """
         pos_max, pos_min, int_max, int_min, sig_max, sig_min = self.define_fitter_bounds()
@@ -820,10 +1061,10 @@ class GaussianBackground(Gaussian):
             if success == 1:
                 self.params = result[3:5]
 
-                roi_result[frame_index, 0] = frame_index
+                roi_result[frame_index, 0] = frame_index + tt_part.frame_start
                 # start position plus from center in ROI + half for indexing of pixels
-                roi_result[frame_index, 1] = result[1] + y - self.roi_size_1D + 0.5  # y
-                roi_result[frame_index, 2] = result[2] + x - self.roi_size_1D + 0.5  # x
+                roi_result[frame_index, 1] = result[1] + y - self.roi_size_1D + 0.5 + tt_part.offset_from_base[0]  # y
+                roi_result[frame_index, 2] = result[2] + x - self.roi_size_1D + 0.5 + tt_part.offset_from_base[1]  # x
                 roi_result[frame_index, 3] = result[0] * result[3] * result[4] * 2 * pi  # Integrated intensity
                 roi_result[frame_index, 4] = result[3]  # sigma y
                 roi_result[frame_index, 5] = result[4]  # sigma x
@@ -941,7 +1182,7 @@ class Phasor(BaseFitter):
 
         return pos_x, pos_y, success
 
-    def fitter(self, frame_stack, roi_index, y, x):
+    def fitter(self, frame_stack, roi_index, y, x, tt_part):
         """
         Applies phasor fitting to an entire stack of frames of one ROI
 
@@ -951,6 +1192,7 @@ class Phasor(BaseFitter):
         roi_index : Index of ROI that is currently being fitted
         y : y-location with respect to total microscope frame of currently fitted ROI
         x : x-location with respect to total microscope frame of currently fitted ROI
+        tt_part: information about which part of the TT is being fitted
 
         Returns
         -------
@@ -969,15 +1211,15 @@ class Phasor(BaseFitter):
                 success = 0
 
             if success == 1:
-                roi_result[frame_index, 0] = frame_index
+                roi_result[frame_index, 0] = frame_index + tt_part.frame_start
                 # start position plus from center in ROI + half for indexing of pixels
-                roi_result[frame_index, 1] = y + pos_y - self.roi_size_1D  # y
-                roi_result[frame_index, 2] = x + pos_x - self.roi_size_1D  # x
+                roi_result[frame_index, 1] = y + pos_y - self.roi_size_1D + tt_part.offset_from_base[0]  # y
+                roi_result[frame_index, 2] = x + pos_x - self.roi_size_1D + tt_part.offset_from_base[1]  # x
                 roi_result[frame_index, 3] = frame_max - my_frame_bg  # returns max peak
                 roi_result[frame_index, 4] = my_frame_bg  # background
             else:
                 roi_result[frame_index, :] = np.nan
-                roi_result[frame_index, 0] = frame_index
+                roi_result[frame_index, 0] = frame_index + tt_part.frame_start
 
         return roi_result
 
@@ -988,7 +1230,7 @@ class PhasorDumb(Phasor):
     """
     Dumb Phasor. Does not return intensity of found location.
     """
-    def fitter(self, frame_stack, roi_index, y, x):
+    def fitter(self, frame_stack, roi_index, y, x, tt_part):
         """
         Applies phasor fitting to an entire stack of frames of one ROI
 
@@ -998,6 +1240,7 @@ class PhasorDumb(Phasor):
         roi_index : Index of ROI that is currently being fitted
         y : y-location with respect to total microscope frame of currently fitted ROI
         x : x-location with respect to total microscope frame of currently fitted ROI
+        tt_part: information about which part of the TT is being fitted
 
         Returns
         -------
@@ -1011,13 +1254,13 @@ class PhasorDumb(Phasor):
             pos_x, pos_y, success = self.fit_and_reject(fft_values)
 
             if success == 1:
-                roi_result[frame_index, 0] = frame_index
+                roi_result[frame_index, 0] = frame_index + tt_part.frame_start
                 # start position plus from center in ROI + half for indexing of pixels
-                roi_result[frame_index, 1] = y + pos_y - self.roi_size_1D  # y
-                roi_result[frame_index, 2] = x + pos_x - self.roi_size_1D  # x
+                roi_result[frame_index, 1] = y + pos_y - self.roi_size_1D + tt_part.offset_from_base[0]  # y
+                roi_result[frame_index, 2] = x + pos_x - self.roi_size_1D + tt_part.offset_from_base[1]  # x
             else:
                 roi_result[frame_index, :] = np.nan
-                roi_result[frame_index, 0] = frame_index
+                roi_result[frame_index, 0] = frame_index + tt_part.frame_start
 
         return roi_result
 
@@ -1028,7 +1271,7 @@ class PhasorSum(Phasor):
     """
     Phasor Sum. Also returns summation of entire ROI
     """
-    def fitter(self, frame_stack, roi_index, y, x):
+    def fitter(self, frame_stack, roi_index, y, x, tt_part):
         """
         Applies phasor fitting to an entire stack of frames of one ROI
 
@@ -1038,6 +1281,7 @@ class PhasorSum(Phasor):
         roi_index : Index of ROI that is currently being fitted
         y : y-location with respect to total microscope frame of currently fitted ROI
         x : x-location with respect to total microscope frame of currently fitted ROI
+        tt_part: information about which part of the TT is being fitted
 
         Returns
         -------
@@ -1054,13 +1298,13 @@ class PhasorSum(Phasor):
                 success = 0
 
             if success == 1:
-                roi_result[frame_index, 0] = frame_index
+                roi_result[frame_index, 0] = frame_index + tt_part.frame_start
                 # start position plus from center in ROI + half for indexing of pixels
-                roi_result[frame_index, 1] = y + pos_y - self.roi_size_1D  # y
-                roi_result[frame_index, 2] = x + pos_x - self.roi_size_1D  # x
+                roi_result[frame_index, 1] = y + pos_y - self.roi_size_1D + tt_part.offset_from_base[0]  # y
+                roi_result[frame_index, 2] = x + pos_x - self.roi_size_1D + tt_part.offset_from_base[1]  # x
                 roi_result[frame_index, 3] = frame_sum  # returns summation
             else:
                 roi_result[frame_index, :] = np.nan
-                roi_result[frame_index, 0] = frame_index
+                roi_result[frame_index, 0] = frame_index + tt_part.frame_start
 
         return roi_result

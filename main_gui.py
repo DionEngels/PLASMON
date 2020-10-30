@@ -440,7 +440,7 @@ class ProgressUpdaterGUI(ProgressUpdater):
             self.current_task_status.updater(text="Experiment {}: ".format(self.current_experiment + 1) +
                                                   self.message_string)
         else:
-            progress_task = self.progress / self.total
+            progress_task = self.progress / self.total / self.dataset_parts
             progress_overall = progress_task * progress_per_dataset + progress_dataset
 
             self.progress_task_status.updater(text="{:.2f}%".format(progress_task*100))

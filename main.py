@@ -103,6 +103,8 @@ class ProgressUpdater:
         """
         self.current_type = None
         self.current_dataset = None
+        self.dataset_parts = None
+        self.dataset_completed = False
         self.method = None
         self.total_datasets = None
         self.current_experiment = None
@@ -116,7 +118,8 @@ class ProgressUpdater:
 
     def start(self, experiments):
         """
-        Called when run starts. Sets length of run
+        Called when run starts. Sets length of run.
+        -------------------------
         :param experiments: experiments to analyze
         :return: None
         """
@@ -127,12 +130,14 @@ class ProgressUpdater:
         for experiment in experiments:
             self.total_datasets += len(experiment.datasets)
 
-    def new_dataset(self, new_type, n_rois, method=None):
+    def new_dataset(self, new_type, n_rois, method=None, tt_parts=None):
         """
         Called when new dataset is starting to be analyzed. Sets new type and updates dataset counter
+        -------------------------
         :param new_type: new type of dataset
         :param n_rois: number of active ROIs in dataset
         :param method: method of fitters if used
+        :param tt_parts: number of parts the TT has been split in. If not given, parts is set to 1
         :return: Calls update
         """
         self.current_type = new_type
@@ -140,11 +145,17 @@ class ProgressUpdater:
         self.total = n_rois
         self.progress = 0
         self.current_dataset += 1
+        if tt_parts is None:
+            self.dataset_parts = 1
+        else:
+            self.dataset_parts = tt_parts
+        self.dataset_completed = False
         self.update(False, True, False)
 
     def new_experiment(self, exp_index, ind_figures, n_rois):
         """
         Called when new dataset is starting to be analyzed. Sets new experiment index
+        --------------------------
         :param exp_index: #experiment
         :param ind_figures: Boolean whether or not individual figures are going to be printed
         :param n_rois: the number of rois to print individual figures for
@@ -153,24 +164,32 @@ class ProgressUpdater:
         self.current_experiment = exp_index
         self.experiment_ind_figures = ind_figures
         self.experiment_rois = n_rois
+        self.dataset_completed = False
         self.update(True, False, False)
 
     def update_progress(self):
         """
         Updates progress within dataset. Adds one to previous progress. Means that one ROI has been completed
+        ---------------------------
         :return: Calls update when need be
         """
         self.progress += 1
         # if HSM or Phasor, update every ten
-        if (self.method == "HSM" or "Phasor" in self.method) and self.progress % round(self.total / 10, 0) == 0 and \
-                self.total > 9:
+        if (self.method == "HSM" or "Phasor" in self.method) and \
+                self.progress % round(self.total * self.dataset_parts / 10, 0) == 0 and \
+                self.total * self.dataset_parts > 9:
             self.update(False, False, False)
         # if Gaussian, update every five, since it is slower than Phasor
-        elif "Gaussian" in self.method and self.progress % round(self.total / 20, 0) == 0 and self.total > 19:
+        elif "Gaussian" in self.method and self.progress % round(self.total * self.dataset_parts / 20, 0) == 0 and \
+                self.total * self.dataset_parts > 19:
             self.update(False, False, False)
         # if complete, always update. Also call when only 19 or fewer ROIs
-        elif self.total == self.progress or self.total < 20:
+        elif self.total == self.progress or self.total * self.dataset_parts < 20:
             self.update(False, False, False)
+
+        # set to completed when all done
+        if self.progress == self.total * self.dataset_parts:
+            self.dataset_completed = True
 
     def message(self, message_string):
         """
@@ -197,7 +216,7 @@ class ProgressUpdater:
         elif message_bool:
             print("Experiment {}: ".format(self.current_experiment) + self.message_string)
         else:
-            print('{} of {} of current dataset done'.format(self.progress, self.total))
+            print('{} of {} of current dataset done'.format(self.progress, self.total * self.dataset_parts))
 
 # %% Divert errors
 
