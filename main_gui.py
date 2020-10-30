@@ -23,12 +23,13 @@ __version__ = "2.0"
 __self_made__ = True
 
 # GENERAL IMPORTS
-from os import getcwd, environ, listdir, rmdir  # to get standard usage
+from os import getcwd, environ, listdir, rmdir, remove  # to get standard usage
 from tempfile import mkdtemp
 import sys
 import time  # for timekeeping
 import ctypes  # Get sys info
 import warnings  # for warning diversion
+import shelve
 
 environ['MPLCONFIGDIR'] = mkdtemp()
 
@@ -164,6 +165,13 @@ def quit_gui(gui):
                 rmdir(experiment.directory)
             except:
                 pass
+    # store last opened directory
+    try:
+        my_shelve = shelve.open(gui.shelve_file, 'n')
+        my_shelve['dir_open'] = gui.dir_open
+        my_shelve.close()
+    except:
+        pass
     gui.quit()
     sys.exit(0)
 
@@ -544,6 +552,16 @@ class MbxPython(tk.Tk):
         self.experiment_to_link_name = None
         self.thread_started = False
 
+        # working directory
+
+        self.shelve_file = getcwd() + "/Cache.out"
+        try:
+            my_shelve = shelve.open(self.shelve_file)
+            self.dir_open = my_shelve['dir_open']
+            my_shelve.close()
+        except:
+            self.dir_open = getcwd()
+
         # setup pages
         self.pages = {}
         page_tuple = (MainPage, LoadPage, ROIPage, TTPage, HSMPage)
@@ -860,10 +878,13 @@ class LoadPage(BasePage):
         """
         filename = askopenfilename(filetypes=FILETYPES,
                                    title="Select nd2",
-                                   initialdir=getcwd())
+                                   initialdir=self.controller.dir_open)
 
         if len(filename) == 0:
             return
+
+        # save directory
+        self.controller.dir_open = '/'.join(filename.split(".")[0].split("/")[:-1])
 
         if dataset_type == "HSM":
             # if datatype is HSM, show wait label
@@ -1348,7 +1369,7 @@ class ROIPage(BasePage):
 
 class AnalysisPageTemplate(BasePage):
     """
-    Base analysis page. Inherits from BasePage and adds the correlation area and some initalisations
+    Base analysis page. Inherits from BasePage and adds the correlation area and some initialisations
     """
     def __init__(self, container, controller):
         """
