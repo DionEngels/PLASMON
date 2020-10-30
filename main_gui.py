@@ -519,15 +519,21 @@ class Footer(FooterBase):
             self.grid_columnconfigure(i, weight=1)
 
     def cancel(self):
+        # if not on load page
         if self.controller.current_page != LoadPage:
+            # clear current page
+            self.controller.pages[self.controller.current_page].clear_page()
+            # if new experiment, clear directory and experiment
             if self.controller.experiment_to_link_name is None:
                 if self.controller.experiments[-1].dir_made:
                     rmdir(self.controller.experiments[-1].directory)
                 del self.controller.experiments[-1]
             else:
+                # else clear last dataset
                 experiment_to_link = [experiment for experiment in self.controller.experiments if
                                       self.controller.experiment_to_link_name in experiment.name][0]
                 del experiment_to_link.datasets[-1]
+        # always show MainPage
         self.controller.show_page(MainPage)
 
 # %% Controller
@@ -1376,6 +1382,14 @@ class ROIPage(BasePage):
         self.saved_settings, _ = self.read_out_settings()
         self.button_restore_saved.updater()
 
+    def clear_page(self):
+        self.experiment = None
+        self.default_settings = None
+        self.saved_settings = None
+        self.histogram_fig = None
+        self.to_hist = None
+        self.figure.fig.clear()
+
     def accept(self):
         """
         Accept ROI settings and move to analysis page
@@ -1400,12 +1414,7 @@ class ROIPage(BasePage):
         else:
             self.controller.show_page(HSMPage, experiment=self.experiment)
         # empty memory
-        self.experiment = None
-        self.default_settings = None
-        self.saved_settings = None
-        self.histogram_fig = None
-        self.to_hist = None
-        self.figure.fig.clear()
+        self.clear_page()
 
     def update_page(self, experiment=None):
         """
@@ -1533,6 +1542,14 @@ class AnalysisPageTemplate(BasePage):
         self.experiment.show_rois("Dataset", self.figure_dataset)
         self.button_add_to_queue.updater(command=lambda: self.add_to_queue())
 
+    def clear_page(self):
+        """
+        Clears memory of page
+        """
+        self.experiment = None
+        self.figure_experiment.fig.clear()
+        self.figure_dataset.fig.clear()
+
     def add_to_queue(self):
         """
         Empty add_to_queue. Changed by inheritance
@@ -1651,9 +1668,7 @@ class TTPage(AnalysisPageTemplate):
 
         self.controller.show_page(MainPage)
         # clear memory
-        self.experiment = None
-        self.figure_experiment.fig.clear()
-        self.figure_dataset.fig.clear()
+        self.clear_page()
 
     def update_page(self, experiment=None):
         """
@@ -1747,9 +1762,7 @@ class HSMPage(AnalysisPageTemplate):
 
         self.controller.show_page(MainPage)
         # clear memory
-        self.experiment = None
-        self.figure_dataset.fig.clear()
-        self.figure_experiment.fig.clear()
+        self.clear_page()
 
 # %% START GUI
 
