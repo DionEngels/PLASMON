@@ -16,7 +16,8 @@ v1.1: Bugfixes and improved figures (WIP)
 v1.2: GUI and output improvement based on Sjoerd's feedback, HSM: 27/08/2020 - 13/09/2020
 v1.3: HSM to eV: 24/09/2020
 v1.4: HSM output back to nm, while fitting in eV: 29/09/2020
-v2.0: First version of GUI v2.0: 15/10/2020
+v2.0 pre-1: First version of GUI v2.0: 15/10/2020
+v2.0: GUI v2.0 ready for release: 30/10/2020
 """
 
 __version__ = "2.0"
@@ -160,6 +161,11 @@ class DivertorErrorsGUI(DivertError):
 
 
 def quit_gui(gui):
+    """
+    Quits the GUI, clear empty directories created, and saved last opened directory
+    :param gui: GUI to close
+    :return: None. Closes program
+    """
     # for all loaded experiments, try to delete directory if directory is made. This only succeeds if its empty
     for experiment in gui.experiments:
         if experiment.dir_made:
@@ -277,6 +283,12 @@ class EntryPlaceholder(ttk.Entry):
             self["style"] = self.placeholder_style
 
     def updater(self, text=None, placeholder=None):
+        """
+        Update Placeholder with new text or new placeholder
+        :param text: new text
+        :param placeholder: new placeholder
+        :return: Updates Entry
+        """
         self.delete("0", "end")
         if placeholder is not None:
             self.placeholder = placeholder
@@ -298,6 +310,11 @@ class EntrySlider(ttk.Entry):
         self.grid(row=row, column=column, rowspan=rowspan, columnspan=columnspan)
 
     def binder(self, slider, variable):
+        """
+        Bind a slider to a variable
+        :param slider: slider to couple
+        :param variable: variable to couple
+        """
         self.bind("<Return>", lambda event: slider.updater(start=variable.get()))
         self.bind("<FocusOut>", lambda event: slider.updater(start=variable.get()))
 
@@ -323,6 +340,13 @@ class NormalButton:
                        sticky=sticky, padx=padx, pady=pady)
 
     def updater(self, command=None, state='enabled', text=None):
+        """
+        Updates button with new command, state, or text
+        :param command: new command
+        :param state: new state
+        :param text: new text
+        :return: Updates button
+        """
         if text is None:
             text = self.text
         self._btn['text'] = text
@@ -355,6 +379,13 @@ class NormalSlider:
                          sticky=sticky, padx=padx, pady=pady)
 
     def updater(self, from_=None, to=None, start=None):
+        """
+        Updates scale with new from, to, and/or start
+        :param from_: new from
+        :param to: new to
+        :param start: new start
+        :return: Updated scale
+        """
         if from_ is None:
             from_ = self.from_
         if to is None:
@@ -395,6 +426,11 @@ class NormalLabel:
         self.pady = pady
 
     def updater(self, text=None):
+        """
+        Update label with new text
+        :param text: new text
+        :return: updated label
+        """
         if text is None:
             text = self.text
         self._label['text'] = text
@@ -519,6 +555,10 @@ class Footer(FooterBase):
             self.grid_columnconfigure(i, weight=1)
 
     def cancel(self):
+        """
+        Cancel current page. Resets to MainPage and clears the page if needed
+        :return: None. Changes page
+        """
         # if not on load page
         if self.controller.current_page != LoadPage:
             # clear current page
@@ -1222,6 +1262,11 @@ class ROIPage(BasePage):
         self.histogram_make(variable)
 
     def histogram_open(self, variable):
+        """
+        Called when new histogram is opened.
+        :param variable: Decides which buttons are enabled and disabled depending on which variables is plotted
+        :return: None. Changes GUI
+        """
         # enable the right button to select from graph with
         if variable == "min_int" or variable == "max_int":
             self.button_max_int_histogram_select.updater(state='enabled',
@@ -1243,6 +1288,11 @@ class ROIPage(BasePage):
         self.button_min_sigma_histogram.updater(state='disabled')
 
     def histogram_close(self, _):
+        """
+        Called when histogram is closed.
+        :param _: Event is discarded
+        :return: Changes GUI
+        """
         # enable opening other graphs
         self.button_min_corr_histogram.updater(state='enabled', command=lambda: self.fun_histogram("corr_min"))
         self.button_min_int_histogram.updater(state='enabled', command=lambda: self.fun_histogram("min_int"))
@@ -1383,6 +1433,9 @@ class ROIPage(BasePage):
         self.button_restore_saved.updater()
 
     def clear_page(self):
+        """
+        Clear the memory of the page
+        """
         self.experiment = None
         self.default_settings = None
         self.saved_settings = None

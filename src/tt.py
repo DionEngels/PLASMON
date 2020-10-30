@@ -25,8 +25,8 @@ v0.9: Gaussian fitting (with or without background) and three Phasor fitters: 24
 v0.9.1: NaN output instead of leaving out, MATLAB ready output
 v0.9.2: removed minimum pixel requirement
 v1.0: Integrated intensity output for Gaussians: 27/08/2020
-v2.0: part of v2.0: 03/10/2020
-
+v2.0 pre-1: part of v2.0 pre-1: 03/10/2020
+v2.0: with TTParts: 30/10/2020
 """
 # %% Imports
 from __future__ import division, print_function, absolute_import
