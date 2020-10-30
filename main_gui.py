@@ -287,6 +287,19 @@ class EntryPlaceholder(ttk.Entry):
             self["style"] = self.normal_style
 
 
+class EntrySlider(ttk.Entry):
+    """
+    Entry to be linked to a slider
+    """
+    def __init__(self, master=None, row=None, column=None, rowspan=1, columnspan=1, *args, **kwargs):
+        super().__init__(master, *args, style="TEntry", font=FONT_ENTRY, **kwargs)
+        self.grid(row=row, column=column, rowspan=rowspan, columnspan=columnspan)
+
+    def binder(self, slider, variable):
+        self.bind("<Return>", lambda event: slider.updater(start=variable.get()))
+        self.bind("<FocusOut>", lambda event: slider.updater(start=variable.get()))
+
+
 class NormalButton:
     """
     My normal button, again with an updater function to update the button.
@@ -319,9 +332,9 @@ class NormalSlider:
     """
     My normal slider, again with an updater function to update the slider.
     """
-    def __init__(self, parent, from_=0, to=np.inf, resolution=1, start=0,
+    def __init__(self, parent, from_=0, to=np.inf, resolution=1, start=0, command=None,
                  row=None, column=None, rowspan=1, columnspan=1, sticky=None, padx=0, pady=0):
-        self._scale = tk.Scale(parent, from_=from_, to=to, orient='horizontal',
+        self._scale = tk.Scale(parent, from_=from_, to=to, orient='horizontal', command=command,
                                resolution=resolution, bg='white', borderwidth=0, highlightthickness=0)
         self._scale.set(start)
         self.parent = parent
@@ -948,82 +961,121 @@ class ROIPage(BasePage):
 
         label_min_int = tk.Label(self, text="Minimum Intensity", font=FONT_LABEL, bg='white')
         label_min_int.grid(row=2, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
-        self.slider_min_int = NormalSlider(self, from_=0, to=1000,
-                                           row=3, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        var_min_int = tk.IntVar()
+        entry_min_int = EntrySlider(self, row=3, column=0, columnspan=8, textvariable=var_min_int, width=INPUT_SMALL)
+
+        def slider_min_int(_):
+            var_min_int.set(self.slider_min_int.get())
+        self.slider_min_int = NormalSlider(self, from_=0, to=1000, command=slider_min_int,
+                                           row=4, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        entry_min_int.binder(self.slider_min_int, var_min_int)
 
         self.button_min_int_histogram = NormalButton(self, text="Graph", command=lambda: self.fun_histogram("min_int"),
-                                                     row=3, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
-        self.button_min_int_histogram_select = NormalButton(self, text="Select min", state='disabled',
+                                                     row=3, column=16, columnspan=8, rowspan=2,
+                                                     sticky='EW', padx=PAD_SMALL)
+        self.button_min_int_histogram_select = NormalButton(self, text="Select min", state='disabled', rowspan=2,
                                                             row=3, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
-        self.button_max_int_histogram_select = NormalButton(self, text="Select max", state='disabled',
+        self.button_max_int_histogram_select = NormalButton(self, text="Select max", state='disabled', rowspan=2,
                                                             row=3, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
         label_max_int = tk.Label(self, text="Maximum Intensity", font=FONT_LABEL, bg='white')
         label_max_int.grid(row=2, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
-        self.slider_max_int = NormalSlider(self, from_=0, to=5000,
-                                           row=3, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        var_max_int = tk.IntVar()
+        entry_max_int = EntrySlider(self, row=3, column=32, columnspan=8, textvariable=var_max_int, width=INPUT_SMALL)
+
+        def slider_max_int(_):
+            var_max_int.set(self.slider_max_int.get())
+        self.slider_max_int = NormalSlider(self, from_=0, to=5000, command=slider_max_int,
+                                           row=4, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        entry_max_int.binder(self.slider_max_int, var_max_int)
 
         label_min_sigma = tk.Label(self, text="Minimum Sigma", font=FONT_LABEL, bg='white')
-        label_min_sigma.grid(row=4, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
-        self.slider_min_sigma = NormalSlider(self, from_=0, to=5, resolution=0.01,
-                                             row=5, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        label_min_sigma.grid(row=5, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        var_min_sigma = tk.DoubleVar()
+        entry_min_sigma = EntrySlider(self, row=6, column=0, columnspan=8,
+                                      textvariable=var_min_sigma, width=INPUT_SMALL)
+
+        def slider_min_sigma(_):
+            var_min_sigma.set(self.slider_min_sigma.get())
+        self.slider_min_sigma = NormalSlider(self, from_=0, to=5, resolution=0.01, command=slider_min_sigma,
+                                             row=7, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        entry_min_sigma.binder(self.slider_min_sigma, var_min_sigma)
 
         self.button_min_sigma_histogram = NormalButton(self, text="Graph",
-                                                       command=lambda: self.fun_histogram("min_sigma"),
-                                                       row=5, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+                                                       command=lambda: self.fun_histogram("min_sigma"), rowspan=2,
+                                                       row=6, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
         self.button_min_sigma_histogram_select = NormalButton(self, text="Select min", state='disabled',
-                                                              row=5, column=8, columnspan=8, sticky='EW',
+                                                              row=6, column=8, columnspan=8, sticky='EW', rowspan=2,
                                                               padx=PAD_SMALL)
-        self.button_max_sigma_histogram_select = NormalButton(self, text="Select max", state='disabled',
-                                                              row=5, column=24, columnspan=8, sticky='EW',
+        self.button_max_sigma_histogram_select = NormalButton(self, text="Select max", state='disabled', rowspan=2,
+                                                              row=6, column=24, columnspan=8, sticky='EW',
                                                               padx=PAD_SMALL)
 
         label_max_sigma = tk.Label(self, text="Maximum Sigma", font=FONT_LABEL, bg='white')
-        label_max_sigma.grid(row=4, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
-        self.slider_max_sigma = NormalSlider(self, from_=0, to=10, resolution=0.01,
-                                             row=5, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        label_max_sigma.grid(row=5, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        var_max_sigma = tk.DoubleVar()
+        entry_max_sigma = EntrySlider(self, row=6, column=32, columnspan=8,
+                                      textvariable=var_max_sigma, width=INPUT_SMALL)
+
+        def slider_max_sigma(_):
+            var_max_sigma.set(self.slider_max_sigma.get())
+        self.slider_max_sigma = NormalSlider(self, from_=0, to=10, resolution=0.01, command=slider_max_sigma,
+                                             row=7, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        entry_max_sigma.binder(self.slider_max_sigma, var_max_sigma)
 
         line = ttk.Separator(self, orient='horizontal')
-        line.grid(row=7, column=0, rowspan=1, columnspan=40, sticky='we')
+        line.grid(row=8, column=0, rowspan=1, columnspan=40, sticky='we')
 
         label_advanced_settings = tk.Label(self, text="Advanced settings", font=FONT_SUBHEADER, bg='white')
         label_advanced_settings.grid(row=9, column=0, columnspan=40, sticky='EW', padx=PAD_SMALL)
 
         label_min_corr = tk.Label(self, text="Minimum Correlation", font=FONT_LABEL, bg='white')
-        label_min_corr.grid(row=9, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
-        self.slider_min_corr = NormalSlider(self, from_=0, to=1, resolution=0.005,
-                                            row=10, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        label_min_corr.grid(row=10, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        var_min_corr = tk.DoubleVar()
+        entry_min_corr = EntrySlider(self, row=10, column=8, columnspan=8, textvariable=var_min_corr, width=INPUT_SMALL)
+
+        def slider_min_corr(_):
+            var_min_corr.set(self.slider_min_corr.get())
+        self.slider_min_corr = NormalSlider(self, from_=0, to=1, resolution=0.005, command=slider_min_corr,
+                                            row=10, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        entry_min_corr.binder(self.slider_min_corr, var_min_corr)
 
         self.button_min_corr_histogram = NormalButton(self, text="Graph",
-                                                      command=lambda: self.fun_histogram("corr_min"),
-                                                      row=10, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
-        self.button_min_corr_histogram_select = NormalButton(self, text="Graph select", state='disabled',
-                                                             row=10, column=8, columnspan=8, sticky='EW',
+                                                      command=lambda: self.fun_histogram("corr_min"), rowspan=2,
+                                                      row=10, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.button_min_corr_histogram_select = NormalButton(self, text="Graph select", state='disabled', rowspan=2,
+                                                             row=10, column=32, columnspan=8, sticky='EW',
                                                              padx=PAD_SMALL)
 
-        label_all_figures = tk.Label(self, text="All Figures", font=FONT_LABEL, bg='white')
-        label_all_figures.grid(row=12, column=0, columnspan=5, sticky='EW', padx=PAD_SMALL)
-        self.variable_all_figures = tk.StringVar(self, value=False)
-        check_figures = ttk.Checkbutton(self, variable=self.variable_all_figures, onvalue=True, offvalue=False)
-        check_figures.grid(row=12, column=5, columnspan=5, sticky='EW', padx=PAD_SMALL)
-
-        label_filter_size = tk.Label(self, text="Filter size", bg='white', font=FONT_LABEL)
-        label_filter_size.grid(row=12, column=10, columnspan=5, sticky='EW', padx=PAD_SMALL)
-        self.entry_filter_size = EntryPlaceholder(self, "9", width=INPUT_SMALL)
-        self.entry_filter_size.grid(row=12, column=15, columnspan=5)
-
-        label_roi_side = tk.Label(self, text="Side spacing", bg='white', font=FONT_LABEL)
-        label_roi_side.grid(row=12, column=20, columnspan=5, sticky='EW', padx=PAD_SMALL)
+        label_roi_side = tk.Label(self, text="Minimum spacing ROIs to side", bg='white', font=FONT_LABEL)
+        label_roi_side.grid(row=12, column=0, columnspan=15, sticky='EW', padx=PAD_SMALL)
         self.entry_roi_side = EntryPlaceholder(self, "11", width=INPUT_SMALL)
-        self.entry_roi_side.grid(row=12, column=25, columnspan=5)
+        self.entry_roi_side.grid(row=12, column=15, columnspan=5)
 
-        label_inter_roi = tk.Label(self, text="ROI spacing", bg='white', font=FONT_LABEL)
-        label_inter_roi.grid(row=12, column=30, columnspan=5, sticky='EW', padx=PAD_SMALL)
+        label_inter_roi = tk.Label(self, text="Minimum spacing between ROIs", bg='white', font=FONT_LABEL)
+        label_inter_roi.grid(row=12, column=20, columnspan=15, sticky='EW', padx=PAD_SMALL)
         self.entry_inter_roi = EntryPlaceholder(self, "6", width=INPUT_SMALL)
         self.entry_inter_roi.grid(row=12, column=35, columnspan=5)
 
         line = ttk.Separator(self, orient='horizontal')
-        line.grid(row=14, column=0, rowspan=1, columnspan=40, sticky='we')
+        line.grid(row=13, column=0, rowspan=1, columnspan=40, sticky='we')
+
+        label_advanced_settings = tk.Label(self, text="Other settings", font=FONT_SUBHEADER, bg='white')
+        label_advanced_settings.grid(row=14, column=0, columnspan=40, sticky='EW', padx=PAD_SMALL)
+
+        label_all_figures = tk.Label(self, text="Create individual figures", font=FONT_LABEL, bg='white')
+        label_all_figures.grid(row=15, column=0, columnspan=15, sticky='EW', padx=PAD_SMALL)
+        self.variable_all_figures = tk.StringVar(self, value=False)
+        check_figures = ttk.Checkbutton(self, variable=self.variable_all_figures, onvalue=True, offvalue=False)
+        check_figures.grid(row=15, column=15, columnspan=5, sticky='EW', padx=PAD_SMALL)
+
+        label_filter_size = tk.Label(self, text="Background median filter size", bg='white', font=FONT_LABEL)
+        label_filter_size.grid(row=15, column=20, columnspan=15, sticky='EW', padx=PAD_SMALL)
+        self.entry_filter_size = EntryPlaceholder(self, "9", width=INPUT_SMALL)
+        self.entry_filter_size.grid(row=15, column=35, columnspan=5)
+
+        line = ttk.Separator(self, orient='horizontal')
+        line.grid(row=16, column=0, rowspan=1, columnspan=40, sticky='we')
 
         button_find_rois = ttk.Button(self, text="Find ROIs", command=lambda: self.fit_rois())
         button_find_rois.grid(row=17, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
