@@ -74,7 +74,7 @@ if SCREEN_WIDTH > 1280 and SCREEN_HEIGHT > 720:
     FONT_SUBHEADER = "Verdana 12 bold"
     FONT_STATUS = "Verdana 11"
     FONT_ENTRY = "Verdana 11"
-    FONT_ENTRY_SMALL = "Verdana 11"
+    FONT_ENTRY_SMALL = "Verdana 9 "
     FONT_BUTTON = "Verdana 11"
     FONT_LABEL = "Verdana 11"
     FONT_DROP = "Verdana 11"
@@ -83,6 +83,7 @@ if SCREEN_WIDTH > 1280 and SCREEN_HEIGHT > 720:
     PAD_BIG = 30
     PAD_SMALL = 10
     INPUT_BIG = 25
+    INPUT_MEDIUM = 10
     INPUT_SMALL = 5
 else:
     # 720p version
@@ -92,7 +93,7 @@ else:
     FONT_SUBHEADER = "Verdana 10 bold"
     FONT_STATUS = "Verdana 9"
     FONT_ENTRY = "Verdana 9"
-    FONT_ENTRY_SMALL = "Verdana 9"
+    FONT_ENTRY_SMALL = "Verdana 7"
     FONT_BUTTON = "Verdana 9"
     FONT_LABEL = "Verdana 9"
     FONT_DROP = "Verdana 9"
@@ -101,6 +102,7 @@ else:
     PAD_BIG = 20
     PAD_SMALL = 5
     INPUT_BIG = 15
+    INPUT_MEDIUM = 5
     INPUT_SMALL = 3
 
 GUI_WIDTH_START = int((SCREEN_WIDTH - GUI_WIDTH) / 2)
@@ -292,7 +294,7 @@ class EntrySlider(ttk.Entry):
     Entry to be linked to a slider
     """
     def __init__(self, master=None, row=None, column=None, rowspan=1, columnspan=1, *args, **kwargs):
-        super().__init__(master, *args, style="TEntry", font=FONT_ENTRY, **kwargs)
+        super().__init__(master, *args, style="Small.TEntry", font=FONT_ENTRY_SMALL, **kwargs)
         self.grid(row=row, column=column, rowspan=rowspan, columnspan=columnspan)
 
     def binder(self, slider, variable):
@@ -334,7 +336,7 @@ class NormalSlider:
     """
     def __init__(self, parent, from_=0, to=np.inf, resolution=1, start=0, command=None,
                  row=None, column=None, rowspan=1, columnspan=1, sticky=None, padx=0, pady=0):
-        self._scale = tk.Scale(parent, from_=from_, to=to, orient='horizontal', command=command,
+        self._scale = tk.Scale(parent, from_=from_, to=to, orient='horizontal', command=command, showvalue=0,
                                resolution=resolution, bg='white', borderwidth=0, highlightthickness=0)
         self._scale.set(start)
         self.parent = parent
@@ -962,7 +964,7 @@ class ROIPage(BasePage):
         label_min_int = tk.Label(self, text="Minimum Intensity", font=FONT_LABEL, bg='white')
         label_min_int.grid(row=2, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
         var_min_int = tk.IntVar()
-        entry_min_int = EntrySlider(self, row=3, column=0, columnspan=8, textvariable=var_min_int, width=INPUT_SMALL)
+        entry_min_int = EntrySlider(self, row=3, column=0, columnspan=8, textvariable=var_min_int, width=INPUT_MEDIUM)
 
         def slider_min_int(_):
             var_min_int.set(self.slider_min_int.get())
@@ -981,7 +983,7 @@ class ROIPage(BasePage):
         label_max_int = tk.Label(self, text="Maximum Intensity", font=FONT_LABEL, bg='white')
         label_max_int.grid(row=2, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
         var_max_int = tk.IntVar()
-        entry_max_int = EntrySlider(self, row=3, column=32, columnspan=8, textvariable=var_max_int, width=INPUT_SMALL)
+        entry_max_int = EntrySlider(self, row=3, column=32, columnspan=8, textvariable=var_max_int, width=INPUT_MEDIUM)
 
         def slider_max_int(_):
             var_max_int.set(self.slider_max_int.get())
@@ -993,7 +995,7 @@ class ROIPage(BasePage):
         label_min_sigma.grid(row=5, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
         var_min_sigma = tk.DoubleVar()
         entry_min_sigma = EntrySlider(self, row=6, column=0, columnspan=8,
-                                      textvariable=var_min_sigma, width=INPUT_SMALL)
+                                      textvariable=var_min_sigma, width=INPUT_MEDIUM)
 
         def slider_min_sigma(_):
             var_min_sigma.set(self.slider_min_sigma.get())
@@ -1015,7 +1017,7 @@ class ROIPage(BasePage):
         label_max_sigma.grid(row=5, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
         var_max_sigma = tk.DoubleVar()
         entry_max_sigma = EntrySlider(self, row=6, column=32, columnspan=8,
-                                      textvariable=var_max_sigma, width=INPUT_SMALL)
+                                      textvariable=var_max_sigma, width=INPUT_MEDIUM)
 
         def slider_max_sigma(_):
             var_max_sigma.set(self.slider_max_sigma.get())
@@ -1032,7 +1034,8 @@ class ROIPage(BasePage):
         label_min_corr = tk.Label(self, text="Minimum Correlation", font=FONT_LABEL, bg='white')
         label_min_corr.grid(row=10, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
         var_min_corr = tk.DoubleVar()
-        entry_min_corr = EntrySlider(self, row=10, column=8, columnspan=8, textvariable=var_min_corr, width=INPUT_SMALL)
+        entry_min_corr = EntrySlider(self, row=10, column=8, columnspan=8,
+                                     textvariable=var_min_corr, width=INPUT_MEDIUM)
 
         def slider_min_corr(_):
             var_min_corr.set(self.slider_min_corr.get())
@@ -1041,9 +1044,9 @@ class ROIPage(BasePage):
         entry_min_corr.binder(self.slider_min_corr, var_min_corr)
 
         self.button_min_corr_histogram = NormalButton(self, text="Graph",
-                                                      command=lambda: self.fun_histogram("corr_min"), rowspan=2,
+                                                      command=lambda: self.fun_histogram("corr_min"), rowspan=1,
                                                       row=10, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
-        self.button_min_corr_histogram_select = NormalButton(self, text="Graph select", state='disabled', rowspan=2,
+        self.button_min_corr_histogram_select = NormalButton(self, text="Graph select", state='disabled', rowspan=1,
                                                              row=10, column=32, columnspan=8, sticky='EW',
                                                              padx=PAD_SMALL)
 
