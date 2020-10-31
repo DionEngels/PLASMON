@@ -3,11 +3,11 @@
 Created on Thu 30-07-2020
 
 @author: Dion Engels
-MBx Python Data Analysis
+PLASMON Data Analysis
 
 drift_correction
 
-This package is for the drift correction of MBx Python.
+This package is for the drift correction of PLASMON.
 
 ----------------------------
 
@@ -27,7 +27,7 @@ __self_made__ = True
 
 class DriftCorrector:
     """
-    Drift correction class of MBx Python. Takes results and corrects them for drift
+    Drift correction class of PLASMON. Takes results and corrects them for drift
     """
     def __init__(self, method):
         """

@@ -3,11 +3,11 @@
 Created on Tue 04/08/2020
 
 @author: Dion Engels
-MBx Python Data Analysis
+PLASMON Data Analysis
 
 hsm
 
-This package is for the HSM part of MBx Python.
+This package is for the HSM part of PLASMON.
 
 ----------------------------
 

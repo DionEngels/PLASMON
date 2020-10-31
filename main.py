@@ -5,7 +5,7 @@ Created on Thu May 28 09:44:02 2020
 ----------------------------
 
 @author: Dion Engels
-MBx Python Data Analysis
+PLASMON Data Analysis
 
 main
 

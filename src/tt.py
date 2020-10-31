@@ -3,11 +3,11 @@
 Created on Sun May 31 22:58:08 2020
 
 @author: Dion Engels
-MBx Python Data Analysis
+PLASMON Data Analysis
 
 Fitters
 
-This package holds all the fitting algorithms of MBx Python.
+This package holds all the fitting algorithms of PLASMON.
 This includes 2 Gaussian fitters and 3 Phasor fitters.
 
 ----------------------------

@@ -3,11 +3,11 @@
 Created on Sun May 31 20:20:29 2020
 
 @author: Dion Engels
-MBx Python Data Analysis
+PLASMON Data Analysis
 
 ROI finding
 
-This package holds all the MBx Python parts that are required to find the ROIs in the .nd2 files
+This package holds all the PLASMON parts that are required to find the ROIs in the .nd2 files
 
 ----------------------------
 

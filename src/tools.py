@@ -3,11 +3,11 @@
 Created on Sun May 31 23:27:01 2020
 
 @author: Dion Engels
-MBx Python Data Analysis
+PLASMON Data Analysis
 
 Tools
 
-Some additional tools used by MBx Python
+Some additional tools used by PLASMON
 
 ----------------------------
 

@@ -3,7 +3,7 @@
 Created on Fri August 07 2020
 
 @author: Dion Engels
-MBx Python Data Analysis
+PLASMON Data Analysis
 
 figure_making
 

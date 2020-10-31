@@ -3,7 +3,7 @@
 Created on Mon August 10 2020
 
 @author: Dion Engels
-MBx Python Data Analysis
+PLASMON Data Analysis
 
 nd2 reading
 

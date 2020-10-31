@@ -3,11 +3,11 @@
 Created on Sat Jul 11 19:14:16 2020
 
 @author: Dion Engels
-MBx Python Data Analysis
+PLASMON Data Analysis
 
 main_GUI
 
-This package is for the GUI of Mbx Python.
+This package is for the GUI of PLASMON.
 
 ----------------------------
 
@@ -526,7 +526,7 @@ class FooterBase(tk.Frame):
         self.configure(bg='white')
         self.controller = controller
 
-        label_version = tk.Label(self, text="MBx Python, version: " + __version__, font=FONT_LABEL, bg='white',
+        label_version = tk.Label(self, text="PLASMON v{}".format(__version__), font=FONT_LABEL, bg='white',
                                  anchor='w')
         label_version.grid(row=0, column=0, columnspan=20, sticky='EW', padx=PAD_SMALL)
 
@@ -690,7 +690,7 @@ def create_tooltip(widget, text):
 # %% Controller
 
 
-class MbxPython(tk.Tk):
+class PLASMON(tk.Tk):
     """
     Controller of GUI. This container calls the pages we need and store overall data
     """
@@ -706,7 +706,7 @@ class MbxPython(tk.Tk):
         self.withdraw()
 
         # setup container
-        tk.Tk.wm_title(self, "MBx Python")
+        tk.Tk.wm_title(self, "PLASMON")
         container = tk.Frame(self)
         container.pack(side="top", fill="both", expand=True)
 
@@ -1971,7 +1971,7 @@ if __name__ == '__main__':
     mp.freeze_support()
     divertor = DivertorErrorsGUI()
     warnings.showwarning = divertor.warning
-    gui = MbxPython(proceed_question=proceed_question)
+    gui = PLASMON(proceed_question=proceed_question)
 
     tk.Tk.report_callback_exception = divertor.error
     plt.ioff()

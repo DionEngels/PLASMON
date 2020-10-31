@@ -5,7 +5,7 @@ Created on Thu 01/10/2020
 ----------------------------
 
 @author: Dion Engels
-MBx Python Data Analysis
+PLASMON Data Analysis
 
 class dataset & roi
 
