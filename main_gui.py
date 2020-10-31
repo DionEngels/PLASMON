@@ -81,6 +81,7 @@ if SCREEN_WIDTH > 1280 and SCREEN_HEIGHT > 720:
     FONT_DROP = "Verdana 11"
     FONT_LISTBOX = "Verdana 8"
     FONT_BUTTON_BIG = "Verdana 20 bold"
+    FONT_TOOLTIP = "Verdana 8"
     PAD_BIG = 30
     PAD_SMALL = 10
     INPUT_BIG = 25
@@ -100,6 +101,7 @@ else:
     FONT_DROP = "Verdana 9"
     FONT_LISTBOX = "Verdana 6"
     FONT_BUTTON_BIG = "Verdana 16 bold"
+    FONT_TOOLTIP = "Verdana 6"
     PAD_BIG = 20
     PAD_SMALL = 5
     INPUT_BIG = 15
@@ -272,12 +274,12 @@ class EntryPlaceholder(ttk.Entry):
         self.bind("<FocusIn>", self._clear_placeholder)
         self.bind("<FocusOut>", self._add_placeholder)
 
-    def _clear_placeholder(self, e):
+    def _clear_placeholder(self, _):
         self.delete("0", "end")
         if self["style"] == self.placeholder_style:
             self["style"] = self.normal_style
 
-    def _add_placeholder(self, e):
+    def _add_placeholder(self, _):
         if not self.get():
             self.insert("0", self.placeholder)
             self["style"] = self.placeholder_style
@@ -576,6 +578,115 @@ class Footer(FooterBase):
         # always show MainPage
         self.controller.show_page(MainPage)
 
+
+# %% Tooltips
+TOOLTIP_MAIN_PROGRESS_TASK = "The progress of the current task"
+TOOLTIP_MAIN_PROGRESS_OVERALL = "The overall progress of current analysis queue"
+TOOLTIP_MAIN_CURRENT_TASK = "The task that is currently being analysed"
+TOOLTIP_MAIN_TIME_DONE = "A rough estimate of when the analysis should be done.\nTake with a grain of salt."
+TOOLTIP_ROI_NAME_EXPERIMENT = "The name that will be given to the experiment.\n" \
+                              "Defaults to the name of the first dataset selected"
+TOOLTIP_ROI_MIN_INTENSITY = "The minimum intensity of a particle to be valid to be selected.\n" \
+                            "Found by fitting a 2D Gaussian to the particle."
+TOOLTIP_ROI_MAX_INTENSITY = "The maximum intensity of a particle to be valid to be selected.\n" \
+                            "Found by fitting a 2D Gaussian to the particle."
+TOOLTIP_ROI_MIN_SIGMA = "The minimum sigma of a particle to be valid to be selected.\n" \
+                            "Found by fitting a 2D Gaussian to the particle."
+TOOLTIP_ROI_MAX_SIGMA = "The maximum sigma of a particle to be valid to be selected.\n" \
+                            "Found by fitting a 2D Gaussian to the particl."
+TOOLTIP_ROI_SETTINGS = "General settings for finding the correct ROIs around particles.\n" \
+                       "A ROI has to pass all tests otherwise it is not selected."
+TOOLTIP_ROI_ADVANCED_SETTINGS = "Advanced settings for finding the correct ROIS around particles.\n" \
+                                "These might not be as intuitive as the settings above.\n" \
+                                "A ROI has to pass all tests otherwise it is not selected."
+TOOLTIP_ROI_CORRELATION = "The minimum correlation with a 2D Gaussian that a particle has to have.\n" \
+                          "If set too low, ROIs will be found on noise.\n" \
+                          "A ROI has to pass all tests otherwise it is not selected."
+TOOLTIP_ROI_EDGE_DIST = "Minimum distance (pixels) between a ROI center and the edge of the FOV.\n"  \
+                        "A ROI has to pass all tests otherwise it is not selected."
+TOOLTIP_ROI_INTER_DIST = "Minimum distance (pixels) between different ROI centers.\n" \
+                         "A ROI has to pass all tests otherwise it is not selected."
+TOOLTIP_ROI_OTHER_SETTINGS = "Other settings, not directly related to finding ROIs" \
+                             "but will be applied to the entire experiment"
+TOOLTIP_ROI_INDIVIDUAL_FIGURES = "For each experiment, an overview figure will be created.\n" \
+                                 "If this is checked, individual figures for each ROI will also be created.\n" \
+                                 "Note, this can be slow."
+TOOLTIP_ROI_BACKGROUND_FILTER = "The size used by the background median filter.\n9 works well for most datasets."
+TOOLTIP_ANALYSIS_NAME_LOADED = "Name of the loaded ND2 file."
+TOOLTIP_ANALYSIS_NAME_DATASET = "Name given to the dataset. Defaults to the name of the loaded ND2.\n"
+TOOLTIP_ANALYSIS_PRECROP = "Here you have to find the ROIs found on the main dataset of the experiment for the " \
+                           "new dataset.\nFor the first dataset, this is trivial, however, you still have to do it." \
+                           "\nThe entry fields below allow you to crop the search area, helping the algorithm find " \
+                           "where the particles are present in the new dataset."
+TOOLTIP_ANALYSIS_MIN_X = "The minimum x-value to pre-crop with.\n" \
+                         "This means that you know that the particles are not below this x-value."
+TOOLTIP_ANALYSIS_MAX_X = "The maximum x-value to pre-crop with.\n" \
+                         "This means that you know that the particles are not above this x-value."
+TOOLTIP_ANALYSIS_MIN_Y = "The minimum y-value to pre-crop with.\n" \
+                         "This means that you know that the particles are not below this y-value."
+TOOLTIP_ANALYSIS_MAX_Y = "The maximum y-value to pre-crop with.\n" \
+                         "This means that you know that the particles are not above this y-value."
+TOOLTIP_TT_MAIN = "All the settings related to TT analysis."
+TOOLTIP_TT_METHOD = "Method to fit the ROIs with.\nPhasor will only give location (and whatever is also shown)," \
+                    "while Gaussian will fit a 2D Gaussian."
+TOOLTIP_TT_REJECTION = "Enable rejection or not.\nIf rejection is enabled, " \
+                       "impossible values (such as negative intensities, very large sigmas) are rejected."
+TOOLTIP_TT_CORES = "The number of cores used for analysis. More is faster.\n" \
+                   "The maximum makes your pc unusable while running. 3rd option is advised for fast analysis"
+TOOLTIP_TT_PIXELS_OR_NM = "Do you want your output in pixels or in nm?\nPixelsize can be gathered from video metadata."
+TOOLTIP_TT_USED_ROI_SPACING = "The ROI spacing you set for the experiment. For your information."
+TOOLTIP_TT_ROI_SIZE = "The ROI size you want to use. 7x7 works usually, and is fastest.\n" \
+                      "Larger ROI size is slower, but might work better if you expected large PSFs."
+TOOLTIP_TT_FIRST_FRAME = "First frame to fit for the TT.\nYou can use this to crop the video."
+TOOLTIP_TT_LAST_FRAME = "Last frame to fit for the TT.\nYou can use this to crop the video."
+TOOLTIP_HSM_MAIN = "All the settings related to HSM analysis."
+TOOLTIP_HSM_CORRECTION_FILE = "The correction file to use for HSM."
+TOOLTIP_HSM_WAVELENGTHS = "The wavelengths that were used to created the HSM.\n" \
+                          "Use MATLAB-like notation as shown in the placeholder"
+
+
+class ToolTip:
+
+    def __init__(self, widget):
+        self.widget = widget
+        self.tip_window = None
+        self.text = None
+        self.id = None
+        self.x = self.y = 0
+
+    def showtip(self, text):
+        """Display text in tooltip window"""
+        self.text = text
+        if self.tip_window or not self.text:
+            return
+        x, y, cx, cy = self.widget.bbox("insert")
+        x = x + self.widget.winfo_rootx() + 57
+        y = y + cy + self.widget.winfo_rooty() + 27
+        self.tip_window = tk.Toplevel(self.widget)
+        self.tip_window.wm_overrideredirect(1)
+        self.tip_window.wm_geometry("+%d+%d" % (x, y))
+        label = tk.Label(self.tip_window, text=self.text, justify=tk.LEFT,
+                         background="#ffffe0", relief=tk.SOLID, borderwidth=1,
+                         font=FONT_TOOLTIP)
+        label.pack(ipadx=1)
+
+    def hidetip(self):
+        if self.tip_window:
+            self.tip_window.destroy()
+        self.tip_window = None
+
+
+def create_tooltip(widget, text):
+    tooltip = ToolTip(widget)
+
+    def enter(_):
+        tooltip.showtip(text)
+
+    def leave(_):
+        tooltip.hidetip()
+    widget.bind('<Enter>', enter)
+    widget.bind('<Leave>', leave)
+
 # %% Controller
 
 
@@ -767,9 +878,11 @@ class MainPage(BasePage):
 
         label_progress_task = tk.Label(self, text="Task Progress", font=FONT_HEADER, bg='white')
         label_progress_task.grid(row=13, column=0, columnspan=8, rowspan=2, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_progress_task, TOOLTIP_MAIN_PROGRESS_TASK)
 
         label_progress_overall = tk.Label(self, text="Overall Progress", font=FONT_HEADER, bg='white')
         label_progress_overall.grid(row=15, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_progress_overall, TOOLTIP_MAIN_PROGRESS_OVERALL)
 
         self.label_progress_task_status = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
                                                       row=13, column=8, columnspan=8, rowspan=2,
@@ -780,6 +893,7 @@ class MainPage(BasePage):
 
         label_current_task = tk.Label(self, text="Current Task", font=FONT_HEADER, bg='white')
         label_current_task.grid(row=13, column=24, columnspan=8, rowspan=2, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_current_task, TOOLTIP_MAIN_CURRENT_TASK)
 
         self.label_current_task_status = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
                                                      row=13, column=32, columnspan=16, rowspan=2,
@@ -787,6 +901,7 @@ class MainPage(BasePage):
 
         label_time_done = tk.Label(self, text="Time Done", font=FONT_HEADER, bg='white')
         label_time_done.grid(row=15, column=24, columnspan=8, rowspan=2, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_time_done, TOOLTIP_MAIN_TIME_DONE)
 
         self.label_time_done_status = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
                                                   row=15, column=32, columnspan=16, rowspan=2,
@@ -997,6 +1112,7 @@ class ROIPage(BasePage):
 
         label_name = tk.Label(self, text="Name", font=FONT_SUBHEADER, bg='white')
         label_name.grid(row=0, column=0, columnspan=8, sticky='EW', padx=PAD_BIG)
+        create_tooltip(label_name, TOOLTIP_ROI_NAME_EXPERIMENT)
 
         self.entry_name = EntryPlaceholder(self, "TBD", width=INPUT_BIG, small=False)
         self.entry_name.grid(row=0, column=8, columnspan=40, sticky='EW')
@@ -1006,9 +1122,11 @@ class ROIPage(BasePage):
 
         label_settings = tk.Label(self, text="Settings", font=FONT_SUBHEADER, bg='white')
         label_settings.grid(row=2, column=16, columnspan=8, sticky='EW', padx=PAD_BIG)
+        create_tooltip(label_settings, TOOLTIP_ROI_SETTINGS)
 
         label_min_int = tk.Label(self, text="Minimum Intensity", font=FONT_LABEL, bg='white')
         label_min_int.grid(row=2, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_min_int, TOOLTIP_ROI_MIN_INTENSITY)
         var_min_int = tk.IntVar()
         entry_min_int = EntrySlider(self, row=3, column=0, columnspan=8, textvariable=var_min_int, width=INPUT_MEDIUM)
 
@@ -1028,6 +1146,7 @@ class ROIPage(BasePage):
 
         label_max_int = tk.Label(self, text="Maximum Intensity", font=FONT_LABEL, bg='white')
         label_max_int.grid(row=2, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_max_int, TOOLTIP_ROI_MAX_INTENSITY)
         var_max_int = tk.IntVar()
         entry_max_int = EntrySlider(self, row=3, column=32, columnspan=8, textvariable=var_max_int, width=INPUT_MEDIUM)
 
@@ -1039,6 +1158,7 @@ class ROIPage(BasePage):
 
         label_min_sigma = tk.Label(self, text="Minimum Sigma", font=FONT_LABEL, bg='white')
         label_min_sigma.grid(row=5, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_min_sigma, TOOLTIP_ROI_MIN_SIGMA)
         var_min_sigma = tk.DoubleVar()
         entry_min_sigma = EntrySlider(self, row=6, column=0, columnspan=8,
                                       textvariable=var_min_sigma, width=INPUT_MEDIUM)
@@ -1061,6 +1181,7 @@ class ROIPage(BasePage):
 
         label_max_sigma = tk.Label(self, text="Maximum Sigma", font=FONT_LABEL, bg='white')
         label_max_sigma.grid(row=5, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_max_sigma, TOOLTIP_ROI_MAX_SIGMA)
         var_max_sigma = tk.DoubleVar()
         entry_max_sigma = EntrySlider(self, row=6, column=32, columnspan=8,
                                       textvariable=var_max_sigma, width=INPUT_MEDIUM)
@@ -1076,9 +1197,11 @@ class ROIPage(BasePage):
 
         label_advanced_settings = tk.Label(self, text="Advanced settings", font=FONT_SUBHEADER, bg='white')
         label_advanced_settings.grid(row=9, column=0, columnspan=40, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_advanced_settings, TOOLTIP_ROI_ADVANCED_SETTINGS)
 
         label_min_corr = tk.Label(self, text="Minimum Correlation", font=FONT_LABEL, bg='white')
         label_min_corr.grid(row=10, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_min_corr, TOOLTIP_ROI_CORRELATION)
         var_min_corr = tk.DoubleVar()
         entry_min_corr = EntrySlider(self, row=10, column=8, columnspan=8,
                                      textvariable=var_min_corr, width=INPUT_MEDIUM)
@@ -1098,11 +1221,13 @@ class ROIPage(BasePage):
 
         label_roi_side = tk.Label(self, text="Minimum spacing ROIs to edge FOV", bg='white', font=FONT_LABEL)
         label_roi_side.grid(row=12, column=0, columnspan=15, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_roi_side, TOOLTIP_ROI_EDGE_DIST)
         self.entry_roi_side = EntryPlaceholder(self, "11", width=INPUT_SMALL)
         self.entry_roi_side.grid(row=12, column=15, columnspan=5)
 
         label_inter_roi = tk.Label(self, text="Minimum spacing between ROIs", bg='white', font=FONT_LABEL)
         label_inter_roi.grid(row=12, column=20, columnspan=15, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_inter_roi, TOOLTIP_ROI_INTER_DIST)
         self.entry_inter_roi = EntryPlaceholder(self, "6", width=INPUT_SMALL)
         self.entry_inter_roi.grid(row=12, column=35, columnspan=5)
 
@@ -1111,15 +1236,18 @@ class ROIPage(BasePage):
 
         label_advanced_settings = tk.Label(self, text="Other settings", font=FONT_SUBHEADER, bg='white')
         label_advanced_settings.grid(row=14, column=0, columnspan=40, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_advanced_settings, TOOLTIP_ROI_ADVANCED_SETTINGS)
 
         label_all_figures = tk.Label(self, text="Create individual figures", font=FONT_LABEL, bg='white')
         label_all_figures.grid(row=15, column=0, columnspan=15, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_all_figures, TOOLTIP_ROI_INDIVIDUAL_FIGURES)
         self.variable_all_figures = tk.StringVar(self, value=False)
         check_figures = ttk.Checkbutton(self, variable=self.variable_all_figures, onvalue=True, offvalue=False)
         check_figures.grid(row=15, column=15, columnspan=5, sticky='EW', padx=PAD_SMALL)
 
         label_filter_size = tk.Label(self, text="Background median filter size", bg='white', font=FONT_LABEL)
         label_filter_size.grid(row=15, column=20, columnspan=15, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_filter_size, TOOLTIP_ROI_BACKGROUND_FILTER)
         self.entry_filter_size = EntryPlaceholder(self, "9", width=INPUT_SMALL)
         self.entry_filter_size.grid(row=15, column=35, columnspan=5)
 
@@ -1501,11 +1629,13 @@ class AnalysisPageTemplate(BasePage):
 
         label_loaded_video = tk.Label(self, text="Loaded nd2 name:", font=FONT_SUBHEADER, bg='white', anchor='e')
         label_loaded_video.grid(row=0, column=0, columnspan=16, rowspan=1, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_loaded_video, TOOLTIP_ANALYSIS_NAME_LOADED)
         self.label_loaded_video_status = NormalLabel(self, text="XX", row=0, column=16, columnspan=32, rowspan=1,
                                                      sticky="w", font=FONT_LABEL)
 
         label_name = tk.Label(self, text="Name dataset:", font=FONT_SUBHEADER, bg='white', anchor='e')
         label_name.grid(row=1, column=0, columnspan=16, sticky='EW', padx=PAD_BIG)
+        create_tooltip(label_name, TOOLTIP_ANALYSIS_NAME_DATASET)
         self.entry_name = EntryPlaceholder(self, "TBD", small=False)
         self.entry_name.grid(row=1, column=16, columnspan=32, sticky='EW', padx=PAD_SMALL)
 
@@ -1514,22 +1644,27 @@ class AnalysisPageTemplate(BasePage):
 
         label_precrop = tk.Label(self, text="ROI finding for dataset", font=FONT_SUBHEADER, bg='white')
         label_precrop.grid(row=3, column=0, columnspan=16, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_precrop, TOOLTIP_ANALYSIS_PRECROP)
 
         label_x_min = tk.Label(self, text="minimum x-value", font=FONT_LABEL, bg='white')
         label_x_min.grid(row=4, column=0, columnspan=16, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_x_min, TOOLTIP_ANALYSIS_MIN_X)
         self.entry_x_min = EntryPlaceholder(self, "Leave empty for start")
         self.entry_x_min.grid(row=5, column=0, columnspan=16, padx=PAD_SMALL)
         label_x_max = tk.Label(self, text="maximum x-value", font=FONT_LABEL, bg='white')
         label_x_max.grid(row=6, column=0, columnspan=16, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_x_max, TOOLTIP_ANALYSIS_MAX_X)
         self.entry_x_max = EntryPlaceholder(self, "Leave empty for end")
         self.entry_x_max.grid(row=7, column=0, columnspan=16, padx=PAD_SMALL)
 
         label_y_min = tk.Label(self, text="minimum y-value", font=FONT_LABEL, bg='white')
         label_y_min.grid(row=8, column=0, columnspan=16, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_y_min, TOOLTIP_ANALYSIS_MIN_Y)
         self.entry_y_min = EntryPlaceholder(self, "Leave empty for start")
         self.entry_y_min.grid(row=9, column=0, columnspan=16, padx=PAD_SMALL)
         label_y_max = tk.Label(self, text="maximum y-value", font=FONT_LABEL, bg='white')
         label_y_max.grid(row=10, column=0, columnspan=16, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_y_max, TOOLTIP_ANALYSIS_MAX_Y)
         self.entry_y_max = EntryPlaceholder(self, "Leave empty for end")
         self.entry_y_max.grid(row=11, column=0, columnspan=16, padx=PAD_SMALL)
 
@@ -1643,21 +1778,25 @@ class TTPage(AnalysisPageTemplate):
 
         label_tt = tk.Label(self, text="TT settings", font=FONT_SUBHEADER, bg='white')
         label_tt.grid(row=14, column=0, columnspan=48, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_tt, TOOLTIP_TT_MAIN)
 
         label_method = tk.Label(self, text="Method", font=FONT_LABEL, bg='white')
         label_method.grid(row=15, column=0, columnspan=16, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_method, TOOLTIP_TT_METHOD)
         self.variable_method = tk.StringVar(self)
         drop_method = ttk.OptionMenu(self, self.variable_method, fit_options[1], *fit_options)
         drop_method.grid(row=16, column=0, columnspan=16, sticky="ew")
 
         label_rejection = tk.Label(self, text="Rejection", bg='white', font=FONT_LABEL)
         label_rejection.grid(row=15, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_rejection, TOOLTIP_TT_REJECTION)
         self.variable_rejection = tk.BooleanVar(self, value=False)
         check_rejection = ttk.Checkbutton(self, variable=self.variable_rejection, onvalue=True, offvalue=False)
         check_rejection.grid(row=16, column=16, columnspan=8, padx=PAD_SMALL)
 
         label_cores = tk.Label(self, text="#cores", font=FONT_LABEL, bg='white')
         label_cores.grid(row=15, column=24, columnspan=8, sticky='EW', padx=PAD_BIG)
+        create_tooltip(label_cores, TOOLTIP_TT_CORES)
         total_cores = mp.cpu_count()
         cores_options = [1, int(total_cores / 2), int(total_cores * 3 / 4), int(total_cores)]
         self.variable_cores = tk.IntVar(self)
@@ -1666,28 +1805,33 @@ class TTPage(AnalysisPageTemplate):
 
         label_dimensions = tk.Label(self, text="output in pixels or nm", font=FONT_LABEL, bg='white')
         label_dimensions.grid(row=15, column=32, columnspan=8, sticky='EW', padx=PAD_BIG)
+        create_tooltip(label_dimensions, TOOLTIP_TT_PIXELS_OR_NM)
         self.variable_dimensions = tk.StringVar(self)
         drop_dimension = ttk.OptionMenu(self, self.variable_dimensions, dimension_options[0], *dimension_options)
         drop_dimension.grid(row=16, column=32, columnspan=8, sticky='EW', padx=PAD_BIG)
 
         label_used_roi_spacing = tk.Label(self, text="Used ROI spacing:", bg='white', font=FONT_LABEL)
         label_used_roi_spacing.grid(row=18, column=0, rowspan=1, columnspan=10, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_used_roi_spacing, TOOLTIP_TT_USED_ROI_SPACING)
         self.label_roi_spacing_status = NormalLabel(self, text="TBD", row=18, column=10, rowspan=1, columnspan=6,
                                                     sticky='EW', padx=PAD_SMALL, font=FONT_LABEL)
 
         label_roi_size = tk.Label(self, text="ROI size", bg='white', font=FONT_LABEL)
         label_roi_size.grid(row=19, column=0, columnspan=10, rowspan=1, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_roi_size, TOOLTIP_TT_ROI_SIZE)
         self.variable_roi_size = tk.StringVar(self)
         drop_roi_size = ttk.OptionMenu(self, self.variable_roi_size, roi_size_options[0], *roi_size_options)
         drop_roi_size.grid(row=19, column=10, columnspan=6, rowspan=1, sticky='EW', padx=PAD_SMALL)
 
         label_begin_frame = tk.Label(self, text="First frame number", font=FONT_LABEL, bg='white')
         label_begin_frame.grid(row=18, column=16, rowspan=1, columnspan=8, sticky='EW', padx=PAD_BIG)
+        create_tooltip(label_begin_frame, TOOLTIP_TT_FIRST_FRAME)
         self.entry_begin_frame = EntryPlaceholder(self, "Leave empty for start")
         self.entry_begin_frame.grid(row=19, column=16, rowspan=1, columnspan=8, padx=PAD_SMALL)
 
         label_end_frame = tk.Label(self, text="Last frame number", font=FONT_LABEL, bg='white')
         label_end_frame.grid(row=18, column=24, rowspan=1, columnspan=8, sticky='EW', padx=PAD_BIG)
+        create_tooltip(label_end_frame, TOOLTIP_TT_LAST_FRAME)
         self.entry_end_frame = EntryPlaceholder(self, "Leave empty for end")
         self.entry_end_frame.grid(row=19, column=24, rowspan=1, columnspan=8, padx=PAD_SMALL)
 
@@ -1760,9 +1904,11 @@ class HSMPage(AnalysisPageTemplate):
 
         label_hsm = tk.Label(self, text="HSM settings", font=FONT_SUBHEADER, bg='white')
         label_hsm.grid(row=14, column=0, columnspan=48, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_hsm, TOOLTIP_HSM_MAIN)
 
         label_hsm_correct = tk.Label(self, text="Correction file:", font=FONT_LABEL, bg='white', anchor='e')
         label_hsm_correct.grid(row=15, column=0, columnspan=8, rowspan=2, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_hsm_correct, TOOLTIP_HSM_CORRECTION_FILE)
         path_hsm_correct = getcwd() + "/spectral_corrections"
         hsm_correct_options = listdir(path_hsm_correct)
         hsm_correct_options = [option[:-4] for option in hsm_correct_options]  # remove .mat in name
@@ -1772,6 +1918,7 @@ class HSMPage(AnalysisPageTemplate):
 
         label_hsm_wavelength = tk.Label(self, text="Wavelengths:", font=FONT_LABEL, bg='white', anchor='e')
         label_hsm_wavelength.grid(row=18, column=0, columnspan=8, rowspan=2, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_hsm_wavelength, TOOLTIP_HSM_WAVELENGTHS)
 
         self.entry_wavelength = EntryPlaceholder(self,
                                                  "Use MATLAB-like array notation. "
