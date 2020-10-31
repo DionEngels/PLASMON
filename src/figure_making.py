@@ -341,7 +341,7 @@ def save_overview(experiment):
                              experiment.datasets[n_dataset].wavelengths)
                     ax_hsm.set_xlabel('wavelength (nm)')
                     ax_hsm.set_ylabel('intensity (arb. units)')
-                    ax_hsm.set_title('HSM {} ROI {}'.format(experiment.datasets[n_dataset].name, roi.index + 1))
+                    ax_hsm.set_title('HSM {}\nROI {}'.format(experiment.datasets[n_dataset].name, roi.index + 1))
                 except:
                     pass  # if this ROI does not have results for that dataset, skip
 
@@ -354,14 +354,14 @@ def save_overview(experiment):
                                     roi.results[experiment.datasets[n_dataset].name_result]['result_post_drift'],
                                     roi.results[experiment.datasets[n_dataset].name_result]['event_or_not'],
                                     experiment.datasets[n_dataset])
-                    ax_tt_scatter.set_title('Scatter {} w/ drift corr ROI {}'.format(experiment.datasets[n_dataset].name,
+                    ax_tt_scatter.set_title('Scatter {}\nw/ drift corr ROI {}'.format(experiment.datasets[n_dataset].name,
                                                                                      roi.index + 1))
                     if "Gaussian" in method or "Sum" in method:
                         # and if possible, time trace
                         ax_tt = fig.add_subplot(gs[row + max(len(hsm), 1) + index_dataset, column + 1])
                         make_tt(ax_tt, experiment.datasets[n_dataset].time_axis / 1000,
                                 roi.results[experiment.datasets[n_dataset].name_result]['result'], method)
-                        ax_tt.set_title('TT {} ROI {}'.format(experiment.datasets[n_dataset].name, roi.index + 1))
+                        ax_tt.set_title('TT {}\nROI {}'.format(experiment.datasets[n_dataset].name, roi.index + 1))
                 except:
                     pass  # if this ROI does not have results for that dataset, skip
 
@@ -428,7 +428,7 @@ def individual_figures(experiment):
                          experiment.datasets[n_dataset].wavelengths)
                 ax_hsm.set_xlabel('wavelength (nm)')
                 ax_hsm.set_ylabel('intensity (arb. units)')
-                ax_hsm.set_title('HSM {} ROI {}'.format(experiment.datasets[n_dataset].name, str(roi.index + 1)))
+                ax_hsm.set_title('HSM {}\nROI {}'.format(experiment.datasets[n_dataset].name, str(roi.index + 1)))
             except:
                 pass  # if this ROI does not have results for that dataset, skip
 
@@ -441,7 +441,7 @@ def individual_figures(experiment):
                                 roi.results[experiment.datasets[n_dataset].name_result]['result_post_drift'],
                                 roi.results[experiment.datasets[n_dataset].name_result]['event_or_not'],
                                 experiment.datasets[n_dataset])
-                ax_tt_scatter.set_title('Scatter {} w/ drift corr ROI {}'.format(experiment.datasets[n_dataset].name,
+                ax_tt_scatter.set_title('Scatter {}\nw/ drift corr ROI {}'.format(experiment.datasets[n_dataset].name,
                                                                                  roi.index + 1))
 
                 if "Gaussian" in method or "Sum" in method:
@@ -449,7 +449,7 @@ def individual_figures(experiment):
                     ax_tt = fig.add_subplot(per_roi_length, 2, 2 + index_dataset * 2 + max(len(hsm), 1) * 2)
                     make_tt(ax_tt, experiment.datasets[n_dataset].time_axis / 1000,  # convert from ms to s
                             roi.results[experiment.datasets[n_dataset].name_result]['result'], method)
-                    ax_tt.set_title('TT {} ROI {}'.format(experiment.datasets[n_dataset].name, roi.index + 1))
+                    ax_tt.set_title('TT {}\nROI {}'.format(experiment.datasets[n_dataset].name, roi.index + 1))
             except:
                 pass  # if this ROI does not have results for that dataset, skip
 
