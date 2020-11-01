@@ -165,3 +165,9 @@ __pycache__/
 ..Fit_comparison/v9
 *.asv
 *.png
+/Logging/
+
+# Cache files
+/Cache.out.bak
+/Cache.out.dat
+/Cache.out.dir

@@ -3,51 +3,34 @@
 Created on Sat Jul 11 19:14:16 2020
 
 @author: Dion Engels
-MBx Python Data Analysis
+PLASMON Data Analysis
 
 main_GUI
 
-This package is for the GUI of Mbx Python.
+This package is for the GUI of PLASMON.
 
 ----------------------------
 
-v0.1: first version GUI: 13/07/2020
-v0.2: new ROI finding method: 20/07/2020
-v0.3: Styling, ready for review on functional level
-v0.4: Bug fix to batch loading, MATLAB-ready output, settings and results text file output.
-v0.4.1: different directory output
-v0.4.2: prevent overwriting output
-v0.4.3: settings dict, one command to change dataset
-v0.4.4: saved standard values
-v0.5: removed pixel min, moved min_corr in GUI
-v0.5.1: fixed size GUI
-v0.6: matplotlib fix, PIMS 0.5, and own ND2Reader class to prevent warnings
-v0.7: drift correction v1: 31/07/2020
-v0.7.1: add button to restore to different saved settings
-v0.7.2: save figures and save drift
-v0.7.3: new metadata
-v0.8: GUI part of HSM
-v0.8.1: metadata v3
 v1.0: roll-out version one
-v1.0.1: instant bugfix open all .nd2s
 v1.1: Bugfixes and improved figures (WIP)
-v1.1.1: tiny bugfixes: 10/08/2020
 v1.2: GUI and output improvement based on Sjoerd's feedback, HSM: 27/08/2020 - 13/09/2020
-v1.2.0.1: small bugfix
-v1.2.1: HSM checks, bugfixes
-v1.2.2: load from other bugfixes
 v1.3: HSM to eV: 24/09/2020
 v1.4: HSM output back to nm, while fitting in eV: 29/09/2020
+v2.0 pre-1: First version of GUI v2.0: 15/10/2020
+v2.0: GUI v2.0 ready for release: 30/10/2020
 """
-__version__ = "1.4"
+
+__version__ = "2.0"
 __self_made__ = True
 
 # GENERAL IMPORTS
-from os import getcwd, mkdir, environ, listdir  # to get standard usage
+from os import getcwd, environ, listdir, rmdir, remove  # to get standard usage
 from tempfile import mkdtemp
 import sys
 import time  # for timekeeping
-import ctypes
+import ctypes  # Get sys info
+import warnings  # for warning diversion
+import shelve
 
 environ['MPLCONFIGDIR'] = mkdtemp()
 
@@ -57,28 +40,20 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
-import matplotlib.patches as patches
-from scipy.io import loadmat
-from scipy.ndimage import median_filter
 
 # GUI
 import tkinter as tk  # for GUI
 from tkinter import ttk  # GUI styling
-from tkinter.filedialog import askopenfilenames, askdirectory  # for popup that asks to select .nd2's or folders
+from tkinter.filedialog import askopenfilename  # for popup that asks to select .nd2's or folders
 
 # Own code
-import _code.roi_finding as roi_finding
-import _code.fitters as fitting
-import _code.tools as tools
-import _code.drift_correction as drift_correction
-import _code.figure_making as figuring
-import _code.output as outputting
-import _code.nd2_reading as nd2_reading
-from _code.hsm import normxcorr2, normxcorr2_large
-import _code.hsm as hsm
+from main import DivertError, ProgressUpdater
+from src.class_experiment import Experiment
+import src.figure_making as figuring
 
 # Multiprocessing
 import multiprocessing as mp
+import _thread
 
 mpl.use("TkAgg")  # set back end to TK
 
@@ -87,108 +62,126 @@ mpl.use("TkAgg")  # set back end to TK
 FILETYPES = [("ND2", ".nd2")]
 FILETYPES_LOAD_FROM_OTHER = [(".npy and .mat", ".npy"), (".npy and .mat", ".mat")]
 
-FONT_HEADER = "Verdana 14 bold"
-FONT_SUBHEADER = "Verdana 11 bold"
-FONT_STATUS = "Verdana 12"
-FONT_BUTTON = "Verdana 9"
-FONT_LABEL = "Verdana 10"
-FONT_DROP = "Verdana 10"
-FONT_BUTTON_BIG = "Verdana 20"
-PAD_BIG = 30
-PAD_SMALL = 10
-INPUT_BIG = 25
-INPUT_SMALL = 5
-
 user32 = ctypes.windll.user32
-width, height = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
-GUI_WIDTH = 1344  # int(width * 0.70)
-GUI_HEIGHT = 756  # int(height * 0.70)
-GUI_WIDTH_START = int((width - GUI_WIDTH) / 2)
-GUI_HEIGHT_START = int((height - GUI_HEIGHT) / 2)
+SCREEN_WIDTH = user32.GetSystemMetrics(0)
+SCREEN_HEIGHT = user32.GetSystemMetrics(1)
 DPI = 100
+
+if SCREEN_WIDTH > 1280 and SCREEN_HEIGHT > 720:
+    # 1080p version
+    GUI_WIDTH = 1440  # int(width * 0.75)
+    GUI_HEIGHT = 810  # int(height * 0.75)
+    FONT_HEADER = "Verdana 14 bold"
+    FONT_SUBHEADER = "Verdana 12 bold"
+    FONT_STATUS = "Verdana 11"
+    FONT_ENTRY = "Verdana 11"
+    FONT_ENTRY_SMALL = "Verdana 9 "
+    FONT_BUTTON = "Verdana 11"
+    FONT_LABEL = "Verdana 11"
+    FONT_DROP = "Verdana 11"
+    FONT_LISTBOX = "Verdana 8"
+    FONT_BUTTON_BIG = "Verdana 20 bold"
+    FONT_TOOLTIP = "Verdana 8"
+    PAD_BIG = 30
+    PAD_SMALL = 10
+    INPUT_BIG = 25
+    INPUT_MEDIUM = 10
+    INPUT_SMALL = 5
+else:
+    # 720p version
+    GUI_WIDTH = 1152  # int(width * 0.90)
+    GUI_HEIGHT = 648  # int(height * 0.90)
+    FONT_HEADER = "Verdana 12 bold"
+    FONT_SUBHEADER = "Verdana 10 bold"
+    FONT_STATUS = "Verdana 9"
+    FONT_ENTRY = "Verdana 9"
+    FONT_ENTRY_SMALL = "Verdana 7"
+    FONT_BUTTON = "Verdana 9"
+    FONT_LABEL = "Verdana 9"
+    FONT_DROP = "Verdana 9"
+    FONT_LISTBOX = "Verdana 6"
+    FONT_BUTTON_BIG = "Verdana 16 bold"
+    FONT_TOOLTIP = "Verdana 6"
+    PAD_BIG = 20
+    PAD_SMALL = 5
+    INPUT_BIG = 15
+    INPUT_MEDIUM = 5
+    INPUT_SMALL = 3
+
+GUI_WIDTH_START = int((SCREEN_WIDTH - GUI_WIDTH) / 2)
+GUI_HEIGHT_START = int((SCREEN_HEIGHT - GUI_HEIGHT) / 2)
 
 # %% Options for dropdown menus
 
 fit_options = ["Gaussian - Fit bg", "Gaussian - Estimate bg",
                "Phasor + Intensity", "Phasor + Sum", "Phasor"]
-
-rejection_options = ["Strict", "Loose", "None"]
-
 roi_size_options = ["7x7", "9x9"]
+dimension_options = ["nm", "pixels"]
+
+# %% Proceed Question
 
 
-# %% Multiprocessing main
-
-
-def mt_main(name, fitter, frames_split, roi_locations, shared, q):
+def proceed_question(title, text):
     """
-    Main for multiprocessing. Loads .nd2, takes certain frames of this and sends this to fitter.
-    Communicates using shared memory (for results) and queue for status updates
-
-    Parameters
-    ----------
-    name : name of ND2 file
-    fitter : Fitter to be used
-    frames_split : What frames this instance has to fit of the total .nd2
-    roi_locations : ROI locations
-    shared : Shared memory. The place where the results will be placed
-    q : Queue. Used to send status updates to GUI.
-
-    Returns
-    -------
-    Fills shared memory
-
+    Asks user to proceed or not
+    :param title: Title
+    :param text: Text
+    :return: True or False depending on proceed or not
     """
-    nd2 = nd2_reading.ND2ReaderSelf(name)
-    frames = nd2
-    metadata = nd2.get_metadata()
-    metadata['num_frames'] = len(frames_split)
-    frames = frames[frames_split]
-
-    local_result = fitter.main(frames, metadata, roi_locations,
-                               q=q, start_frame=frames_split[0])
-
-    for result_index, result in enumerate(local_result):
-        shared[9 * result_index:9 * (result_index + 1)] = result[:]
-
+    check = tk.messagebox.askokcancel(title, text)
+    return check
 
 # %% Divert errors
 
 
-def show_error_critical(self, exc, val, tb):
-    show_error(True)
-
-
-def show_error(critical):
-    exc_type, exc_value, exc_traceback = sys.exc_info()  # most recent (if any) by default
-    while True:
-        try:
-            self_made = exc_traceback.tb_next.tb_frame.f_globals['__self_made__']
-        except:
-            self_made = None
-        if self_made is None:
-            break
-        elif self_made:
-            exc_traceback = exc_traceback.tb_next
+class DivertorErrorsGUI(DivertError):
+    """
+    GUI version of DivertorError
+    """
+    @staticmethod
+    def show(error, traceback_details):
+        """
+        Shows the actual error or warning in Tkinter
+        :param error: Boolean whether or not error or warning
+        :param traceback_details: Error details
+        :return: Prints out
+        """
+        if error:
+            tk.messagebox.showerror("Error. Send screenshot to Dion. PROGRAM WILL STOP",
+                                    message="Summary of error:\n{}\n\n"
+                                            "For full error, check the log file with current time."
+                                            "This can be found in installation directory \Logging"
+                                    .format(traceback_details))
         else:
-            break
-    traceback_details = {
-        'filename': exc_traceback.tb_frame.f_code.co_filename,
-        'lineno': exc_traceback.tb_lineno,
-        'name': exc_traceback.tb_frame.f_code.co_name,
-        'type': exc_type.__name__,
-        'message': exc_value
-    }
-    if critical:
-        tk.messagebox.showerror("Critical error. Send screenshot to Dion. PROGRAM WILL STOP",
-                                message=str(traceback_details))
-    else:
-        tk.messagebox.showerror("Error. Send screenshot to Dion. PROGRAM WILL CONTINUE", message=str(traceback_details))
-
+            tk.messagebox.showerror("Warning. Take note. PROGRAM WILL CONTINUE",
+                                    message="Summary of warning:\n{}\n\n"
+                                            "For full warning, check the log file with current time."
+                                            "This can be found in installation directory \Logging"
+                                    .format(traceback_details))
 
 # %% Close GUI
 
+
 def quit_gui(gui):
+    """
+    Quits the GUI, clear empty directories created, and saved last opened directory
+    :param gui: GUI to close
+    :return: None. Closes program
+    """
+    # for all loaded experiments, try to delete directory if directory is made. This only succeeds if its empty
+    for experiment in gui.experiments:
+        if experiment.dir_made:
+            try:
+                rmdir(experiment.directory)
+            except:
+                pass
+    # store last opened directory
+    try:
+        my_shelve = shelve.open(gui.shelve_file, 'n')
+        my_shelve['dir_open'] = gui.dir_open
+        my_shelve.close()
+    except:
+        pass
     gui.quit()
     sys.exit(0)
 
@@ -199,7 +192,6 @@ class BigButton(ttk.Frame):
     """
     Big button, used for FIT and LOAD
     """
-
     def __init__(self, parent, height=None, width=None, text="", command=None, state='enabled'):
         ttk.Frame.__init__(self, parent, height=height, width=width)
 
@@ -216,7 +208,6 @@ class FigureFrame(tk.Frame):
     """
     Frame in which Figure sits.
     """
-
     def __init__(self, parent, height=None, width=None, dpi=DPI):
         tk.Frame.__init__(self, parent, height=height + 40, width=width,
                           highlightbackground="black", highlightthickness=2)
@@ -237,7 +228,7 @@ class FigureFrame(tk.Frame):
         self.toolbar.update()
         self.toolbar.configure(background="White")
 
-    def updater(self, frame, roi_locations=None, roi_size=None):
+    def updater(self, frame, roi_locations=None, roi_size=None, roi_offset=None):
         """
         Updater. Takes existing frame with figure and places new figure in it
 
@@ -246,25 +237,18 @@ class FigureFrame(tk.Frame):
         frame : New frame to be shown
         roi_locations : optional, possible ROI locations to be highlighted. The default is None.
         roi_size : optional, ROI size in case ROIs are highlighted. The default is None.
+        roi_offset: offset compared to ROI frame
 
         Returns
         -------
         Updated figure.
 
         """
+        if roi_offset is None:
+            roi_offset = [0, 0]
         self.fig.clear()
         fig_sub = self.fig.add_subplot(111)
-        fig_sub.imshow(frame, extent=[0, frame.shape[1], frame.shape[0], 0], aspect='auto')
-
-        if roi_locations is not None and roi_size is not None:
-            roi_locations_temp = roi_locations - roi_size
-
-            for roi_index, roi in enumerate(roi_locations_temp):
-                rect = patches.Rectangle((roi[1], roi[0]), roi_size * 2 + 1, roi_size * 2 + 1,
-                                         linewidth=0.5, edgecolor='r', facecolor='none')
-                fig_sub.add_patch(rect)
-                fig_sub.text(roi[1], roi[0], str(roi_index+1), color='red', fontsize='small')
-
+        figuring.plot_rois(fig_sub, frame, roi_locations, roi_size, roi_offset)
         self.canvas.draw()
         self.toolbar.update()
 
@@ -273,34 +257,68 @@ class EntryPlaceholder(ttk.Entry):
     """
     Entry with a placeholder text in grey
     """
+    def __init__(self, master=None, placeholder="PLACEHOLDER", small=False, *args, **kwargs):
+        if small:
+            self.placeholder_style = "PlaceholderSmall.TEntry"
+            self.normal_style = "Small.TEntry"
+            self.font = FONT_ENTRY_SMALL
+        else:
+            self.placeholder_style = "Placeholder.TEntry"
+            self.normal_style = "TEntry"
+            self.font = FONT_ENTRY
 
-    def __init__(self, master=None, placeholder="PLACEHOLDER", *args, **kwargs):
-        super().__init__(master, *args, style="Placeholder.TEntry", **kwargs)
+        super().__init__(master, *args, style=self.placeholder_style, font=self.font, **kwargs)
         self.placeholder = placeholder
 
         self.insert("0", self.placeholder)
         self.bind("<FocusIn>", self._clear_placeholder)
         self.bind("<FocusOut>", self._add_placeholder)
 
-    def _clear_placeholder(self, e):
+    def _clear_placeholder(self, _):
         self.delete("0", "end")
-        if self["style"] == "Placeholder.TEntry":
-            self["style"] = "TEntry"
+        if self["style"] == self.placeholder_style:
+            self["style"] = self.normal_style
 
-    def _add_placeholder(self, e):
+    def _add_placeholder(self, _):
         if not self.get():
             self.insert("0", self.placeholder)
-            self["style"] = "Placeholder.TEntry"
+            self["style"] = self.placeholder_style
 
-    def updater(self, text=None):
+    def updater(self, text=None, placeholder=None):
+        """
+        Update Placeholder with new text or new placeholder
+        :param text: new text
+        :param placeholder: new placeholder
+        :return: Updates Entry
+        """
         self.delete("0", "end")
+        if placeholder is not None:
+            self.placeholder = placeholder
 
         if text is None:
             self.insert("0", self.placeholder)
-            self["style"] = "Placeholder.TEntry"
+            self["style"] = self.placeholder_style
         else:
             self.insert("0", text)
-            self["style"] = "TEntry"
+            self["style"] = self.normal_style
+
+
+class EntrySlider(ttk.Entry):
+    """
+    Entry to be linked to a slider
+    """
+    def __init__(self, master=None, row=None, column=None, rowspan=1, columnspan=1, *args, **kwargs):
+        super().__init__(master, *args, style="Small.TEntry", font=FONT_ENTRY_SMALL, **kwargs)
+        self.grid(row=row, column=column, rowspan=rowspan, columnspan=columnspan)
+
+    def binder(self, slider, variable):
+        """
+        Bind a slider to a variable
+        :param slider: slider to couple
+        :param variable: variable to couple
+        """
+        self.bind("<Return>", lambda event: slider.updater(start=variable.get()))
+        self.bind("<FocusOut>", lambda event: slider.updater(start=variable.get()))
 
 
 class NormalButton:
@@ -308,7 +326,6 @@ class NormalButton:
     My normal button, again with an updater function to update the button.
     Only buttons that need updating use this class
     """
-
     def __init__(self, parent, text=None, row=None, column=None,
                  rowspan=1, columnspan=1, command=None, state='enabled', sticky=None, padx=0, pady=0):
         self._btn = ttk.Button(parent, text=text, command=command, state=state)
@@ -325,6 +342,13 @@ class NormalButton:
                        sticky=sticky, padx=padx, pady=pady)
 
     def updater(self, command=None, state='enabled', text=None):
+        """
+        Updates button with new command, state, or text
+        :param command: new command
+        :param state: new state
+        :param text: new text
+        :return: Updates button
+        """
         if text is None:
             text = self.text
         self._btn['text'] = text
@@ -336,10 +360,9 @@ class NormalSlider:
     """
     My normal slider, again with an updater function to update the slider.
     """
-
-    def __init__(self, parent, from_=0, to=np.inf, resolution=1, start=0,
+    def __init__(self, parent, from_=0, to=np.inf, resolution=1, start=0, command=None,
                  row=None, column=None, rowspan=1, columnspan=1, sticky=None, padx=0, pady=0):
-        self._scale = tk.Scale(parent, from_=from_, to=to, orient='horizontal',
+        self._scale = tk.Scale(parent, from_=from_, to=to, orient='horizontal', command=command, showvalue=0,
                                resolution=resolution, bg='white', borderwidth=0, highlightthickness=0)
         self._scale.set(start)
         self.parent = parent
@@ -358,6 +381,13 @@ class NormalSlider:
                          sticky=sticky, padx=padx, pady=pady)
 
     def updater(self, from_=None, to=None, start=None):
+        """
+        Updates scale with new from, to, and/or start
+        :param from_: new from
+        :param to: new to
+        :param start: new start
+        :return: Updated scale
+        """
         if from_ is None:
             from_ = self.from_
         if to is None:
@@ -379,10 +409,9 @@ class NormalLabel:
     """
     My normal label, again with an updater function to update the label.
     """
-
     def __init__(self, parent, text=None, font=None, bd=None, relief=None,
-                 row=None, column=None, rowspan=1, columnspan=1, sticky=None, padx=0, pady=0):
-        self._label = tk.Label(parent, text=text, font=font, bd=bd, relief=relief, bg='white')
+                 row=None, column=None, rowspan=1, columnspan=1, sticky=None, padx=0, pady=0, wrap=None):
+        self._label = tk.Label(parent, text=text, font=font, bd=bd, relief=relief, bg='white', wrap=wrap)
         self._label.grid(row=row, column=column, rowspan=rowspan, columnspan=columnspan,
                          sticky=sticky, padx=padx, pady=pady)
         self.parent = parent
@@ -399,554 +428,1053 @@ class NormalLabel:
         self.pady = pady
 
     def updater(self, text=None):
+        """
+        Update label with new text
+        :param text: new text
+        :return: updated label
+        """
         if text is None:
             text = self.text
         self._label['text'] = text
 
+# %% Progress Updater
+
+
+class ProgressUpdaterGUI(ProgressUpdater):
+    """
+    GUI version of ProgressUpdater
+    """
+    def __init__(self, gui, progress_task_status, progress_overall_status, current_task_status, time_done_status):
+        """
+        Initializer of ProgressUpdaterGUI. Also adds GUI and GUI elements to object
+        :param gui: GUI called by
+        :param progress_task_status: label with task status
+        :param progress_overall_status: label with overall status
+        :param current_task_status: label with current status
+        :param time_done_status: label with eta
+        """
+        super().__init__()
+        self.gui = gui
+        self.style = ttk.Style(gui)
+        self.progress_task_status = progress_task_status
+        self.progress_overall_status = progress_overall_status
+        self.current_task_status = current_task_status
+        self.time_done_status = time_done_status
+        self.start_time = time.time()
+
+    def update(self, new_experiment, new_dataset, message_bool):
+        """
+        Update function. Does the actual communication.
+        :param new_experiment: Boolean. Whether or not new experiment
+        :param new_dataset: Boolean. Whether or not new dataset
+        :param message_bool: Boolean. Whether or not message
+        :return: prints out info in tkinter
+        """
+        progress_dataset = (self.current_dataset - 1) / self.total_datasets
+        progress_per_dataset = 1 / self.total_datasets
+        if new_experiment:
+            pass
+        elif new_dataset:
+            overall_progress = progress_dataset
+
+            self.progress_task_status.updater(text="0%")
+            self.progress_overall_status.updater(text="{:.2f}%".format(overall_progress * 100))
+
+            self.current_task_status.updater(text="Experiment #{}: Dataset #{}: {}".format(self.current_experiment + 1,
+                                                                                           self.current_dataset,
+                                                                                           self.current_type))
+        elif message_bool:
+            progress_task = 1
+            progress_overall = progress_task * progress_per_dataset + progress_dataset
+
+            self.progress_task_status.updater(text="{:.2f}%".format(progress_task * 100))
+            self.progress_overall_status.updater(text="{:.2f}%".format(progress_overall * 100))
+
+            self.current_task_status.updater(text="Experiment {}: ".format(self.current_experiment + 1) +
+                                                  self.message_string)
+        else:
+            progress_task = self.progress / self.total / self.dataset_parts
+            progress_overall = progress_task * progress_per_dataset + progress_dataset
+
+            self.progress_task_status.updater(text="{:.2f}%".format(progress_task*100))
+            self.progress_overall_status.updater(text="{:.2f}%".format(progress_overall*100))
+
+            if progress_overall != 0:
+                time_taken = time.time() - self.start_time
+                time_done_estimate = time_taken * 1 / progress_overall + self.start_time
+                time_done_estimate += 20  # 20 seconds for overview figure
+                if self.experiment_ind_figures is True:
+                    time_done_estimate += 1.5 * self.experiment_rois  # add 1.5 seconds per individual figure
+
+                tr = time.localtime(time_done_estimate)
+                time_text = "{:02d}:{:02d}:{:02d} {:02d}/{:02d}".format(tr[3], tr[4], tr[5], tr[2], tr[1])
+                self.time_done_status.updater(text=time_text)
+            else:
+                self.time_done_status.updater(text="TBD")
+
+        self.gui.update()
+
+# %% Footer
+
+
+class FooterBase(tk.Frame):
+    """
+    FooterBase class. Shows close and version number
+    """
+    def __init__(self, controller):
+        tk.Frame.__init__(self, controller)
+        self.configure(bg='white')
+        self.controller = controller
+
+        label_version = tk.Label(self, text="PLASMON v{}".format(__version__), font=FONT_LABEL, bg='white',
+                                 anchor='w')
+        label_version.grid(row=0, column=0, columnspan=20, sticky='EW', padx=PAD_SMALL)
+
+        button_resize = ttk.Button(self, text="Reset window size", command=lambda: self.resize())
+        button_resize.grid(row=0, column=40, columnspan=4, sticky='EW', padx=PAD_SMALL)
+
+        button_quit = ttk.Button(self, text="Quit", command=lambda: quit_gui(self.controller))
+        button_quit.grid(row=0, column=44, columnspan=4, sticky='EW', padx=PAD_SMALL)
+
+        for i in range(48):
+            self.grid_columnconfigure(i, weight=1)
+
+    def resize(self):
+        self.controller.geometry("{}x{}+{}+{}".format(GUI_WIDTH, GUI_HEIGHT, GUI_WIDTH_START, GUI_HEIGHT_START))
+
+
+class Footer(FooterBase):
+    """
+    Footer class. Also shows cancel button
+    """
+    def __init__(self, controller):
+        super().__init__(controller)
+
+        button_cancel = ttk.Button(self, text="Cancel", command=lambda: self.cancel())
+        button_cancel.grid(row=0, column=40, columnspan=4, sticky='EW', padx=PAD_SMALL)
+
+        for i in range(48):
+            self.grid_columnconfigure(i, weight=1)
+
+    def cancel(self):
+        """
+        Cancel current page. Resets to MainPage and clears the page if needed
+        :return: None. Changes page
+        """
+        # if not on load page
+        if self.controller.current_page != LoadPage:
+            # clear current page
+            self.controller.pages[self.controller.current_page].clear_page()
+            # if new experiment, clear directory and experiment
+            if self.controller.experiment_to_link_name is None:
+                if self.controller.experiments[-1].dir_made:
+                    rmdir(self.controller.experiments[-1].directory)
+                del self.controller.experiments[-1]
+            else:
+                # else clear last dataset
+                experiment_to_link = [experiment for experiment in self.controller.experiments if
+                                      self.controller.experiment_to_link_name in experiment.name][0]
+                del experiment_to_link.datasets[-1]
+        # always show MainPage
+        self.controller.show_page(MainPage)
+
+
+# %% Tooltips
+TOOLTIP_MAIN_PROGRESS_TASK = "The progress of the current task"
+TOOLTIP_MAIN_PROGRESS_OVERALL = "The overall progress of current analysis queue"
+TOOLTIP_MAIN_CURRENT_TASK = "The task that is currently being analysed"
+TOOLTIP_MAIN_TIME_DONE = "A rough estimate of when the analysis should be done.\nTake with a grain of salt."
+TOOLTIP_ROI_NAME_EXPERIMENT = "The name that will be given to the experiment.\n" \
+                              "Defaults to the name of the first dataset selected"
+TOOLTIP_ROI_MIN_INTENSITY = "The minimum intensity of a particle to be valid to be selected.\n" \
+                            "Found by fitting a 2D Gaussian to the particle."
+TOOLTIP_ROI_MAX_INTENSITY = "The maximum intensity of a particle to be valid to be selected.\n" \
+                            "Found by fitting a 2D Gaussian to the particle."
+TOOLTIP_ROI_MIN_SIGMA = "The minimum sigma of a particle to be valid to be selected.\n" \
+                            "Found by fitting a 2D Gaussian to the particle."
+TOOLTIP_ROI_MAX_SIGMA = "The maximum sigma of a particle to be valid to be selected.\n" \
+                            "Found by fitting a 2D Gaussian to the particl."
+TOOLTIP_ROI_SETTINGS = "General settings for finding the correct ROIs around particles.\n" \
+                       "A ROI has to pass all tests otherwise it is not selected."
+TOOLTIP_ROI_ADVANCED_SETTINGS = "Advanced settings for finding the correct ROIS around particles.\n" \
+                                "These might not be as intuitive as the settings above.\n" \
+                                "A ROI has to pass all tests otherwise it is not selected."
+TOOLTIP_ROI_CORRELATION = "The minimum correlation with a 2D Gaussian that a particle has to have.\n" \
+                          "If set too low, ROIs will be found on noise.\n" \
+                          "A ROI has to pass all tests otherwise it is not selected."
+TOOLTIP_ROI_EDGE_DIST = "Minimum distance (pixels) between a ROI center and the edge of the FOV.\n"  \
+                        "A ROI has to pass all tests otherwise it is not selected."
+TOOLTIP_ROI_INTER_DIST = "Minimum distance (pixels) between different ROI centers.\n" \
+                         "A ROI has to pass all tests otherwise it is not selected."
+TOOLTIP_ROI_OTHER_SETTINGS = "Other settings, not directly related to finding ROIs" \
+                             "but will be applied to the entire experiment"
+TOOLTIP_ROI_INDIVIDUAL_FIGURES = "For each experiment, an overview figure will be created.\n" \
+                                 "If this is checked, individual figures for each ROI will also be created.\n" \
+                                 "Note, this can be slow."
+TOOLTIP_ROI_BACKGROUND_FILTER = "The size used by the background median filter.\n9 works well for most datasets."
+TOOLTIP_ANALYSIS_NAME_LOADED = "Name of the loaded ND2 file."
+TOOLTIP_ANALYSIS_NAME_DATASET = "Name given to the dataset. Defaults to the name of the loaded ND2.\n"
+TOOLTIP_ANALYSIS_PRECROP = "Here you have to find the ROIs found on the main dataset of the experiment for the " \
+                           "new dataset.\nFor the first dataset, this is trivial, however, you still have to do it." \
+                           "\nThe entry fields below allow you to crop the search area, helping the algorithm find " \
+                           "where the particles are present in the new dataset."
+TOOLTIP_ANALYSIS_MIN_X = "The minimum x-value to pre-crop with.\n" \
+                         "This means that you know that the particles are not below this x-value."
+TOOLTIP_ANALYSIS_MAX_X = "The maximum x-value to pre-crop with.\n" \
+                         "This means that you know that the particles are not above this x-value."
+TOOLTIP_ANALYSIS_MIN_Y = "The minimum y-value to pre-crop with.\n" \
+                         "This means that you know that the particles are not below this y-value."
+TOOLTIP_ANALYSIS_MAX_Y = "The maximum y-value to pre-crop with.\n" \
+                         "This means that you know that the particles are not above this y-value."
+TOOLTIP_TT_MAIN = "All the settings related to TT analysis."
+TOOLTIP_TT_METHOD = "Method to fit the ROIs with.\nPhasor will only give location (and whatever is also shown)," \
+                    "while Gaussian will fit a 2D Gaussian."
+TOOLTIP_TT_REJECTION = "Enable rejection or not.\nIf rejection is enabled, " \
+                       "impossible values (such as negative intensities, very large sigmas) are rejected."
+TOOLTIP_TT_CORES = "The number of cores used for analysis. More is faster.\n" \
+                   "The maximum makes your pc unusable while running. 3rd option is advised for fast analysis"
+TOOLTIP_TT_PIXELS_OR_NM = "Do you want your output in pixels or in nm?\nPixelsize can be gathered from video metadata."
+TOOLTIP_TT_USED_ROI_SPACING = "The ROI spacing you set for the experiment. For your information."
+TOOLTIP_TT_ROI_SIZE = "The ROI size you want to use. 7x7 works usually, and is fastest.\n" \
+                      "Larger ROI size is slower, but might work better if you expected large PSFs."
+TOOLTIP_TT_FIRST_FRAME = "First frame to fit for the TT.\nYou can use this to crop the video."
+TOOLTIP_TT_LAST_FRAME = "Last frame to fit for the TT.\nYou can use this to crop the video."
+TOOLTIP_HSM_MAIN = "All the settings related to HSM analysis."
+TOOLTIP_HSM_CORRECTION_FILE = "The correction file to use for HSM."
+TOOLTIP_HSM_WAVELENGTHS = "The wavelengths that were used to created the HSM.\n" \
+                          "Use MATLAB-like notation as shown in the placeholder"
+
+
+class ToolTip:
+
+    def __init__(self, widget):
+        self.widget = widget
+        self.tip_window = None
+        self.text = None
+        self.id = None
+        self.x = self.y = 0
+
+    def showtip(self, text):
+        """Display text in tooltip window"""
+        self.text = text
+        if self.tip_window or not self.text:
+            return
+        x, y, cx, cy = self.widget.bbox("insert")
+        x = x + self.widget.winfo_rootx() + 57
+        y = y + cy + self.widget.winfo_rooty() + 27
+        self.tip_window = tk.Toplevel(self.widget)
+        self.tip_window.wm_overrideredirect(1)
+        self.tip_window.wm_geometry("+%d+%d" % (x, y))
+        label = tk.Label(self.tip_window, text=self.text, justify=tk.LEFT,
+                         background="#ffffe0", relief=tk.SOLID, borderwidth=1,
+                         font=FONT_TOOLTIP)
+        label.pack(ipadx=1)
+
+    def hidetip(self):
+        if self.tip_window:
+            self.tip_window.destroy()
+        self.tip_window = None
+
+
+def create_tooltip(widget, text):
+    tooltip = ToolTip(widget)
+
+    def enter(_):
+        tooltip.showtip(text)
+
+    def leave(_):
+        tooltip.hidetip()
+    widget.bind('<Enter>', enter)
+    widget.bind('<Leave>', leave)
 
 # %% Controller
 
 
-class MbxPython(tk.Tk):
+class PLASMON(tk.Tk):
     """
-    Controller of GUI. This container calls the page we need (load page or fitting page)
+    Controller of GUI. This container calls the pages we need and store overall data
     """
-
-    def __init__(self, *args, **kwargs):
+    def __init__(self, proceed_question=None, *args, **kwargs):
+        """
+        Initializer of total GUI
+        :param proceed_question: Proceed Question to use
+        :param args: other arguments
+        :param kwargs: other arguments
+        """
         tk.Tk.__init__(self, *args, **kwargs)
+        # withdraw until done
+        self.withdraw()
 
-        # tk.Tk.iconbitmap(self, default = "")
-        tk.Tk.wm_title(self, "MBx Python")
+        # setup container
+        tk.Tk.wm_title(self, "PLASMON")
         container = tk.Frame(self)
-
         container.pack(side="top", fill="both", expand=True)
+
+        # and setup footer
+        self.footer = FooterBase(self)
+        self.footer.pack(side="bottom", fill="both")
 
         container.grid_rowconfigure(0, weight=1)
         container.grid_columnconfigure(0, weight=1)
 
-        self.frames = {}
+        # setup data
+        self.proceed_question = proceed_question
+        self.progress_updater = None
+        self.experiments = []
+        self.experiment_to_link_name = None
+        self.thread_started = False
 
-        frame_tuple = (LoadPage, FittingPage)
+        # working directory
 
-        for to_load_frame in frame_tuple:
-            frame = to_load_frame(container, self)
-            self.frames[to_load_frame] = frame
-            frame.grid(row=0, column=0, sticky="nsew")
+        self.shelve_file = getcwd() + "/Cache.out"
+        try:
+            my_shelve = shelve.open(self.shelve_file)
+            self.dir_open = my_shelve['dir_open']
+            my_shelve.close()
+        except:
+            self.dir_open = getcwd()
 
-        self.show_load_frame(LoadPage)
+        # setup pages
+        self.pages = {}
+        page_tuple = (MainPage, LoadPage, ROIPage, TTPage, HSMPage)
+        for to_load_page in page_tuple:
+            page = to_load_page(container, self)
+            self.pages[to_load_page] = page
+            page.grid(row=0, column=0, sticky="nsew")
+        self.current_page = MainPage
+        self.show_page(MainPage)
 
-    def show_load_frame(self, cont):
-        frame = self.frames[cont]
-        frame.tkraise()
+        # additional settings and pop-up again
+        self.additional_settings()
+        self.deiconify()
 
-    def show_fitting_frame(self, cont, filenames):
-        frame = self.frames[cont]
-        frame.update_init(self, cont, filenames)
-        frame.tkraise()
+    @staticmethod
+    def show_rois(frame, figure=None, roi_locations=None, roi_size=None, roi_offset=None):
+        """
+        Shows ROIs within python
+        :param frame: frame to make figure of
+        :param figure: figure (only used by GUI)
+        :param roi_locations: ROI locations within frame
+        :param roi_size: ROI size
+        :param roi_offset: Offset of ROIs within dataset
+        :return:
+        """
+        if figure is None:
+            figure = plt.subplots(1)
+        figure.updater(frame, roi_locations=roi_locations, roi_size=roi_size, roi_offset=roi_offset)
 
+    def additional_settings(self):
+        """
+        Sets additional settings, such as styles and icon.
+        :return: None. Edits GUI
+        """
+        self.geometry(str(GUI_WIDTH) + "x" + str(GUI_HEIGHT) + "+" + str(GUI_WIDTH_START) + "+" + str(GUI_HEIGHT_START))
+        self.iconbitmap(getcwd() + "\ico.ico")
+        self.protocol("WM_DELETE_WINDOW", lambda: quit_gui(gui))
+
+        ttk_style = ttk.Style(self)
+        ttk_style.configure("Big.TButton", font=FONT_BUTTON_BIG)
+        ttk_style.configure("Placeholder.TEntry", foreground="Grey", font=FONT_ENTRY)
+        ttk_style.configure("TEntry", font=FONT_ENTRY)
+        ttk_style.configure("PlaceholderSmall.TEntry", foreground="Grey", font=FONT_ENTRY_SMALL)
+        ttk_style.configure("Small.TEntry", font=FONT_ENTRY_SMALL)
+        ttk_style.configure("TButton", font=FONT_BUTTON, background="White")
+        ttk_style.configure("TSeparator", background="black")
+        ttk_style.configure("TMenubutton", font=FONT_DROP, background="White")
+        ttk_style.configure("TCheckbutton", background="White")
+
+    def show_page(self, page, experiment=None):
+        """
+        Show other page
+        :param page: Page to show
+        :param experiment: experiment to sent to page if need be
+        :return: None. Changes page
+        """
+        self.current_page = page
+        if page == MainPage:
+            self.footer.pack_forget()
+            self.footer = FooterBase(self)
+            self.footer.pack(side="bottom", fill="both")
+        else:
+            self.footer.pack_forget()
+            self.footer = Footer(self)
+            self.footer.pack(side="bottom", fill="both")
+        page = self.pages[page]
+        page.update_page(experiment=experiment)
+        page.tkraise()
+
+# %% Base page
+
+
+class BasePage(tk.Frame):
+    """
+    BasePage with some standard initializations
+    """
+    def __init__(self, container, controller):
+        tk.Frame.__init__(self, container)
+        self.configure(bg='white')
+        self.controller = controller
+
+        self.column_row_configure()
+
+    def column_row_configure(self):
+        """
+        Standard function for column and row scaling
+        """
+        for i in range(48):
+            self.grid_columnconfigure(i, weight=1, minsize=18)
+        for i in range(20):
+            self.grid_rowconfigure(i, weight=1)
+
+    def update_page(self, experiment=None):
+        pass
+
+# %% Main page
+
+
+class MainPage(BasePage):
+    def __init__(self, container, controller):
+        """
+        Initializes MainPage, including all buttons
+        :param container: Container
+        :param controller: Controller
+        """
+        super().__init__(container, controller)
+
+        label_new = tk.Label(self, text="New", font=FONT_HEADER, bg='white')
+        label_new.grid(row=0, column=0, columnspan=16, rowspan=1, sticky='EW', padx=PAD_SMALL)
+
+        self.button_new_experiment = BigButton(self, text="ADD EXPERIMENT", height=int(GUI_HEIGHT / 4),
+                                               width=int(GUI_WIDTH / 7), command=lambda: self.add_experiment())
+        self.button_new_experiment.grid(row=1, column=0, columnspan=16, rowspan=4, sticky='EW', padx=PAD_SMALL)
+
+        self.button_new_dataset = BigButton(self, text="ADD DATASET", height=int(GUI_HEIGHT / 4),
+                                            width=int(GUI_WIDTH / 7), command=lambda: self.add_dataset())
+        self.button_new_dataset.grid(row=5, column=0, columnspan=16, rowspan=4, sticky='EW', padx=PAD_SMALL)
+
+        label_loaded = tk.Label(self, text="Loaded", font=FONT_HEADER, bg='white')
+        label_loaded.grid(row=0, column=16, columnspan=16, sticky='EW', padx=PAD_SMALL)
+
+        self.listbox_loaded = tk.Listbox(self, font=FONT_LISTBOX)
+        self.listbox_loaded.grid(row=1, column=16, columnspan=16, rowspan=8, sticky='NSEW', padx=PAD_SMALL)
+        self.listbox_loaded.configure(justify="center")
+
+        self.button_loaded_delete = NormalButton(self, text="Delete", command=lambda: self.delete_experiment(),
+                                                 row=9, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        self.button_loaded_deselect = NormalButton(self, text="Deselect", command=lambda: self.deselect_experiment(),
+                                                   row=9, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        label_queued = tk.Label(self, text="Queued", font=FONT_HEADER, bg='white')
+        label_queued.grid(row=0, column=32, columnspan=16, sticky='EW', padx=PAD_SMALL)
+
+        self.listbox_queued = tk.Listbox(self, font=FONT_LISTBOX)
+        self.listbox_queued.grid(row=1, column=32, columnspan=16, rowspan=8, sticky='NSEW', padx=PAD_SMALL)
+        self.listbox_queued.configure(justify="center")
+        self.listbox_queued.bindtags((self.listbox_queued, self, "all"))
+
+        self.button_run = NormalButton(self, text="Run", command=lambda: self.run(),
+                                       row=9, column=40, columnspan=8, sticky='EW', padx=PAD_SMALL)
+
+        label_progress_task = tk.Label(self, text="Task Progress", font=FONT_HEADER, bg='white')
+        label_progress_task.grid(row=13, column=0, columnspan=8, rowspan=2, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_progress_task, TOOLTIP_MAIN_PROGRESS_TASK)
+
+        label_progress_overall = tk.Label(self, text="Overall Progress", font=FONT_HEADER, bg='white')
+        label_progress_overall.grid(row=15, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_progress_overall, TOOLTIP_MAIN_PROGRESS_OVERALL)
+
+        self.label_progress_task_status = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
+                                                      row=13, column=8, columnspan=8, rowspan=2,
+                                                      sticky="ew", font=FONT_LABEL)
+        self.label_progress_overall_status = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
+                                                         row=15, column=8, columnspan=8, rowspan=2,
+                                                         sticky="ew", font=FONT_LABEL)
+
+        label_current_task = tk.Label(self, text="Current Task", font=FONT_HEADER, bg='white')
+        label_current_task.grid(row=13, column=24, columnspan=8, rowspan=2, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_current_task, TOOLTIP_MAIN_CURRENT_TASK)
+
+        self.label_current_task_status = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
+                                                     row=13, column=32, columnspan=16, rowspan=2,
+                                                     sticky="ew", font=FONT_LABEL)
+
+        label_time_done = tk.Label(self, text="Time Done", font=FONT_HEADER, bg='white')
+        label_time_done.grid(row=15, column=24, columnspan=8, rowspan=2, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_time_done, TOOLTIP_MAIN_TIME_DONE)
+
+        self.label_time_done_status = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
+                                                  row=15, column=32, columnspan=16, rowspan=2,
+                                                  sticky="ew", font=FONT_LABEL)
+
+        # set progress updater to control created labels
+        self.controller.progress_updater = ProgressUpdaterGUI(self, self.label_progress_task_status,
+                                                              self.label_progress_overall_status,
+                                                              self.label_current_task_status,
+                                                              self.label_time_done_status)
+
+    def add_experiment(self):
+        """
+        Add experiment function. Simply shows LoadPage and tells it no experiment to link to
+        """
+        self.controller.experiment_to_link_name = None
+        self.controller.show_page(LoadPage)
+
+    def add_dataset(self):
+        """
+        Add dataset function. Shows LoadPage and also links to an experiment
+        """
+        try:
+            # try to get experiment from listbox. If fail, none selected
+            selected = self.listbox_loaded.get(self.listbox_loaded.curselection())
+            name = selected.split(" ")[-1]
+            self.controller.experiment_to_link_name = name
+            self.controller.show_page(LoadPage)
+        except:
+            tk.messagebox.showerror("ERROR", "No experiment selected, please select one to link dataset to")
+
+    def delete_experiment(self):
+        """
+        Deletes an experiment
+        """
+        try:
+            # try to get experiment from listbox
+            selected = self.listbox_loaded.get(self.listbox_loaded.curselection())
+            name = selected.split(" ")[-1]
+            # delete the correct experiment
+            for index, experiment in enumerate(self.controller.experiments):
+                if name in experiment.name:
+                    del self.controller.experiments[index]
+                    break
+            # update MainPage
+            self.update_page()
+        except:
+            return
+
+    def deselect_experiment(self):
+        """
+        Deselects listbox
+        """
+        self.listbox_loaded.selection_clear(0, "end")
+
+    def run_thread(self):
+        """
+        The function that is run within the thread when run is called
+        """
+        # analyze experiments
+        for exp_index, experiment in enumerate(self.controller.experiments):
+            self.controller.progress_updater.new_experiment(exp_index, experiment.settings['All Figures'],
+                                                            len(experiment.rois))
+            experiment.run()
+
+        # close down thread
+        self.close_down()
+
+    def run(self):
+        """
+        Wrapper run function. Sets some things and starts up thread
+        """
+        if self.controller.thread_started is False:
+            self.controller.thread_started = True
+            self.controller.progress_updater.start(self.controller.experiments)
+            # disable all buttons and start analysis
+            self.disable()
+            _thread.start_new_thread(self.run_thread, ())
+
+    def disable(self):
+        """
+        Disables all buttons
+        """
+        self.button_run.updater(state='disabled')
+        self.button_new_experiment.updater(state='disabled')
+        self.button_new_dataset.updater(state='disabled')
+        self.button_loaded_delete.updater(state='disabled')
+        self.button_loaded_deselect.updater(state='disabled')
+
+    def close_down(self):
+        """
+        Closes down run thread by enabling all buttons and clearing experiments
+        """
+        self.button_run.updater(command=lambda: self.run(), state='enabled')
+        self.button_new_experiment.updater(state='enabled')
+        self.button_new_dataset.updater(state='enabled')
+        self.button_loaded_delete.updater(state='enabled', command=lambda: self.delete_experiment())
+        self.button_loaded_deselect.updater(state='enabled', command=lambda: self.deselect_experiment())
+
+        self.controller.experiments = []
+        self.update_page()
+        self.controller.thread_started = False
+
+        # reset backend for further use in GUI
+        mpl.use("TkAgg", force=True)
+        from matplotlib import pyplot as plt
+        tk.messagebox.showinfo("Done", "Processing is done!")
+
+    def update_page(self, experiment=None):
+        """
+        Update page by clearing and filling list boxes
+        :param experiment: experiment to sent to page if need be
+        """
+        self.listbox_loaded.delete(0, 'end')
+        self.listbox_queued.delete(0, 'end')
+
+        for index, experiment in enumerate(self.controller.experiments, 1):
+            self.listbox_loaded.insert('end', "Exp {}: {}".format(index, experiment.name))
+            for dataset in experiment.datasets:
+                self.listbox_queued.insert('end', "Exp {}: {} ({})".format(index, dataset.name, dataset.type))
 
 # %% Loading page
 
 
-class LoadPage(tk.Frame):
+class LoadPage(BasePage):
     """
-    Loading page. On this page, there is only a big button to load ND2s
+    Loading page. On this page, there are only two big buttons to select which type of dataset you want to load
     """
+    def __init__(self, container, controller):
+        super().__init__(container, controller)
 
-    def __init__(self, parent, controller):
-        tk.Frame.__init__(self, parent)
-        self.configure(bg='white')
+        button1 = BigButton(self, text="TT", height=int(GUI_HEIGHT / 6),
+                            width=int(GUI_WIDTH / 8),
+                            command=lambda: self.load_nd2("TT"))
+        button1.grid(row=10, column=24, columnspan=1, rowspan=1, padx=PAD_SMALL)
 
-        button1 = BigButton(self, text="LOAD", height=int(GUI_HEIGHT / 4),
-                            width=int(GUI_WIDTH / 4),  # style= 'Big.TButton',
-                            command=lambda: self.load_nd2(controller))
-        button1.grid(row=0, column=0)
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=1)
+        button2 = BigButton(self, text="HSM", height=int(GUI_HEIGHT / 6),
+                            width=int(GUI_WIDTH / 8),
+                            command=lambda: self.load_nd2("HSM"))
+        button2.grid(row=10, column=25, columnspan=1, rowspan=1, padx=PAD_SMALL)
 
-    def load_nd2(self, controller):
-        global filenames
-        tk.Tk().withdraw()
-        filenames = askopenfilenames(filetypes=FILETYPES,
-                                     title="Select file",
-                                     initialdir=getcwd())
+        self.label_wait = tk.Label(self, text="HSM frames are being merged, please wait.", font=FONT_LABEL, bg='white')
+        self.label_wait.grid(row=11, column=24, columnspan=2, padx=PAD_SMALL)
+        self.label_wait.grid_remove()
 
-        if len(filenames) == 0:
+    def load_nd2(self, dataset_type):
+        """
+        Function to load an nd2
+        :param dataset_type: Type is given by which button you click
+        """
+        filename = askopenfilename(filetypes=FILETYPES,
+                                   title="Select nd2",
+                                   initialdir=self.controller.dir_open)
+
+        if len(filename) == 0:
             return
 
-        controller.show_fitting_frame(FittingPage, filenames)
+        # save directory
+        self.controller.dir_open = '/'.join(filename.split(".")[0].split("/")[:-1])
+
+        if dataset_type == "HSM":
+            # if datatype is HSM, show wait label
+            self.label_wait.grid()
+            self.update()
+        if self.controller.experiment_to_link_name is None:
+            # if no experiment to link to, new experiment
+            experiment = Experiment(dataset_type, filename, self.controller.proceed_question, tk.messagebox.showerror,
+                                    self.controller.progress_updater, self.controller.show_rois)
+            self.controller.experiments.append(experiment)
+            # show ROIPage
+            self.controller.show_page(ROIPage, experiment=experiment)
+        else:
+            # otherwise, link to experiment
+            experiment_to_link = [experiment for experiment in self.controller.experiments if
+                                  self.controller.experiment_to_link_name in experiment.name][0]
+            if dataset_type == "TT":
+                experiment_to_link.init_new_tt(filename)
+                self.controller.show_page(TTPage, experiment=experiment_to_link)
+            else:
+                experiment_to_link.init_new_hsm(filename)
+                self.controller.show_page(HSMPage, experiment=experiment_to_link)
+
+        # remove wait label
+        if dataset_type == "HSM":
+            self.label_wait.grid_remove()
+
+# %% ROIPage
 
 
-# %% Fitting page, initial update (after loading)
-
-
-class FittingPage(tk.Frame):
+class ROIPage(BasePage):
     """
-    Fitting page. This is main page of the program
+    Page on which you can find the ROIs in your experiment
     """
-
-    def __init__(self, parent, container, reset=False):
+    def __init__(self, container, controller):
         """
-        Initial declaration of fitting page. Buttons/sliders/etc. that are to be updated are linked to self using
-        self-made classes.
-
-        Parameters
-        ----------
-        parent : Parent page, the controller. MBxPython.
-        container : The dict containing all the pages
-        reset : optional, if reset it TRUE, this means that update_init is calling this and page will only be reset.
-        The default is False.
-
-        Returns
-        -------
-        None. GUI.
-
+        Sets all data and GUI
+        :param container: container
+        :param controller: controller
         """
+        super().__init__(container, controller)
 
-        if not reset:
-            tk.Frame.__init__(self, parent)
-            self.configure(bg='white')
-        self.nd2 = None
-        self.frames = None
-        self.roi_finder = None
-        self.metadata = None
-        self.temp_roi_locations = None
-        self.filenames = None
-        self.filename_short = None
-        self.start_time = None
-        self.roi_locations = {}
-        self.dataset_index = 0
-        self.saved_settings = {}
-        self.default_settings = {}
-        self.histogram = None
+        # set data
+        self.experiment = None
+        self.default_settings = None
+        self.saved_settings = None
+        self.histogram_fig = None
         self.to_hist = None
-        self.roi_fitter = None
-        self.saved_settings_list = []
-        self.hsm_folder_full = None
-        self.hsm_folder_show = None
 
-        roi_finding_label = tk.Label(self, text="ROI finding", font=FONT_HEADER, bg='white')
-        roi_finding_label.grid(row=0, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        label_name = tk.Label(self, text="Name", font=FONT_SUBHEADER, bg='white')
+        label_name.grid(row=0, column=0, columnspan=8, sticky='EW', padx=PAD_BIG)
+        create_tooltip(label_name, TOOLTIP_ROI_NAME_EXPERIMENT)
 
-        min_int_label = tk.Label(self, text="Minimum Intensity", font=FONT_LABEL, bg='white')
-        min_int_label.grid(row=1, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        self.min_int_slider = NormalSlider(self, from_=0, to=1000,
-                                           row=2, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        min_int_histogram = ttk.Button(self, text="Graph",
-                                       command=lambda: self.fun_histogram("min_int"))
-        min_int_histogram.grid(row=2, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        min_int_histogram_select = ttk.Button(self, text="Select min",
-                                              command=lambda: self.histogram_select("min_int"))
-        min_int_histogram_select.grid(row=2, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        max_int_label = tk.Label(self, text="Maximum Intensity", font=FONT_LABEL, bg='white')
-        max_int_label.grid(row=1, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        self.max_int_slider = NormalSlider(self, from_=0, to=5000,
-                                           row=2, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        max_int_histogram_select = ttk.Button(self, text="Select max",
-                                              command=lambda: self.histogram_select("max_int"))
-        max_int_histogram_select.grid(row=2, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        min_sigma_label = tk.Label(self, text="Minimum Sigma", font=FONT_LABEL, bg='white')
-        min_sigma_label.grid(row=3, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        self.min_sigma_slider = NormalSlider(self, from_=0, to=5, resolution=0.01,
-                                             row=4, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        min_sigma_histogram = ttk.Button(self, text="Graph",
-                                         command=lambda: self.fun_histogram("min_sigma"))
-        min_sigma_histogram.grid(row=4, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        min_sigma_histogram_select = ttk.Button(self, text="Select min",
-                                                command=lambda: self.histogram_select("min_sigma"))
-        min_sigma_histogram_select.grid(row=4, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        max_sigma_label = tk.Label(self, text="Maximum Sigma", font=FONT_LABEL, bg='white')
-        max_sigma_label.grid(row=3, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        self.max_sigma_slider = NormalSlider(self, from_=0, to=10, resolution=0.01,
-                                             row=4, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        max_sigma_histogram_select = ttk.Button(self, text="Select max",
-                                                command=lambda: self.histogram_select("max_sigma"))
-        max_sigma_histogram_select.grid(row=4, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.entry_name = EntryPlaceholder(self, "TBD", width=INPUT_BIG, small=False)
+        self.entry_name.grid(row=0, column=8, columnspan=40, sticky='EW')
 
         line = ttk.Separator(self, orient='horizontal')
-        line.grid(row=5, column=0, rowspan=1, columnspan=40, sticky='we')
+        line.grid(row=1, column=0, rowspan=1, columnspan=40, sticky='we')
 
-        advanced_label = tk.Label(self, text="Advanced settings", font=FONT_SUBHEADER, bg='white')
-        advanced_label.grid(row=6, column=0, columnspan=40, sticky='EW', padx=PAD_SMALL)
+        label_settings = tk.Label(self, text="Settings", font=FONT_SUBHEADER, bg='white')
+        label_settings.grid(row=2, column=16, columnspan=8, sticky='EW', padx=PAD_BIG)
+        create_tooltip(label_settings, TOOLTIP_ROI_SETTINGS)
 
-        min_corr_label = tk.Label(self, text="Minimum Correlation", font=FONT_LABEL, bg='white')
-        min_corr_label.grid(row=6, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        label_min_int = tk.Label(self, text="Minimum Intensity", font=FONT_LABEL, bg='white')
+        label_min_int.grid(row=2, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_min_int, TOOLTIP_ROI_MIN_INTENSITY)
+        var_min_int = tk.IntVar()
+        entry_min_int = EntrySlider(self, row=3, column=0, columnspan=8, textvariable=var_min_int, width=INPUT_MEDIUM)
 
-        self.min_corr_slider = NormalSlider(self, from_=0, to=1, resolution=0.005,
-                                            row=7, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        def slider_min_int(_):
+            var_min_int.set(self.slider_min_int.get())
+        self.slider_min_int = NormalSlider(self, from_=0, to=1000, command=slider_min_int,
+                                           row=4, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        entry_min_int.binder(self.slider_min_int, var_min_int)
 
-        min_corr_histogram = ttk.Button(self, text="Graph",
-                                        command=lambda: self.fun_histogram("corr_min"))
-        min_corr_histogram.grid(row=7, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.button_min_int_histogram = NormalButton(self, text="Graph", command=lambda: self.fun_histogram("min_int"),
+                                                     row=3, column=16, columnspan=8, rowspan=2,
+                                                     sticky='EW', padx=PAD_SMALL)
+        self.button_min_int_histogram_select = NormalButton(self, text="Select min", state='disabled', rowspan=2,
+                                                            row=3, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.button_max_int_histogram_select = NormalButton(self, text="Select max", state='disabled', rowspan=2,
+                                                            row=3, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
-        min_corr_histogram_select = ttk.Button(self, text="Graph select",
-                                               command=lambda: self.histogram_select("corr_min"))
-        min_corr_histogram_select.grid(row=7, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        label_max_int = tk.Label(self, text="Maximum Intensity", font=FONT_LABEL, bg='white')
+        label_max_int.grid(row=2, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_max_int, TOOLTIP_ROI_MAX_INTENSITY)
+        var_max_int = tk.IntVar()
+        entry_max_int = EntrySlider(self, row=3, column=32, columnspan=8, textvariable=var_max_int, width=INPUT_MEDIUM)
 
-        roi_size_label = tk.Label(self, text="ROI size", bg='white', font=FONT_LABEL)
-        roi_size_label.grid(row=9, column=0, columnspan=5, sticky='EW', padx=PAD_SMALL)
+        def slider_max_int(_):
+            var_max_int.set(self.slider_max_int.get())
+        self.slider_max_int = NormalSlider(self, from_=0, to=5000, command=slider_max_int,
+                                           row=4, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        entry_max_int.binder(self.slider_max_int, var_max_int)
 
-        self.roi_var = tk.StringVar(self)
-        roi_drop = ttk.OptionMenu(self, self.roi_var, roi_size_options[0], *roi_size_options)
-        roi_drop.grid(row=9, column=5, columnspan=5, sticky='EW', padx=PAD_SMALL)
+        label_min_sigma = tk.Label(self, text="Minimum Sigma", font=FONT_LABEL, bg='white')
+        label_min_sigma.grid(row=5, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_min_sigma, TOOLTIP_ROI_MIN_SIGMA)
+        var_min_sigma = tk.DoubleVar()
+        entry_min_sigma = EntrySlider(self, row=6, column=0, columnspan=8,
+                                      textvariable=var_min_sigma, width=INPUT_MEDIUM)
 
-        filter_label = tk.Label(self, text="Filter size", bg='white', font=FONT_LABEL)
-        filter_label.grid(row=9, column=10, columnspan=5, sticky='EW', padx=PAD_SMALL)
+        def slider_min_sigma(_):
+            var_min_sigma.set(self.slider_min_sigma.get())
+        self.slider_min_sigma = NormalSlider(self, from_=0, to=5, resolution=0.01, command=slider_min_sigma,
+                                             row=7, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        entry_min_sigma.binder(self.slider_min_sigma, var_min_sigma)
 
-        self.filter_input = EntryPlaceholder(self, "9", width=INPUT_SMALL)
-        self.filter_input.grid(row=9, column=15, columnspan=5)
+        self.button_min_sigma_histogram = NormalButton(self, text="Graph",
+                                                       command=lambda: self.fun_histogram("min_sigma"), rowspan=2,
+                                                       row=6, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.button_min_sigma_histogram_select = NormalButton(self, text="Select min", state='disabled',
+                                                              row=6, column=8, columnspan=8, sticky='EW', rowspan=2,
+                                                              padx=PAD_SMALL)
+        self.button_max_sigma_histogram_select = NormalButton(self, text="Select max", state='disabled', rowspan=2,
+                                                              row=6, column=24, columnspan=8, sticky='EW',
+                                                              padx=PAD_SMALL)
 
-        roi_side_label = tk.Label(self, text="Side spacing", bg='white', font=FONT_LABEL)
-        roi_side_label.grid(row=9, column=20, columnspan=5, sticky='EW', padx=PAD_SMALL)
+        label_max_sigma = tk.Label(self, text="Maximum Sigma", font=FONT_LABEL, bg='white')
+        label_max_sigma.grid(row=5, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_max_sigma, TOOLTIP_ROI_MAX_SIGMA)
+        var_max_sigma = tk.DoubleVar()
+        entry_max_sigma = EntrySlider(self, row=6, column=32, columnspan=8,
+                                      textvariable=var_max_sigma, width=INPUT_MEDIUM)
 
-        self.roi_side_input = EntryPlaceholder(self, "11", width=INPUT_SMALL)
-        self.roi_side_input.grid(row=9, column=25, columnspan=5)
-
-        inter_roi_label = tk.Label(self, text="ROI spacing", bg='white', font=FONT_LABEL)
-        inter_roi_label.grid(row=9, column=30, columnspan=5, sticky='EW', padx=PAD_SMALL)
-
-        self.inter_roi_input = EntryPlaceholder(self, "6", width=INPUT_SMALL)
-        self.inter_roi_input.grid(row=9, column=35, columnspan=5)
+        def slider_max_sigma(_):
+            var_max_sigma.set(self.slider_max_sigma.get())
+        self.slider_max_sigma = NormalSlider(self, from_=0, to=10, resolution=0.01, command=slider_max_sigma,
+                                             row=7, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        entry_max_sigma.binder(self.slider_max_sigma, var_max_sigma)
 
         line = ttk.Separator(self, orient='horizontal')
-        line.grid(row=10, column=0, rowspan=1, columnspan=40, sticky='we')
+        line.grid(row=8, column=0, rowspan=1, columnspan=40, sticky='we')
 
-        hsm_label = tk.Label(self, text="HSM", font=FONT_HEADER, bg='white')
-        hsm_label.grid(row=11, column=0, columnspan=40, sticky='EW', padx=PAD_SMALL)
+        label_advanced_settings = tk.Label(self, text="Advanced settings", font=FONT_SUBHEADER, bg='white')
+        label_advanced_settings.grid(row=9, column=0, columnspan=40, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_advanced_settings, TOOLTIP_ROI_ADVANCED_SETTINGS)
 
-        self.hsm_load = NormalButton(self, text="Load HSM data", row=12, column=0, columnspan=8, sticky='EW',
-                                     padx=PAD_SMALL, command=lambda: self.load_hsm())
+        label_min_corr = tk.Label(self, text="Minimum Correlation", font=FONT_LABEL, bg='white')
+        label_min_corr.grid(row=10, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_min_corr, TOOLTIP_ROI_CORRELATION)
+        var_min_corr = tk.DoubleVar()
+        entry_min_corr = EntrySlider(self, row=10, column=8, columnspan=8,
+                                     textvariable=var_min_corr, width=INPUT_MEDIUM)
 
-        self.hsm_clear = NormalButton(self, text="Clear HSM", row=13, column=0, columnspan=8, sticky='EW',
-                                      padx=PAD_SMALL, command=lambda: self.clear_hsm())
+        def slider_min_corr(_):
+            var_min_corr.set(self.slider_min_corr.get())
+        self.slider_min_corr = NormalSlider(self, from_=0, to=1, resolution=0.005, command=slider_min_corr,
+                                            row=10, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        entry_min_corr.binder(self.slider_min_corr, var_min_corr)
 
-        hsm_disp_label = tk.Label(self, text="Loaded folder:", font=FONT_LABEL, bg='white', anchor='e')
-        hsm_disp_label.grid(row=12, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.button_min_corr_histogram = NormalButton(self, text="Graph",
+                                                      command=lambda: self.fun_histogram("corr_min"), rowspan=1,
+                                                      row=10, column=24, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        self.button_min_corr_histogram_select = NormalButton(self, text="Graph select", state='disabled', rowspan=1,
+                                                             row=10, column=32, columnspan=8, sticky='EW',
+                                                             padx=PAD_SMALL)
 
-        self.hsm_folder_disp = tk.Label(self, text="", font=FONT_LABEL, bg='white')
-        self.hsm_folder_disp.grid(row=12, column=16, columnspan=24, sticky='EW', padx=PAD_SMALL)
+        label_roi_side = tk.Label(self, text="Minimum spacing ROIs to edge FOV", bg='white', font=FONT_LABEL)
+        label_roi_side.grid(row=12, column=0, columnspan=15, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_roi_side, TOOLTIP_ROI_EDGE_DIST)
+        self.entry_roi_side = EntryPlaceholder(self, "11", width=INPUT_SMALL)
+        self.entry_roi_side.grid(row=12, column=15, columnspan=5)
 
-        hsm_correct_label = tk.Label(self, text="Correction file:", font=FONT_LABEL, bg='white', anchor='e')
-        hsm_correct_label.grid(row=13, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        path_hsm_corrections = getcwd() + "/spectral_corrections"
-
-        self.hsm_correct_options = listdir(path_hsm_corrections)
-        self.hsm_correct_options = [option[:-4] for option in self.hsm_correct_options]  # remove .mat in name
-
-        self.hsm_correct_var = tk.StringVar(self)
-        self.hsm_correct_drop = ttk.OptionMenu(self, self.hsm_correct_var, [], *self.hsm_correct_options)
-        self.hsm_correct_drop.grid(row=13, column=16, columnspan=24, sticky="ew")
+        label_inter_roi = tk.Label(self, text="Minimum spacing between ROIs", bg='white', font=FONT_LABEL)
+        label_inter_roi.grid(row=12, column=20, columnspan=15, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_inter_roi, TOOLTIP_ROI_INTER_DIST)
+        self.entry_inter_roi = EntryPlaceholder(self, "6", width=INPUT_SMALL)
+        self.entry_inter_roi.grid(row=12, column=35, columnspan=5)
 
         line = ttk.Separator(self, orient='horizontal')
-        line.grid(row=15, column=0, rowspan=1, columnspan=40, sticky='we')
+        line.grid(row=13, column=0, rowspan=1, columnspan=40, sticky='we')
 
-        self.button_left = NormalButton(self, text="<<", row=17, column=8, columnspan=5, sticky='EW',
-                                        padx=PAD_SMALL)
-        self.dataset_roi_status = NormalLabel(self, text="TBD",
-                                              row=17, column=13, columnspan=22, font=FONT_LABEL, sticky='EW')
-        self.button_right = NormalButton(self, ">>", row=17, column=35, columnspan=5, sticky='EW',
-                                         padx=PAD_SMALL)
+        label_advanced_settings = tk.Label(self, text="Other settings", font=FONT_SUBHEADER, bg='white')
+        label_advanced_settings.grid(row=14, column=0, columnspan=40, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_advanced_settings, TOOLTIP_ROI_ADVANCED_SETTINGS)
+
+        label_all_figures = tk.Label(self, text="Create individual figures", font=FONT_LABEL, bg='white')
+        label_all_figures.grid(row=15, column=0, columnspan=15, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_all_figures, TOOLTIP_ROI_INDIVIDUAL_FIGURES)
+        self.variable_all_figures = tk.StringVar(self, value=False)
+        check_figures = ttk.Checkbutton(self, variable=self.variable_all_figures, onvalue=True, offvalue=False)
+        check_figures.grid(row=15, column=15, columnspan=5, sticky='EW', padx=PAD_SMALL)
+
+        label_filter_size = tk.Label(self, text="Background median filter size", bg='white', font=FONT_LABEL)
+        label_filter_size.grid(row=15, column=20, columnspan=15, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_filter_size, TOOLTIP_ROI_BACKGROUND_FILTER)
+        self.entry_filter_size = EntryPlaceholder(self, "9", width=INPUT_SMALL)
+        self.entry_filter_size.grid(row=15, column=35, columnspan=5)
+
+        line = ttk.Separator(self, orient='horizontal')
+        line.grid(row=16, column=0, rowspan=1, columnspan=40, sticky='we')
 
         button_find_rois = ttk.Button(self, text="Find ROIs", command=lambda: self.fit_rois())
-        button_find_rois.grid(row=16, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        button_find_rois.grid(row=17, column=0, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
-        self.number_of_rois = NormalLabel(self, text="TBD", row=17, column=0, columnspan=8, font=FONT_LABEL,
-                                          padx=PAD_SMALL, sticky='EW')
+        self.label_number_of_rois = NormalLabel(self, text="TBD", row=17, column=8, columnspan=8, font=FONT_LABEL,
+                                                padx=PAD_SMALL, sticky='EW')
 
         button_restore = ttk.Button(self, text="Restore default",
                                     command=lambda: self.restore_default())
-        button_restore.grid(row=16, column=8, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
-        self.button_load_other_video = NormalButton(self, text="Load from other",
-                                                    command=lambda: self.load_from_other(),
-                                                    row=16, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
-
+        button_restore.grid(row=17, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
         self.button_restore_saved = NormalButton(self, text="Restore saved",
                                                  state='disabled',
                                                  command=lambda: self.restore_saved(),
-                                                 row=16, column=24,
+                                                 row=17, column=24,
                                                  columnspan=8, sticky='EW', padx=PAD_SMALL)
 
-        button_save = ttk.Button(self, text="Save",
-                                 command=lambda: self.save_roi_settings())
-        button_save.grid(row=16, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        button_save = ttk.Button(self, text="Save", command=lambda: self.save_roi_settings())
+        button_save.grid(row=17, column=32, columnspan=8, sticky='EW', padx=PAD_SMALL)
 
-        self.fig = FigureFrame(self, height=GUI_WIDTH * 0.4, width=GUI_WIDTH * 0.4, dpi=DPI)
-        self.fig.grid(row=0, column=40, columnspan=10, rowspan=18, sticky='EW', padx=PAD_SMALL)
+        self.figure = FigureFrame(self, height=GUI_WIDTH * 0.4, width=GUI_WIDTH * 0.4, dpi=DPI)
+        self.figure.grid(row=1, column=40, columnspan=8, rowspan=17, sticky='EW', padx=PAD_SMALL)
 
-        line = ttk.Separator(self, orient='horizontal')
-        line.grid(row=18, column=0, rowspan=2, columnspan=50, sticky='we')
+        button_accept = ttk.Button(self, text="Accept & Continue", command=lambda: self.accept())
+        button_accept.grid(row=18, column=44, columnspan=4, rowspan=2, sticky='EW', padx=PAD_SMALL)
 
-        fit_area_label = tk.Label(self, text="Fitting", font=FONT_HEADER, bg='white')
-        fit_area_label.grid(row=21, column=0, columnspan=10, sticky='EW', padx=PAD_SMALL)
-
-        self.roi_status = NormalLabel(self, text="TBD",
-                                      row=21, column=10, columnspan=30, font=FONT_STATUS)
-
-        method_label = tk.Label(self, text="Method", font=FONT_LABEL, bg='white')
-        method_label.grid(row=23, column=0, columnspan=12, sticky='EW', padx=PAD_SMALL)
-
-        self.method_var = tk.StringVar(self)
-        method_drop = ttk.OptionMenu(self, self.method_var, fit_options[1], *fit_options)
-        method_drop.grid(row=24, column=0, columnspan=12, sticky="ew")
-
-        rejection_label = tk.Label(self, text="Rejection", bg='white', font=FONT_LABEL)
-        rejection_label.grid(row=23, column=12, columnspan=7, sticky='EW', padx=PAD_SMALL)
-
-        self.rejection_var = tk.StringVar(self)
-        rejection_drop = ttk.OptionMenu(self, self.rejection_var, rejection_options[1], *rejection_options)
-        rejection_drop.grid(row=24, column=12, columnspan=7, sticky='EW', padx=PAD_SMALL)
-
-        cores_label = tk.Label(self, text="#cores", font=FONT_LABEL, bg='white')
-        cores_label.grid(row=23, column=19, columnspan=7, sticky='EW', padx=PAD_BIG)
-
-        self.total_cores = mp.cpu_count()
-        cores_options = [1, int(self.total_cores / 2), int(self.total_cores * 3 / 4), int(self.total_cores)]
-        self.cores_var = tk.IntVar(self)
-        self.cores_drop = ttk.OptionMenu(self, self.cores_var, cores_options[0], *cores_options)
-        self.cores_drop.grid(row=24, column=19, columnspan=7, sticky='EW', padx=PAD_BIG)
-
-        dimensions_label = tk.Label(self, text="pixels or nm", font=FONT_LABEL, bg='white')
-        dimensions_label.grid(row=23, column=26, columnspan=7, sticky='EW', padx=PAD_BIG)
-
-        dimension_options = ["nm", "pixels"]
-        self.dimension = tk.StringVar(self)
-        self.dimension_drop = ttk.OptionMenu(self, self.dimension, dimension_options[0], *dimension_options)
-        self.dimension_drop.grid(row=24, column=26, columnspan=7, sticky='EW', padx=PAD_BIG)
-
-        figures_label = tk.Label(self, text="All Figures", font=FONT_LABEL, bg='white')
-        figures_label.grid(row=23, column=33, columnspan=7, sticky='EW', padx=PAD_BIG)
-
-        self.figures_var = tk.StringVar(self, value="Overview")
-        self.figures_check = tk.Checkbutton(self, variable=self.figures_var, onvalue="All", offvalue="Overview",
-                                            bg="white")
-        self.figures_check.grid(row=24, column=33, columnspan=7, sticky='EW', padx=PAD_BIG)
-
-        frame_begin_label = tk.Label(self, text="Begin frame", font=FONT_LABEL, bg='white')
-        frame_begin_label.grid(row=27, column=0, columnspan=16, sticky='EW', padx=PAD_BIG)
-
-        self.frame_begin_input = EntryPlaceholder(self, "Leave empty for start", width=INPUT_BIG)
-        self.frame_begin_input.grid(row=28, column=0, columnspan=16)
-
-        frame_end_label = tk.Label(self, text="End frame", font=FONT_LABEL, bg='white')
-        frame_end_label.grid(row=27, column=16, columnspan=16, sticky='EW', padx=PAD_BIG)
-
-        self.frame_end_input = EntryPlaceholder(self, "Leave empty for end", width=INPUT_BIG)
-        self.frame_end_input.grid(row=28, column=16, columnspan=16)
-
-        self.button_fit = BigButton(self, text="FIT", height=int(GUI_HEIGHT / 8),
-                                    width=int(GUI_WIDTH / 8), state='disabled',
-                                    command=lambda: self.start_fitting())  # , style= 'my.TButton')
-        self.button_fit.grid(row=23, column=40, columnspan=5, rowspan=5)
-
-        progress_label = tk.Label(self, text="Progress", font=FONT_LABEL, bg='white')
-        progress_label.grid(row=23, column=45, columnspan=5, sticky='EW', padx=PAD_SMALL)
-
-        self.progress_status_label = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
-                                                 row=24, column=45, columnspan=5, sticky="ew", font=FONT_LABEL)
-
-        time_label = tk.Label(self, text="Estimated time done", font=FONT_LABEL, bg='white')
-        time_label.grid(row=26, column=45, columnspan=5, sticky='EW', padx=PAD_SMALL)
-
-        self.time_status_label = NormalLabel(self, text="Not yet started", bd=1, relief='sunken',
-                                             row=27, column=45, columnspan=5, sticky="ew", font=FONT_LABEL)
-
-        version_label = tk.Label(self, text="MBx Python, version: " + __version__, font=FONT_LABEL, bg='white',
-                                 anchor='w')
-        version_label.grid(row=50, column=0, columnspan=20, sticky='EW', padx=PAD_SMALL)
-
-        button_load_new = ttk.Button(self, text="Load new", command=lambda: self.load_new(parent))
-        button_load_new.grid(row=50, column=45, columnspan=2, sticky='EW', padx=PAD_SMALL)
-
-        button_quit = ttk.Button(self, text="Quit", command=lambda: quit_gui(self))
-        button_quit.grid(row=50, column=48, columnspan=2, sticky='EW', padx=PAD_SMALL)
-
-        for i in range(0, 49):
-            self.columnconfigure(i, weight=1, minsize=18)
-
-        for i in range(0, 51):
-            self.rowconfigure(i, weight=1)
-
-    # %% Update after loading of ND2s
-
-    def update_init(self, parent, container, filenames):
+    def fun_histogram(self, variable):
         """
-        Initial update. The init function is already called by the controller, so this is called after the ND2 are
-        loaded in. Updates all kinds of things such as the sliders.
-
+        Actually makes the histogram
         Parameters
         ----------
-        parent : This is controller page. MBxPython
-        container : A dict in which all the pages reside. Only used for __init__
-        filenames : Filenames of the loaded ND2s
-
+        variable : Variable to make histogram of
         Returns
         -------
-        Updated page
-
+        None, outputs figure
         """
-        self.__init__(parent, container, reset=True)
-
-        self.filenames = filenames
-        self.dataset_index = 0
-
-        self.filename_short = filenames[self.dataset_index].split("/")[-1][:-4]
-
-        self.dataset_roi_status.updater(text=self.filename_short + " (" + str(self.dataset_index + 1) + " of " +
-                                        str(len(filenames)) + ")")
-        self.roi_status.updater(text="0 of " + str(len(filenames)) + " have settings")
-
-        self.nd2 = nd2_reading.ND2ReaderSelf(filenames[self.dataset_index])
-        self.frames = self.nd2
-        self.metadata = self.nd2.get_metadata()
-
-        self.fig.updater(self.frames[0])
-
-        self.restore_default()
-
-        if self.dataset_index == len(filenames) - 1:
-            self.button_right.updater(state='disabled')
+        # find variable to make histogram of
+        if variable == "min_int" or variable == "max_int":
+            self.to_hist = self.experiment.roi_finder.main(return_int=True)
+        elif variable == "corr_min":
+            self.to_hist = self.experiment.roi_finder.main(return_corr=True)
         else:
-            self.button_right.updater(command=lambda: self.change_dataset(1))
+            self.to_hist = self.experiment.roi_finder.main(return_sigmas=True)
 
-        if self.dataset_index == 0:
-            self.button_left.updater(state='disabled')
-        else:
-            self.button_left.updater(command=lambda: self.change_dataset(-1))
+        # make histogram
+        self.histogram_fig = plt.figure(figsize=(6.4 * 1.2, 4.8 * 1.2))
+        self.histogram_fig.canvas.mpl_connect('close_event', self.histogram_close)
+        self.histogram_open(variable)
+        self.histogram_make(variable)
 
-    # %% Fitting page, return to load page
-
-    def load_new(self, controller):
+    def histogram_make(self, variable):
         """
-        Return to load page
-
+        Makes histograms of parameters.
         Parameters
         ----------
-        controller : Calls controller to return to load page
+        variable : The parameter to make a histogram of
+        Returns
+        -------
+        None, output figure
+        """
+        # add sub figure to histogram and create histogram
+        fig_sub = self.histogram_fig.add_subplot(111)
+        hist, bins, _ = fig_sub.hist(self.to_hist, bins='auto')
 
+        # get sliders
+        min_int = self.slider_min_int.get()
+        max_int = self.slider_max_int.get()
+        min_sigma = self.slider_min_sigma.get()
+        max_sigma = self.slider_max_sigma.get()
+        min_corr = self.slider_min_corr.get()
+
+        # draw sliders
+        if variable == "min_sigma" or variable == "max_sigma":
+            fig_sub.set_title("Sigma. Use graph select to change threshold")
+            fig_sub.axvline(x=min_sigma, color='red', linestyle='--')
+            fig_sub.axvline(x=max_sigma, color='red', linestyle='--')
+            fig_sub.set_xlabel('Sigma (pixels)')
+            fig_sub.set_ylabel('Occurrence')
+        else:
+
+            # reset bins
+            self.histogram_fig.clear()
+            del fig_sub
+            logbins = np.logspace(np.log10(bins[0]), np.log10(bins[-1]), len(bins))
+            fig_sub = self.histogram_fig.add_subplot(111)
+            fig_sub.hist(self.to_hist, bins=logbins)
+            if variable == "min_int" or variable == "max_int":
+                # intensity
+                fig_sub.set_title("Intensity. Use graph select to change threshold")
+                fig_sub.axvline(x=min_int, color='red', linestyle='--')
+                fig_sub.axvline(x=max_int, color='red', linestyle='--')
+                fig_sub.set_xlabel('Peak Intensity (counts)')
+            else:
+                # correlation
+                fig_sub.set_title("Correlation values for ROIs. Use graph select to change threshold")
+                fig_sub.axvline(x=min_corr, color='red', linestyle='--')
+                fig_sub.set_xlabel('Correlation (arb. un.)')
+            fig_sub.set_xscale('log')
+            fig_sub.set_ylabel('Occurrence')
+
+        # show figure
+        self.histogram_fig.show()
+
+    def histogram_select(self, variable):
+        """
+        Allows user to select from histogram to change slider
+        Parameters
+        ----------
+        variable : variable to change
         Returns
         -------
         None.
-
         """
-        controller.show_load_frame(LoadPage)
+        # find click on figure
+        try:
+            click = self.histogram_fig.ginput(1)
+        except AttributeError:
+            tk.messagebox.showerror("You cannot do that", "You cannot click on a figure without having a figure open")
+            return
 
-    # %% Fitting page, restore default settings
-
-    def restore_default(self):
-        """
-        Restores defaults. Called when calling the page for the first time, and when switching dataset
-
-        Returns
-        -------
-        None.
-
-        """
-
-        if self.dataset_index in self.default_settings:
-            defaults = self.default_settings[self.dataset_index]
-            self.roi_finder = roi_finding.RoiFinder(self.frames[0], self.roi_fitter, settings=defaults)
-
-            self.min_int_slider.updater(from_=0, to=self.roi_finder.int_max / 4,
-                                        start=defaults['int_min'])
-            self.max_int_slider.updater(from_=0, to=self.roi_finder.int_max,
-                                        start=defaults['int_max'])
-            self.min_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
-                                          start=defaults['sigma_min'])
-            self.max_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
-                                          start=defaults['sigma_max'])
-            self.min_corr_slider.updater(from_=0, to=1, start=defaults['corr_min'])
+        # set slider to click
+        if variable == "min_int":
+            self.slider_min_int.updater(start=int(click[0][0]))
+        elif variable == 'max_int':
+            self.slider_max_int.updater(start=int(click[0][0]))
+        elif variable == "min_sigma":
+            self.slider_min_sigma.updater(start=click[0][0])
+        elif variable == "max_sigma":
+            self.slider_max_sigma.updater(start=click[0][0])
         else:
-            self.roi_fitter = fitting.Gaussian(7, {}, "None", "Gaussian", 5, 300)
+            self.slider_min_corr.updater(start=click[0][0])
 
-            self.roi_finder = roi_finding.RoiFinder(self.frames[0], self.roi_fitter)
+        # clear histogram and make new figure
+        self.histogram_fig.clear()
+        self.histogram_fig.canvas.mpl_connect('close_event', self.histogram_close)
+        self.histogram_make(variable)
 
-            self.min_int_slider.updater(from_=0, to=self.roi_finder.int_max / 4,
-                                        start=self.roi_finder.int_min)
-            self.max_int_slider.updater(from_=0, to=self.roi_finder.int_max,
-                                        start=self.roi_finder.int_max)
-            self.min_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
-                                          start=self.roi_finder.sigma_min)
-            self.max_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
-                                          start=self.roi_finder.sigma_max)
-            self.min_corr_slider.updater(from_=0, to=1, start=self.roi_finder.corr_min)
+    def histogram_open(self, variable):
+        """
+        Called when new histogram is opened.
+        :param variable: Decides which buttons are enabled and disabled depending on which variables is plotted
+        :return: None. Changes GUI
+        """
+        # enable the right button to select from graph with
+        if variable == "min_int" or variable == "max_int":
+            self.button_max_int_histogram_select.updater(state='enabled',
+                                                         command=lambda: self.histogram_select("max_int"))
+            self.button_min_int_histogram_select.updater(state='enabled',
+                                                         command=lambda: self.histogram_select("min_int"))
+        elif variable == "corr_min":
+            self.button_min_corr_histogram_select.updater(state='enabled',
+                                                          command=lambda: self.histogram_select("corr_min"))
+        else:
+            self.button_max_sigma_histogram_select.updater(state='enabled',
+                                                           command=lambda: self.histogram_select("max_sigma"))
+            self.button_min_sigma_histogram_select.updater(state='enabled',
+                                                           command=lambda: self.histogram_select("min_sigma"))
 
-        self.roi_var.set(roi_size_options[0])
+        # disable opening other graphs
+        self.button_min_corr_histogram.updater(state='disabled')
+        self.button_min_int_histogram.updater(state='disabled')
+        self.button_min_sigma_histogram.updater(state='disabled')
 
-        self.filter_input.updater()
-        self.roi_side_input.updater()
-        self.inter_roi_input.updater()
+    def histogram_close(self, _):
+        """
+        Called when histogram is closed.
+        :param _: Event is discarded
+        :return: Changes GUI
+        """
+        # enable opening other graphs
+        self.button_min_corr_histogram.updater(state='enabled', command=lambda: self.fun_histogram("corr_min"))
+        self.button_min_int_histogram.updater(state='enabled', command=lambda: self.fun_histogram("min_int"))
+        self.button_min_sigma_histogram.updater(state='enabled', command=lambda: self.fun_histogram("min_sigma"))
 
-        self.update()
-
-        self.fit_rois()
-
-        settings = self.read_out_settings()
-
-        settings['processed_frame'] = self.roi_finder.frame
-
-        self.default_settings[self.dataset_index] = settings
-
-    # %% Read out sliders and other settings, return dictionary
+        # disable select from graphs
+        self.button_max_int_histogram_select.updater(state='disabled')
+        self.button_min_int_histogram_select.updater(state='disabled')
+        self.button_min_corr_histogram_select.updater(state='disabled')
+        self.button_max_sigma_histogram_select.updater(state='disabled')
+        self.button_min_sigma_histogram_select.updater(state='disabled')
 
     def read_out_settings(self):
         """
         Function that reads out all the settings, and saves it to a dict which it returns
-
         Returns
         -------
         settings: a dictionary of all read-out settings
         """
-        int_min = self.min_int_slider.get()
-        int_max = self.max_int_slider.get()
-        sigma_min = self.min_sigma_slider.get()
-        sigma_max = self.max_sigma_slider.get()
-        corr_min = self.min_corr_slider.get()
-        roi_size = int(self.roi_var.get()[0])
+        int_min = self.slider_min_int.get()
+        int_max = self.slider_max_int.get()
+        sigma_min = self.slider_min_sigma.get()
+        sigma_max = self.slider_max_sigma.get()
+        corr_min = self.slider_min_corr.get()
+        roi_size = 7  # hard-coded as 7 for ROI finding
+        all_figures = bool(int(self.variable_all_figures.get()))
 
-        filter_size = int(self.filter_input.get())
-        roi_side = int(self.roi_side_input.get())
-        inter_roi = int(self.inter_roi_input.get())
-
-        hsm_directory = self.hsm_folder_full
-        hsm_correction = self.hsm_correct_var.get()
+        # try to read out inputs and check integer
+        try:
+            filter_size = int(self.entry_filter_size.get())
+            roi_side = int(self.entry_roi_side.get())
+            inter_roi = int(self.entry_inter_roi.get())
+        except:
+            tk.messagebox.showerror("ERROR", "Filter size, side spacing, and ROI spacing must all be integers")
+            return {}, False
 
         settings = {'int_max': int_max, 'int_min': int_min,
                     'sigma_min': sigma_min, 'sigma_max': sigma_max,
                     'corr_min': corr_min, 'roi_size': roi_size, 'filter_size': filter_size,
-                    'roi_side': roi_side, 'inter_roi': inter_roi,
-                    'hsm_directory': hsm_directory, 'hsm_correction': hsm_correction}
+                    'roi_side': roi_side, 'inter_roi': inter_roi, 'all_figures': all_figures}
 
-        return settings
-
-    # %% Fitting page, fit ROIs
+        # return settings and success boolean
+        return settings, True
 
     def fit_rois(self):
         """
-        Function that takes all the inputs and uses it to fit ROIs
-
-        Returns
-        -------
-        Updates the figures.
-        Also returns boolean whether or not it was a success.
-
+        Reads out settings and correlates frame with old frame to find active ROIs
+        :return: alters active ROIs within dataset
         """
-        settings = self.read_out_settings()
+        settings, success = self.read_out_settings()
+        if success is False:
+            return False
 
+        # check settings
         if settings['roi_side'] < int((settings['roi_size'] - 1) / 2):
             tk.messagebox.showerror("ERROR", "Distance to size cannot be smaller than 1D ROI size")
             return False
@@ -954,668 +1482,497 @@ class FittingPage(tk.Frame):
             tk.messagebox.showerror("ERROR", "Filter size should be odd")
             return False
 
-        self.roi_fitter = fitting.Gaussian(settings['roi_size'], {}, "None", "Gaussian", 5, 300)
-
-        self.roi_finder.change_settings(settings)
-
-        self.temp_roi_locations = self.roi_finder.main(self.roi_fitter)
-
-        self.fig.updater(self.frames[0], roi_locations=self.temp_roi_locations, roi_size=self.roi_finder.roi_size_1d)
-        self.number_of_rois.updater(text=str(len(self.temp_roi_locations)) + " ROIs found")
+        # change settings and show new ROIs
+        self.experiment.change_rois(settings)
+        self.experiment.show_rois("Experiment", figure=self.figure)
+        self.label_number_of_rois.updater(text="{} ROIs found".format(len(self.experiment.rois)))
 
         return True
 
-    # %% Fitting page, save ROI settings
-
-    def save_roi_settings(self):
+    def restore_default(self):
         """
-        Saves current settings of sliders etc. to dict
-
-        Returns
-        -------
-        None.
-
+        Restores default settings
+        :return: Changes GUI
         """
-        success = self.fit_rois()
+        # find default settings if need be
+        if self.default_settings is None:
+            self.default_settings = self.experiment.roi_finder.get_settings()
+        else:
+            pass
+        # change all sliders and such
+        self.slider_min_int.updater(from_=0, to=self.default_settings['int_max'] / 4,
+                                    start=self.default_settings['int_min'])
+        self.slider_max_int.updater(from_=0, to=self.default_settings['int_max'],
+                                    start=self.default_settings['int_max'])
+        self.slider_min_sigma.updater(from_=0, to=self.default_settings['sigma_max'],
+                                      start=self.default_settings['sigma_min'])
+        self.slider_max_sigma.updater(from_=0, to=self.default_settings['sigma_max'],
+                                      start=self.default_settings['sigma_max'])
+        self.slider_min_corr.updater(from_=0, to=1, start=self.default_settings['corr_min'])
 
-        if not success:
-            return
+        self.variable_all_figures.set(False)
 
-        self.roi_locations[self.dataset_index] = self.temp_roi_locations.copy()
+        self.entry_filter_size.updater()
+        self.entry_roi_side.updater()
+        self.entry_inter_roi.updater()
 
-        max_its = self.roi_finder.find_snr(self.roi_fitter)
-
-        settings = self.read_out_settings()
-        settings['max_its'] = max_its
-
-        self.saved_settings[self.dataset_index] = settings
-
-        self.roi_status.updater(text=str(len(self.roi_locations)) + " of " + str(len(
-            self.filenames)) + " have settings")
-        self.button_restore_saved.updater(command=lambda: self.restore_saved())
-
-        if len(self.roi_locations) == len(self.filenames):
-            self.button_fit.updater(state='enabled')
-
-    # %% Fitting page, restore saved settings
+        self.update()
+        self.fit_rois()
 
     def restore_saved(self):
         """
         Restores saved settings to sliders etc.
-
         Returns
         -------
         None, updates GUI
-
         """
-        settings = self.saved_settings[self.dataset_index]
+        # gets saved settings and changes sliders and such
+        settings = self.saved_settings
 
-        self.min_int_slider.updater(from_=0, to=self.roi_finder.int_max / 4,
+        self.slider_min_int.updater(from_=0, to=self.default_settings['int_max'] / 4,
                                     start=settings['int_min'])
-        self.max_int_slider.updater(from_=0, to=self.roi_finder.int_max,
+        self.slider_max_int.updater(from_=0, to=self.default_settings['int_max'],
                                     start=settings['int_max'])
-        self.min_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
+        self.slider_min_sigma.updater(from_=0, to=self.default_settings['sigma_max'],
                                       start=settings['sigma_min'])
-        self.max_sigma_slider.updater(from_=0, to=self.roi_finder.sigma_max,
+        self.slider_max_sigma.updater(from_=0, to=self.default_settings['sigma_max'],
                                       start=settings['sigma_max'])
-        self.min_corr_slider.updater(from_=0, to=1, start=settings['corr_min'])
+        self.slider_min_corr.updater(from_=0, to=1, start=settings['corr_min'])
 
-        if settings['roi_size'] == 7:
-            self.roi_var.set(roi_size_options[0])
-        else:
-            self.roi_var.set(roi_size_options[1])
+        self.entry_filter_size.updater(settings['filter_size'])
+        self.entry_roi_side.updater(settings['roi_side'])
+        self.entry_inter_roi.updater(settings['inter_roi'])
 
-        self.filter_input.updater(settings['filter_size'])
-        self.roi_side_input.updater(settings['roi_side'])
-        self.inter_roi_input.updater(settings['inter_roi'])
+        self.variable_all_figures.set(settings['all_figures'])
 
-        self.roi_finder.change_settings(settings)
-        self.roi_finder.frame = self.default_settings[self.dataset_index]['processed_frame']
-
-        self.temp_roi_locations = self.roi_locations[self.dataset_index]
-
-        self.fig.updater(self.frames[0], roi_locations=self.temp_roi_locations, roi_size=self.roi_finder.roi_size_1d)
-        self.number_of_rois.updater(text=str(len(self.temp_roi_locations)) + " ROIs found")
-
+        self.experiment.change_rois(settings)
+        self.experiment.show_rois("Experiment", figure=self.figure)
+        self.label_number_of_rois.updater(text="{} ROIs found".format(len(self.experiment.rois)))
         self.update()
 
-    # %% Load from previously processed dataset
-
-    def load_from_other(self):
-        def load_in_files(filenames):
-            frame_zero_old = np.load([file for file in filenames if file.endswith('.npy')][0])
-            roi_locations = loadmat([file for file in filenames if file.endswith('.mat')][0])
-            roi_locations = [roi_locations[key] for key in roi_locations.keys() if not key.startswith('_')][0]
-            roi_locations = tools.roi_to_python_coordinates(roi_locations, frame_zero_old.shape[0])
-            return roi_locations, frame_zero_old
-
-        def correlate_frames(frame_old, frame_new):
-            if frame_old.shape == frame_new.shape:
-                corr = normxcorr2(frame_old, frame_new)
-                maxima = np.transpose(np.asarray(np.where(corr == np.amax(corr))))[0]
-                offset = maxima - np.asarray(frame_old.shape) + np.asarray([1, 1])
-            else:
-                corr = normxcorr2_large(frame_old, frame_new)
-                maxima = np.transpose(np.asarray(np.where(corr == np.amax(corr))))[0]
-                offset = maxima - np.asarray(frame_old.shape) + np.asarray([1, 1])
-            return offset
-
-        tk.Tk().withdraw()
-        while True:
-            filenames = askopenfilenames(filetypes=FILETYPES_LOAD_FROM_OTHER,
-                                         title="Select both frame_zero and ROI locations that you want to use",
-                                         initialdir=getcwd())
-            if len(filenames) == 2:
-                break
-            else:
-                check = tk.messagebox.askokcancel("ERROR",
-                                                  "Select one ROI locations file and one frame_zero. Try again?")
-                if not check:
-                    return
-
-        roi_locations, frame_zero_old = load_in_files(filenames)
-        frame_zero = np.asarray(self.frames[0])
-
-        background = median_filter(frame_zero_old, size=9)
-        frame_zero_old = frame_zero_old.astype(np.int16) - background
-        background = median_filter(frame_zero, size=9)
-        frame_zero = frame_zero.astype(np.int16) - background
-
-        offset = correlate_frames(frame_zero_old, frame_zero)
-
-        try:
-            if offset[0] < 50 and offset[1] < 50:
-                roi_locations += offset
-            else:  # other background mode as backup
-                load_in_files(filenames)
-                frame_zero = np.asarray(self.frames[0])
-                background = median_filter(frame_zero_old, size=9, mode='constant', cval=np.mean(frame_zero_old))
-                frame_zero_old = frame_zero_old.astype(np.int16) - background
-                background = median_filter(frame_zero, size=9, mode='constant', cval=np.mean(frame_zero))
-                frame_zero = frame_zero.astype(np.int16) - background
-                offset = correlate_frames(frame_zero_old, frame_zero)
-                roi_locations += offset
-        except:
-            tk.messagebox.askokcancel("ERROR", "You did not select a proper ROI locations file. Try again.")
+    def save_roi_settings(self):
+        """
+        Save settings for later re-use
+        """
+        if self.fit_rois() is False:
             return
 
-        self.temp_roi_locations = roi_locations
-        self.roi_locations[self.dataset_index] = self.temp_roi_locations.copy()
+        self.saved_settings, _ = self.read_out_settings()
+        self.button_restore_saved.updater()
 
-        max_its = self.roi_finder.find_snr_load_from_other(self.roi_fitter, roi_locations)
-
-        settings = self.read_out_settings()
-        settings['max_its'] = max_its
-
-        self.saved_settings[self.dataset_index] = settings
-
-        self.roi_status.updater(text=str(len(self.roi_locations)) + " of " + str(len(
-            self.filenames)) + " have settings")
-        self.button_restore_saved.updater(command=lambda: self.restore_saved())
-
-        if len(self.roi_locations) == len(self.filenames):
-            self.button_fit.updater(state='enabled')
-
-        self.fig.updater(self.frames[0], roi_locations=self.temp_roi_locations, roi_size=self.roi_finder.roi_size_1d)
-        self.number_of_rois.updater(text=str(len(self.temp_roi_locations)) + " ROIs found")
-
-        message = "ROIs loaded in. Be careful, the set variables for ROI finding and the used ROIs now no longer " \
-                  "match. Therefore, using 'Strict' rejection rules is not advised. " \
-                  "The loaded ROIs are automatically saved."
-
-        tk.messagebox.showinfo("Done!", message)
-
-    # %% Fitting page, switch between datasets
-
-    def change_dataset(self, change):
+    def clear_page(self):
         """
-        Select next or previous dataset
-
-        Parameters
-        ------
-        change: in what direction you want to change +1 or -1
-
-        Returns
-        -------
-        None.
-
+        Clear the memory of the page
         """
-        self.temp_roi_locations = None
-        self.histogram = None
+        self.experiment = None
+        self.default_settings = None
+        self.saved_settings = None
+        self.histogram_fig = None
         self.to_hist = None
+        self.figure.fig.clear()
 
-        self.dataset_index += change
-
-        self.filename_short = filenames[self.dataset_index].split("/")[-1][:-4]
-        self.dataset_roi_status.updater(text=self.filename_short + " (" + str(self.dataset_index + 1) + " of " +
-                                        str(len(filenames)) + ")")
-
-        self.nd2.close()
-        self.nd2 = nd2_reading.ND2ReaderSelf(self.filenames[self.dataset_index])
-        self.frames = self.nd2
-        self.metadata = self.nd2.get_metadata()
-
-        if self.dataset_index in self.saved_settings:
-            self.restore_saved()
-            self.button_restore_saved.updater(command=lambda: self.restore_saved())
-            self.hsm_correct_var.set(self.saved_settings[self.dataset_index]['hsm_correction'])
-            if self.saved_settings[self.dataset_index]['hsm_directory'] is not None:
-                hsm_folder_show = '/'.join(self.saved_settings[self.dataset_index]['hsm_directory'].split('/')[-2:])
-            else:
-                hsm_folder_show = ""
-            self.hsm_folder_disp['text'] = hsm_folder_show
-        else:
-            self.button_restore_saved.updater(state='disabled')
-            self.clear_hsm()
-            self.restore_default()
-
-        if self.dataset_index == len(self.filenames) - 1:
-            self.button_right.updater(state='disabled')
-        else:
-            self.button_right.updater(command=lambda: self.change_dataset(1))
-
-        if self.dataset_index == 0:
-            self.button_left.updater(state='disabled')
-        else:
-            self.button_left.updater(command=lambda: self.change_dataset(-1))
-
-    # %% Fitting page, start fitting
-
-    def start_fitting(self):
+    def accept(self):
         """
-        Start fitting. Takes all the inputs and fits.
-
-        Returns
-        -------
-        None officially. Outputs files.
-
+        Accept ROI settings and move to analysis page
         """
-        if len(self.roi_locations) != len(self.filenames):
-            tk.messagebox.showerror("ERROR", "Not all datasets have settings yet, cannot start")
+        # check
+        if self.controller.proceed_question("Are you sure?", "You cannot change settings later.") is False:
             return
-
-        check = tk.messagebox.askokcancel("Are you sure?",
-                                          "Fitting may take a while. Are you sure everything is set up correctly?")
-        if not check:
+        settings, success = self.read_out_settings()
+        if success is False:
             return
+        # change ROI settings to latest set
+        self.experiment.change_rois(settings)
 
-        n_processes = self.cores_var.get()
-        method = self.method_var.get()
-        rejection_type = self.rejection_var.get()
-        figures_option = self.figures_var.get()
+        # get name and all figures variable
+        name = self.entry_name.get()
+        settings_experiment = {'All Figures': settings['all_figures']}
+        self.experiment.finalize_rois(name, settings_experiment)
 
-        if rejection_type == "Strict" and (method == "Phasor + Sum" or method == "Phasor" or
-                                           method == "Phasor + Intensity"):
-            rejection_check = tk.messagebox.askokcancel("Just a heads up",
-                                                        """Phasor methods have no strict rejection option,
-            so "Loose" rejection will be used""")
-            if not rejection_check:
-                return
-            else:
-                rejection_type = "Loose"
+        # show correct analysis page
+        if self.experiment.created_by == "TT":
+            self.controller.show_page(TTPage, experiment=self.experiment)
+        else:
+            self.controller.show_page(HSMPage, experiment=self.experiment)
+        # empty memory
+        self.clear_page()
 
-        if n_processes > 1 and (method == "Phasor + Intensity" or method == "Phasor + Sum" or method == "Phasor"):
-            cores_check = tk.messagebox.askokcancel("Just a heads up",
-                                                    """Phasor will be used with one core since the
-            overhead only slows it down""")
-            if not cores_check:
-                return
-            n_processes = 1
+    def update_page(self, experiment=None):
+        """
+        Update page by changing name and showing figure
+        :param experiment: experiment to show
+        """
+        self.experiment = experiment
 
-        self.start_time = time.time()
-        results_counter = 0
+        self.entry_name.updater(placeholder=self.experiment.datasets[-1].name)  # take name for only dataset in exp
+        self.figure.updater(self.experiment.frame_for_rois)
 
-        dataset_index_viewing = self.dataset_index
+        self.restore_default()
 
-        for self.dataset_index, filename in enumerate(self.filenames):
-            dataset_time = time.time()
-            self.nd2.close()
-            self.nd2 = nd2_reading.ND2ReaderSelf(filenames[self.dataset_index])
-            self.frames = self.nd2
-            self.metadata = self.nd2.get_metadata()
+# %% Analysis Page Template
 
-            dataset_settings = self.saved_settings[self.dataset_index]
 
-            roi_size = dataset_settings['roi_size']
-            max_its = dataset_settings['max_its']
+class AnalysisPageTemplate(BasePage):
+    """
+    Base analysis page. Inherits from BasePage and adds the correlation area and some initialisations
+    """
+    def __init__(self, container, controller):
+        """
+        Initializer of AnalysisPageTemplate. Sets a load of buttons and and experiment member.
+        :param container: container
+        :param controller: controller
+        """
+        super().__init__(container, controller)
 
-            roi_locations = self.roi_locations[self.dataset_index]
+        # experiment working on
+        self.experiment = None
 
-            if method == "Phasor + Intensity":
-                fitter = fitting.Phasor(roi_size, dataset_settings, rejection_type, method)
-            elif method == "Phasor":
-                fitter = fitting.PhasorDumb(roi_size, dataset_settings, rejection_type, method)
-            elif method == "Gaussian - Fit bg":
-                fitter = fitting.GaussianBackground(roi_size, dataset_settings, rejection_type, method, 6, max_its)
-            elif method == "Gaussian - Estimate bg":
-                fitter = fitting.Gaussian(roi_size, dataset_settings, rejection_type, method, 5, max_its)
-            else:
-                fitter = fitting.PhasorSum(roi_size, dataset_settings, rejection_type, method)
+        label_loaded_video = tk.Label(self, text="Loaded nd2 name:", font=FONT_SUBHEADER, bg='white', anchor='e')
+        label_loaded_video.grid(row=0, column=0, columnspan=16, rowspan=1, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_loaded_video, TOOLTIP_ANALYSIS_NAME_LOADED)
+        self.label_loaded_video_status = NormalLabel(self, text="XX", row=0, column=16, columnspan=32, rowspan=1,
+                                                     sticky="w", font=FONT_LABEL)
 
-            start_frame = self.frame_begin_input.get()
-            end_frame = self.frame_end_input.get()
+        label_name = tk.Label(self, text="Name dataset:", font=FONT_SUBHEADER, bg='white', anchor='e')
+        label_name.grid(row=1, column=0, columnspan=16, sticky='EW', padx=PAD_BIG)
+        create_tooltip(label_name, TOOLTIP_ANALYSIS_NAME_DATASET)
+        self.entry_name = EntryPlaceholder(self, "TBD", small=False)
+        self.entry_name.grid(row=1, column=16, columnspan=32, sticky='EW', padx=PAD_SMALL)
 
-            if start_frame == "Leave empty for start" and end_frame == "Leave empty for end":
-                end_frame = self.metadata['num_frames']
-                start_frame = 0
-                to_fit = self.frames
-                time_axis = self.metadata['timesteps']
-            elif start_frame == "Leave empty for start" and end_frame != "Leave empty for end":
-                start_frame = 0
-                end_frame = int(end_frame)
-                to_fit = self.frames[:end_frame]
-                time_axis = self.metadata['timesteps'][:end_frame]
-            elif start_frame != "Leave empty for start" and end_frame == "Leave empty for end":
-                start_frame = int(start_frame)
-                end_frame = self.metadata['num_frames']
-                to_fit = self.frames[start_frame:]
-                time_axis = self.metadata['timesteps'][start_frame:]
-            else:  # start_frame != "Leave empty for start" and end_frame != "Leave empty for end":
-                start_frame = int(start_frame)
-                end_frame = int(end_frame)
-                to_fit = self.frames[start_frame:end_frame]
-                time_axis = self.metadata['timesteps'][start_frame:end_frame]
+        line = ttk.Separator(self, orient='horizontal')
+        line.grid(row=2, column=0, rowspan=1, columnspan=16, sticky='we')
 
-            num_frames = end_frame - start_frame
+        label_precrop = tk.Label(self, text="ROI finding for dataset", font=FONT_SUBHEADER, bg='white')
+        label_precrop.grid(row=3, column=0, columnspan=16, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_precrop, TOOLTIP_ANALYSIS_PRECROP)
 
-            if n_processes > 1:
-                shared = [None] * n_processes
-                results = np.zeros((len(roi_locations) * len(self.frames), 9))
+        label_x_min = tk.Label(self, text="minimum x-value", font=FONT_LABEL, bg='white')
+        label_x_min.grid(row=4, column=0, columnspan=16, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_x_min, TOOLTIP_ANALYSIS_MIN_X)
+        self.entry_x_min = EntryPlaceholder(self, "Leave empty for start")
+        self.entry_x_min.grid(row=5, column=0, columnspan=16, padx=PAD_SMALL)
+        label_x_max = tk.Label(self, text="maximum x-value", font=FONT_LABEL, bg='white')
+        label_x_max.grid(row=6, column=0, columnspan=16, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_x_max, TOOLTIP_ANALYSIS_MAX_X)
+        self.entry_x_max = EntryPlaceholder(self, "Leave empty for end")
+        self.entry_x_max.grid(row=7, column=0, columnspan=16, padx=PAD_SMALL)
 
-                frames_split = np.array_split(list(range(start_frame, end_frame)), n_processes)
-                processes = [None] * n_processes
-                q = mp.Queue()
+        label_y_min = tk.Label(self, text="minimum y-value", font=FONT_LABEL, bg='white')
+        label_y_min.grid(row=8, column=0, columnspan=16, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_y_min, TOOLTIP_ANALYSIS_MIN_Y)
+        self.entry_y_min = EntryPlaceholder(self, "Leave empty for start")
+        self.entry_y_min.grid(row=9, column=0, columnspan=16, padx=PAD_SMALL)
+        label_y_max = tk.Label(self, text="maximum y-value", font=FONT_LABEL, bg='white')
+        label_y_max.grid(row=10, column=0, columnspan=16, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_y_max, TOOLTIP_ANALYSIS_MAX_Y)
+        self.entry_y_max = EntryPlaceholder(self, "Leave empty for end")
+        self.entry_y_max.grid(row=11, column=0, columnspan=16, padx=PAD_SMALL)
 
-                self.update_status(0, num_frames)
+        button_find_rois = ttk.Button(self, text="Find ROIs", command=lambda: self.fit_rois())
+        button_find_rois.grid(row=12, column=0, columnspan=16, sticky='EW', padx=PAD_SMALL)
 
-                for i in range(0, n_processes):
-                    shared[i] = mp.Array('d', int(9 * len(roi_locations) * len(frames_split[i])))
-                    processes[i] = (mp.Process(target=mt_main,
-                                               args=(filename, fitter,
-                                                     frames_split[i], roi_locations,
-                                                     shared[i], q)))
+        self.figure_dataset = FigureFrame(self, height=GUI_WIDTH * 0.35, width=GUI_WIDTH * 0.35, dpi=DPI)
+        self.figure_dataset.grid(row=2, column=16, columnspan=16, rowspan=11, sticky='EW', padx=PAD_SMALL)
 
-                for p in processes:
-                    p.start()
+        self.figure_experiment = FigureFrame(self, height=GUI_WIDTH * 0.35, width=GUI_WIDTH * 0.35, dpi=DPI)
+        self.figure_experiment.grid(row=2, column=32, columnspan=16, rowspan=11, sticky='EW', padx=PAD_SMALL)
 
-                queue_dict = {}
-                frames_fitted = 0
-                while frames_fitted < num_frames * 0.95:
-                    for p in processes:
-                        queue = q.get()
-                        queue_dict[queue[0]] = queue[1]
-                        frames_fitted = sum(queue_dict.values())
-                        self.update_status(frames_fitted, num_frames)
+        line = ttk.Separator(self, orient='horizontal')
+        line.grid(row=13, column=0, rowspan=1, columnspan=48, sticky='we')
 
-                for p in processes:
-                    p.join()
+        self.button_add_to_queue = NormalButton(self, text="Add to queue", state='disabled',
+                                                row=19, column=42, columnspan=6, rowspan=1, sticky='EW', padx=PAD_SMALL)
 
-                self.update_status(num_frames, num_frames)
-
-                counter = 0
-                for i, share in enumerate(shared):
-                    arr = np.frombuffer(share.get_obj())  # mp_arr and arr share the same memory
-                    result = arr.reshape((len(roi_locations) * len(frames_split[i]), 9))
-                    results[counter:counter + len(roi_locations) * len(frames_split[i])] = result
-                    counter += len(roi_locations) * len(frames_split[i])
-            else:
-                self.update_status(0, num_frames)
-                results = fitter.main(to_fit, self.metadata, roi_locations,
-                                      gui=self, n_frames=num_frames)
-
-            nm_or_pixels = self.dimension.get()
-            if nm_or_pixels == "nm":
-                results = tools.change_to_nm(results, self.metadata, method)
-
-            # drift correction
-
-            self.progress_status_label.updater(text="Drift correction dataset " +
-                                                    str(self.dataset_index + 1) + " of " + str(len(filenames)))
-            self.update()
-
-            drift_corrector = drift_correction.DriftCorrector(method)
-            results_drift, drift, event_or_not = drift_corrector.main(results, roi_locations, num_frames)
-
-            # HSM
-
-            hsm_dir = (dataset_settings['hsm_directory'],)
-            hsm_corr = dataset_settings['hsm_correction']
-            hsm_result = None  # just to make Python shut up about potential reference before assignment
-            hsm_intensity = None
-            hsm_wavelengths = None
-            hsm_raw = None
-
-            if hsm_dir[0] is not None and hsm_corr != '':
-                self.progress_status_label.updater(text="HSM dataset " +
-                                                        str(self.dataset_index + 1) + " of " + str(len(filenames)))
-
-                self.update()
-
-                hsm_object = hsm.HSM(hsm_dir, np.asarray(self.frames[0], dtype=self.frames[0].dtype),
-                                     roi_locations.copy(), self.metadata, hsm_corr)
-                hsm_result, hsm_raw, hsm_intensity = hsm_object.main(verbose=False)
-
-                hsm_wavelengths = hsm_object.wavelength
-
-            # create folder for output
-
-            path = filename.split(".")[0]
-            directory_try = 0
-            directory_success = False
-            while not directory_success:
-                try:
-                    mkdir(path)
-                    directory_success = True
-                except:
-                    directory_try += 1
-                    if directory_try == 1:
-                        path += "_%03d" % directory_try
-                    else:
-                        path = path[:-4]
-                        path += "_%03d" % directory_try
-
-            # Settings output
-
-            total_fits = results.shape[0]
-            failed_fits = results[np.isnan(results[:, 3]), :].shape[0]
-            time_taken = round(time.time() - dataset_time, 3)
-
-            successful_fits = total_fits - failed_fits
-            results_counter += successful_fits
-
-            outputting.text_output(dataset_settings.copy(), method, rejection_type, nm_or_pixels,
-                                   total_fits, failed_fits, time_taken, path)
-
-            # Plotting
-
-            self.progress_status_label.updater(text="Plotting dataset " +
-                                                    str(self.dataset_index + 1) + " of " + str(len(filenames)))
-            self.update()
+    @staticmethod
+    def check_invalid_input(input_string, start):
+        """
+        Check whether or not given string input is invalid input
+        :param input_string: Input string
+        :param start: Whether or not start or end
+        :return: Boolean if valid
+        """
+        def is_int(to_check):
+            # check if int
             try:
-                figuring.save_graphs(self.frames, results, results_drift, roi_locations, method, nm_or_pixels,
-                                     figures_option, path, event_or_not, dataset_settings, time_axis.copy(),
-                                     hsm_result, hsm_raw, hsm_intensity, hsm_wavelengths)
-            except Exception as _:
-                show_error(False)
+                int(to_check)
+                return True
+            except:
+                return False
 
-            # Switch to MATLAB coordinates
+        # if start, check if base value or valid int
+        if start:
+            if input_string == "Leave empty for start" or is_int(input_string):
+                return False
+        else:  # otherwise, check for other base value or still int
+            if input_string == "Leave empty for end" or is_int(input_string):
+                return False
+        return True
 
-            results = tools.switch_results_to_matlab_coordinates(results, self.frames[0].shape[0],
-                                                                 method, nm_or_pixels, self.metadata)
-            results_drift = tools.switch_results_to_matlab_coordinates(results_drift, self.frames[0].shape[0],
-                                                                       method, nm_or_pixels, self.metadata)
-            roi_locations = tools.roi_to_matlab_coordinates(roi_locations, self.frames[0].shape[0])
-            drift = tools.switch_axis(drift)
-            if hsm_result is not None:
-                hsm_result, hsm_raw, hsm_intensity = tools.switch_to_matlab_hsm(hsm_result, hsm_raw, hsm_intensity)
-
-            # Save
-
-            self.progress_status_label.updater(text="Saving dataset " +
-                                                    str(self.dataset_index + 1) + " of " + str(len(filenames)))
-            self.update()
-
-            outputting.save_first_frame(self.frames[0], path)
-            outputting.save_to_csv_mat_metadata('metadata', self.metadata, path)
-            outputting.save_to_csv_mat_roi('ROI_locations', roi_locations, path)
-            outputting.save_to_csv_mat_drift('Drift_correction', drift, path)
-            outputting.save_to_csv_mat_results('Localizations', results, method, path)
-            outputting.save_to_csv_mat_results('Localizations_drift', results_drift, method, path)
-            if hsm_result is not None:
-                outputting.save_hsm(hsm_result, hsm_raw, hsm_intensity, path)
-
-        end_message = 'Time taken: ' + str(round(time.time() - self.start_time, 3)) \
-                      + ' s. Fits done: ' + str(results_counter)
-
-        self.progress_status_label.updater(text="Done!")
-        tk.messagebox.showinfo("Done!", end_message)
-
-        self.nd2.close()
-
-        self.dataset_index = dataset_index_viewing
-
-        self.nd2 = nd2_reading.ND2ReaderSelf(self.filenames[self.dataset_index])
-        self.frames = self.nd2
-        self.metadata = self.nd2.get_metadata()
-
-    # %% Fitting page, update the status
-
-    def update_status(self, progress, comparator):
+    def fit_rois(self):
         """
-        Updates the status visible to the user.
-
-        Parameters
-        ----------
-        progress : How far the fitter has come
-        comparator : How far it has to go
-
-        Returns
-        -------
-        None, updates GUI.
-
+        Correlate frames to find active ROIs
+        :return: Changes active ROIs
         """
-        num_files = len(self.filenames)
-        base_progress = self.dataset_index / num_files * 100
-
-        file_progress = progress / comparator * 100 / num_files
-        progress = base_progress + file_progress
-
-        progress_text = str(round(progress, 1)) + "% done"
-
-        if progress == 0:
-            self.time_status_label.updater(text="TBD")
-        else:
-            current_time = time.time()
-            time_taken = current_time - self.start_time
-            time_done_estimate = time_taken * 100 / progress + self.start_time
-            tr = time.localtime(time_done_estimate)
-            time_text = "{:02d}:{:02d}:{:02d} {:02d}/{:02d}".format(tr[3], tr[4], tr[5], tr[2], tr[1])
-
-            self.time_status_label.updater(text=time_text)
-        self.progress_status_label.updater(text=progress_text)
-
-        self.update()
-
-    # %% Histogram of sliders
-
-    def fun_histogram(self, variable):
-        """
-        Actually makes the histogram
-
-        Parameters
-        ----------
-        variable : Variable to make histogram of
-
-        Returns
-        -------
-        None, outputs figure
-
-        """
-        if variable == "min_int" or variable == "max_int":
-            self.to_hist = self.roi_finder.main(self.roi_fitter, return_int=True)
-        elif variable == "peak_min":
-            self.to_hist = np.ravel(self.frames[0])
-        elif variable == "corr_min":
-            self.to_hist = self.roi_finder.main(self.roi_fitter, return_corr=True)
-        else:
-            self.to_hist = self.roi_finder.main(self.roi_fitter, return_sigmas=True)
-
-        self.histogram = plt.figure(figsize=(6.4 * 1.2, 4.8 * 1.2))
-
-        self.make_histogram(variable)
-
-    def make_histogram(self, variable):
-        """
-        Makes histograms of parameters.
-
-        Parameters
-        ----------
-        variable : The parameter to make a histogram of
-
-        Returns
-        -------
-        None, output figure
-
-        """
-        fig_sub = self.histogram.add_subplot(111)
-        hist, bins, _ = fig_sub.hist(self.to_hist, bins='auto')
-
-        min_int = self.min_int_slider.get()
-        max_int = self.max_int_slider.get()
-        min_sigma = self.min_sigma_slider.get()
-        max_sigma = self.max_sigma_slider.get()
-        min_corr = self.min_corr_slider.get()
-
-        if variable == "min_int" or variable == "max_int":
-            self.histogram.clear()
-            logbins = np.logspace(np.log10(bins[0]), np.log10(bins[-1]), len(bins))
-            plt.hist(self.to_hist, bins=logbins)
-            plt.title("Intensity. Use graph select to change threshold")
-            plt.axvline(x=min_int, color='red', linestyle='--')
-            plt.axvline(x=max_int, color='red', linestyle='--')
-            plt.xscale('log')
-        elif variable == "min_sigma" or variable == "max_sigma":
-            plt.title("Sigma. Use graph select to change threshold")
-            plt.axvline(x=min_sigma, color='red', linestyle='--')
-            plt.axvline(x=max_sigma, color='red', linestyle='--')
-        else:
-            self.histogram.clear()
-            logbins = np.logspace(np.log10(bins[0]), np.log10(bins[-1]), len(bins))
-            plt.hist(self.to_hist, bins=logbins)
-            plt.title("Correlation values for ROIs. Use graph select to change threshold")
-            plt.axvline(x=min_corr, color='red', linestyle='--')
-            plt.xscale('log')
-
-        self.histogram.show()
-
-    def histogram_select(self, variable):
-        """
-        Allows user to select from histogram to change slider
-
-        Parameters
-        ----------
-        variable : variable to change
-
-        Returns
-        -------
-        None.
-
-        """
-        try:
-            click = self.histogram.ginput(1)
-        except AttributeError:
-            tk.messagebox.showerror("You cannot do that", "You cannot click on a figure without having a figure open")
+        # get values from GUI
+        x_min = self.entry_x_min.get()
+        x_max = self.entry_x_max.get()
+        y_min = self.entry_y_min.get()
+        y_max = self.entry_y_max.get()
+        # check invalid
+        if self.check_invalid_input(x_min, True) or self.check_invalid_input(y_max, False) or \
+                self.check_invalid_input(y_min, True) or self.check_invalid_input(y_max, False):
+            tk.messagebox.showerror("ERROR", "x min and max and y min and max must all be integers")
             return
 
-        if variable == "min_int":
-            self.min_int_slider.updater(start=int(click[0][0]))
-        elif variable == 'max_int':
-            self.max_int_slider.updater(start=int(click[0][0]))
-        elif variable == "min_sigma":
-            self.min_sigma_slider.updater(start=click[0][0])
-        elif variable == "max_sigma":
-            self.max_sigma_slider.updater(start=click[0][0])
-        else:
-            self.min_corr_slider.updater(start=click[0][0])
+        # set settings and sent to dataset
+        settings_correlation = {'x_min': x_min, 'x_max': x_max, 'y_min': y_min, 'y_max': y_max}
+        self.experiment.find_rois_dataset(settings_correlation)
+        self.experiment.show_rois("Dataset", self.figure_dataset)
+        self.button_add_to_queue.updater(command=lambda: self.add_to_queue())
 
-        self.histogram.clear()
-        self.make_histogram(variable)
+    def clear_page(self):
+        """
+        Clears memory of page
+        """
+        self.experiment = None
+        self.figure_experiment.fig.clear()
+        self.figure_dataset.fig.clear()
 
-    def load_hsm(self):
-        tk.Tk().withdraw()
-        hsm_folder = askdirectory(title="Select folder in which HSM data is located", initialdir=getcwd())
+    def add_to_queue(self):
+        """
+        Empty add_to_queue. Changed by inheritance
+        """
+        pass
 
-        if len(hsm_folder) == 0:
+    def update_page(self, experiment=None):
+        """
+        Update page by adding experiment data to page.
+        :param experiment: experiment to analyze
+        """
+        self.experiment = experiment
+        experiment.show_rois("Experiment", self.figure_experiment)
+        experiment.show_rois("Dataset", self.figure_dataset)
+
+        self.label_loaded_video_status.updater(text=self.experiment.datasets[-1].name)
+        self.entry_name.updater(placeholder=self.experiment.datasets[-1].name)
+
+        self.entry_x_min.updater()
+        self.entry_y_min.updater()
+        self.entry_x_max.updater()
+        self.entry_y_max.updater()
+
+# %% TTPage
+
+
+class TTPage(AnalysisPageTemplate):
+    """
+    TT Page. Inherits of AnalysisPageTemplate
+    """
+    def __init__(self, container, controller):
+        """
+        Initializer of TTPage. Adds even more buttons specifically for TT analysis
+        :param container: container
+        :param controller: controller
+        """
+        super().__init__(container, controller)
+
+        label_tt = tk.Label(self, text="TT settings", font=FONT_SUBHEADER, bg='white')
+        label_tt.grid(row=14, column=0, columnspan=48, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_tt, TOOLTIP_TT_MAIN)
+
+        label_method = tk.Label(self, text="Method", font=FONT_LABEL, bg='white')
+        label_method.grid(row=15, column=0, columnspan=16, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_method, TOOLTIP_TT_METHOD)
+        self.variable_method = tk.StringVar(self)
+        drop_method = ttk.OptionMenu(self, self.variable_method, fit_options[1], *fit_options)
+        drop_method.grid(row=16, column=0, columnspan=16, sticky="ew")
+
+        label_rejection = tk.Label(self, text="Rejection", bg='white', font=FONT_LABEL)
+        label_rejection.grid(row=15, column=16, columnspan=8, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_rejection, TOOLTIP_TT_REJECTION)
+        self.variable_rejection = tk.BooleanVar(self, value=False)
+        check_rejection = ttk.Checkbutton(self, variable=self.variable_rejection, onvalue=True, offvalue=False)
+        check_rejection.grid(row=16, column=16, columnspan=8, padx=PAD_SMALL)
+
+        label_cores = tk.Label(self, text="#cores", font=FONT_LABEL, bg='white')
+        label_cores.grid(row=15, column=24, columnspan=8, sticky='EW', padx=PAD_BIG)
+        create_tooltip(label_cores, TOOLTIP_TT_CORES)
+        total_cores = mp.cpu_count()
+        cores_options = [1, int(total_cores / 2), int(total_cores * 3 / 4), int(total_cores)]
+        self.variable_cores = tk.IntVar(self)
+        drop_cores = ttk.OptionMenu(self, self.variable_cores, cores_options[0], *cores_options)
+        drop_cores.grid(row=16, column=24, columnspan=8, sticky='EW', padx=PAD_BIG)
+
+        label_dimensions = tk.Label(self, text="output in pixels or nm", font=FONT_LABEL, bg='white')
+        label_dimensions.grid(row=15, column=32, columnspan=8, sticky='EW', padx=PAD_BIG)
+        create_tooltip(label_dimensions, TOOLTIP_TT_PIXELS_OR_NM)
+        self.variable_dimensions = tk.StringVar(self)
+        drop_dimension = ttk.OptionMenu(self, self.variable_dimensions, dimension_options[0], *dimension_options)
+        drop_dimension.grid(row=16, column=32, columnspan=8, sticky='EW', padx=PAD_BIG)
+
+        label_used_roi_spacing = tk.Label(self, text="Used ROI spacing:", bg='white', font=FONT_LABEL)
+        label_used_roi_spacing.grid(row=18, column=0, rowspan=1, columnspan=10, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_used_roi_spacing, TOOLTIP_TT_USED_ROI_SPACING)
+        self.label_roi_spacing_status = NormalLabel(self, text="TBD", row=18, column=10, rowspan=1, columnspan=6,
+                                                    sticky='EW', padx=PAD_SMALL, font=FONT_LABEL)
+
+        label_roi_size = tk.Label(self, text="ROI size", bg='white', font=FONT_LABEL)
+        label_roi_size.grid(row=19, column=0, columnspan=10, rowspan=1, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_roi_size, TOOLTIP_TT_ROI_SIZE)
+        self.variable_roi_size = tk.StringVar(self)
+        drop_roi_size = ttk.OptionMenu(self, self.variable_roi_size, roi_size_options[0], *roi_size_options)
+        drop_roi_size.grid(row=19, column=10, columnspan=6, rowspan=1, sticky='EW', padx=PAD_SMALL)
+
+        label_begin_frame = tk.Label(self, text="First frame number", font=FONT_LABEL, bg='white')
+        label_begin_frame.grid(row=18, column=16, rowspan=1, columnspan=8, sticky='EW', padx=PAD_BIG)
+        create_tooltip(label_begin_frame, TOOLTIP_TT_FIRST_FRAME)
+        self.entry_begin_frame = EntryPlaceholder(self, "Leave empty for start")
+        self.entry_begin_frame.grid(row=19, column=16, rowspan=1, columnspan=8, padx=PAD_SMALL)
+
+        label_end_frame = tk.Label(self, text="Last frame number", font=FONT_LABEL, bg='white')
+        label_end_frame.grid(row=18, column=24, rowspan=1, columnspan=8, sticky='EW', padx=PAD_BIG)
+        create_tooltip(label_end_frame, TOOLTIP_TT_LAST_FRAME)
+        self.entry_end_frame = EntryPlaceholder(self, "Leave empty for end")
+        self.entry_end_frame.grid(row=19, column=24, rowspan=1, columnspan=8, padx=PAD_SMALL)
+
+    def add_to_queue(self):
+        """
+        Add to queue specific for TT analysis
+        :return: None. Edits objects
+        """
+        # get all inputs
+        name = self.entry_name.get()
+        method = self.variable_method.get()
+        rejection_type = self.variable_rejection.get()
+        n_processes = self.variable_cores.get()
+        dimension = self.variable_dimensions.get()
+        frame_begin = self.entry_begin_frame.get()
+        frame_end = self.entry_end_frame.get()
+        roi_size = int(self.variable_roi_size.get()[0])
+
+        # check validity inputs
+        if self.check_invalid_input(frame_begin, True) or self.check_invalid_input(frame_end, False):
+            tk.messagebox.showerror("ERROR", "Frame begin and frame end must be integers")
             return
-        else:
-            self.hsm_folder_full = hsm_folder
-            hsm_folder_show = '/'.join(hsm_folder.split('/')[-2:])
-            self.hsm_folder_disp['text'] = hsm_folder_show
 
-    def clear_hsm(self):
-        self.hsm_folder_full = None
-        self.hsm_folder_disp['text'] = ""
-        self.hsm_correct_var.set("")
+        # make settings dict and set to input
+        settings_runtime = {'method': method, 'rejection': rejection_type, '#cores': n_processes,
+                            'roi_size': roi_size, "pixels_or_nm": dimension, 'name': name,
+                            'frame_begin': frame_begin, 'frame_end': frame_end}
+
+        if self.experiment.add_to_queue(settings_runtime) is False:
+            return
+
+        self.controller.show_page(MainPage)
+        # clear memory
+        self.clear_page()
+
+    def update_page(self, experiment=None):
+        """
+        Update page by setting standard values and showing experiment
+        :param experiment: experiment to show
+        :return: changes GUI
+        """
+        super().update_page(experiment=experiment)
+        self.label_roi_spacing_status.updater(text=self.experiment.roi_finder.get_settings()['inter_roi'])
+
+        self.variable_method.set(fit_options[1])
+        self.variable_rejection.set(True)
+        self.variable_cores.set(1)
+        self.variable_dimensions.set(dimension_options[0])
+        self.variable_roi_size.set(roi_size_options[0])
+        self.entry_begin_frame.updater()
+        self.entry_end_frame.updater()
+
+        self.button_add_to_queue.updater(state='disabled')
+
+# %% HSMPage
 
 
-# %% START GUI and declare styles (how things look)
+class HSMPage(AnalysisPageTemplate):
+    """
+    HSM Page. Inherits from AnalysisPageTemplate.
+    """
+    def __init__(self, container, controller):
+        """
+        Sets more buttons specifically for HSM analysis
+        -------------------
+        :param container: container
+        :param controller: controller
+        """
+        super().__init__(container, controller)
+
+        label_hsm = tk.Label(self, text="HSM settings", font=FONT_SUBHEADER, bg='white')
+        label_hsm.grid(row=14, column=0, columnspan=48, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_hsm, TOOLTIP_HSM_MAIN)
+
+        label_hsm_correct = tk.Label(self, text="Correction file:", font=FONT_LABEL, bg='white', anchor='e')
+        label_hsm_correct.grid(row=15, column=0, columnspan=8, rowspan=2, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_hsm_correct, TOOLTIP_HSM_CORRECTION_FILE)
+        path_hsm_correct = getcwd() + "/spectral_corrections"
+        hsm_correct_options = listdir(path_hsm_correct)
+        hsm_correct_options = [option[:-4] for option in hsm_correct_options]  # remove .mat in name
+        self.variable_hsm_correct = tk.StringVar(self)
+        drop_hsm_correct = ttk.OptionMenu(self, self.variable_hsm_correct, [], *hsm_correct_options)
+        drop_hsm_correct.grid(row=15, column=8, columnspan=24, rowspan=2, sticky="ew")
+
+        label_hsm_wavelength = tk.Label(self, text="Wavelengths:", font=FONT_LABEL, bg='white', anchor='e')
+        label_hsm_wavelength.grid(row=18, column=0, columnspan=8, rowspan=2, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_hsm_wavelength, TOOLTIP_HSM_WAVELENGTHS)
+
+        self.entry_wavelength = EntryPlaceholder(self,
+                                                 "Use MATLAB-like array notation. "
+                                                 "Example: [500:10:520, 532, 540:10:800]", width=INPUT_BIG)
+        self.entry_wavelength.grid(row=18, column=8, columnspan=24, rowspan=2, sticky='EW')
+
+    def update_page(self, experiment=None):
+        """
+        Set base values and show experiment
+        :param experiment: experiment to show
+        :return: Changes GUI
+        """
+        super().update_page(experiment=experiment)
+
+        self.variable_hsm_correct.set("")
+        self.entry_wavelength.updater()
+
+        self.button_add_to_queue.updater(state='disabled')
+
+    def add_to_queue(self):
+        """
+        Add HSM dataset to queue and clears memory
+        """
+        # get input values
+        hsm_correction = self.variable_hsm_correct.get()
+        wavelengths = self.entry_wavelength.get()
+        name = self.entry_name.get()
+
+        # check input values
+        if wavelengths == "Use MATLAB-like array notation. Example: [500:10:520, 532, 540:10:800]":
+            tk.messagebox.showerror("Check again", "Wavelengths not given.")
+            return
+        if hsm_correction == "":
+            tk.messagebox.showerror("Check again", "Select a correction file.")
+            return
+
+        # make settings dictionary and add to queue
+        settings_runtime_hsm = {'correction_file': hsm_correction, 'wavelengths': wavelengths, 'name': name}
+        if self.experiment.add_to_queue(settings_runtime_hsm) is False:
+            return
+
+        self.controller.show_page(MainPage)
+        # clear memory
+        self.clear_page()
+
+# %% START GUI
 
 
 if __name__ == '__main__':
     mp.freeze_support()
-    gui = MbxPython()
-    gui.geometry(str(GUI_WIDTH) + "x" + str(GUI_HEIGHT) + "+" + str(GUI_WIDTH_START) + "+" + str(GUI_HEIGHT_START))
-    gui.iconbitmap(getcwd() + "\ico.ico")
-    gui.protocol("WM_DELETE_WINDOW", lambda: quit_gui(gui))
+    divertor = DivertorErrorsGUI()
+    warnings.showwarning = divertor.warning
+    gui = PLASMON(proceed_question=proceed_question)
 
-    ttk_style = ttk.Style(gui)
-    ttk_style.configure("Big.TButton", font=FONT_BUTTON_BIG)
-    ttk_style.configure("Placeholder.TEntry", foreground="Grey")
-    ttk_style.configure("TButton", font=FONT_BUTTON, background="Grey")
-    ttk_style.configure("TSeparator", background="black")
-    ttk_style.configure("TMenubutton", font=FONT_DROP, background="White")
-
-    tk.Tk.report_callback_exception = show_error_critical
-
+    tk.Tk.report_callback_exception = divertor.error
     plt.ioff()
     gui.mainloop()
