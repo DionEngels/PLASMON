@@ -168,6 +168,11 @@ class HSMDataset(Dataset):
             self.experiment.error_func("Input error", "Wavelengths input not valid")
             return False
 
+        # check wavelengths same size as array
+        if len(self.wavelengths) != self.corrected.shape[0]:
+            self.experiment.error_func("Input error", "Wavelengths not same length as the amount of frames loaded")
+            return False
+
     # %% Correct for drift between frames
     def hsm_drift(self, verbose=False):
         """
