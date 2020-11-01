@@ -3,11 +3,11 @@
 Created on Sun Jul 26 18:42 2020
 
 @author: Dion Engels
-MBx Python Data Analysis
+PLASMON Data Analysis
 
 Setup code
 
-This piece of code allows you to compile Mbx Python to an .exe
+This piece of code allows you to compile PLASMON to an .exe
 
 ----------------------------
 
@@ -18,6 +18,7 @@ v0.3: adding in dependencies to ensure working
 v0.4: also copy spectral corrections
 v1.0: initial release done
 v1.2: icon
+v2.0: new GUI: 19/10/2020
 
 """
 
@@ -25,12 +26,13 @@ import os
 import sys
 from cx_Freeze import setup, Executable
 
+__self_made__ = True
 
 r'-b C:\Users\s150127\Downloads\___MBx\build'  # take this control location of build
 
-__version__ = '1.4'
+__version__ = '2.0'
 
-include_files = ['spectral_corrections/', 'ico.ico']
+include_files = ['spectral_corrections/', 'ico.ico', 'Logging/']
 PYTHON_INSTALL_DIR = os.path.dirname(os.path.dirname(os.__file__))
 os.environ['TCL_LIBRARY'] = os.path.join(PYTHON_INSTALL_DIR, 'tcl', 'tcl8.6')
 os.environ['TK_LIBRARY'] = os.path.join(PYTHON_INSTALL_DIR, 'tcl', 'tk8.6')
@@ -48,13 +50,13 @@ if sys.platform == 'win32':
 
 includes = ['tkinter']
 excludes = ['matplotlib.tests', 'numpy.random._examples']
-packages = ['numpy', 'matplotlib', 'multiprocessing', 'scipy']
+packages = ['numpy', 'matplotlib', 'multiprocessing', 'scipy', 'skimage']
 
 setup(
-    name='MbxPython',
-    description='MbxPython',
+    name='PLASMON',
+    description='PLASMON',
     version=__version__,
-    executables=[Executable('main_gui.py', targetName="MbxPython.exe", base=base, icon='ico.ico')],
+    executables=[Executable('main_gui.py', targetName="PLASMON.exe", base=base, icon='ico.ico')],
     options={'build_exe': {
         'packages': packages,
         'includes': includes,
