@@ -323,7 +323,7 @@ class EntrySlider(ttk.Entry):
                 int(variable.get())
                 slider.updater(start=variable.get())
             except:
-                pass
+                tk.messagebox.showerror("Error", "Please enter a number.")
 
         self.bind("<Return>", change_slider)
         self.bind("<FocusOut>", change_slider)
