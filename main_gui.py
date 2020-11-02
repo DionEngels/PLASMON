@@ -317,8 +317,16 @@ class EntrySlider(ttk.Entry):
         :param slider: slider to couple
         :param variable: variable to couple
         """
-        self.bind("<Return>", lambda event: slider.updater(start=variable.get()))
-        self.bind("<FocusOut>", lambda event: slider.updater(start=variable.get()))
+        def change_slider(_):
+            # if it is a number, it can become a int. If not, this will fail, and nothing will happen.
+            try:
+                int(variable.get())
+                slider.updater(start=variable.get())
+            except:
+                pass
+
+        self.bind("<Return>", change_slider)
+        self.bind("<FocusOut>", change_slider)
 
 
 class NormalButton:
