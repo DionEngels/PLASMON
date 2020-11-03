@@ -236,18 +236,24 @@ class DivertError:
         :param message: Message to write
         :return:
         """
-        if path.exists(self.log_file):
-            text_file = open(self.log_file, 'a')
-        else:
-            text_file = open(self.log_file, 'w')
-        if error:
-            text_file.write("ERROR ({})\n --------------------------------------\n"
-                            .format(datetime.now().strftime("%H:%M")))
-        else:
-            text_file.write("WARNING ({})\n --------------------------------------\n"
-                            .format(datetime.now().strftime("%H:%M")))
-        text_file.write(message + "\n\n\n")
-        text_file.close()
+        try:
+            if path.exists(self.log_file):
+                text_file = open(self.log_file, 'a')
+            else:
+                text_file = open(self.log_file, 'w')
+            if error:
+                text_file.write("ERROR ({})\n --------------------------------------\n"
+                                .format(datetime.now().strftime("%H:%M")))
+            else:
+                text_file.write("WARNING ({})\n --------------------------------------\n"
+                                .format(datetime.now().strftime("%H:%M")))
+            text_file.write(message + "\n\n\n")
+            text_file.close()
+        except:
+            # if for some reason it fails.
+            self.show(error, "Error while saving to log file. Please clear your logging folder to prevent this from "
+                             "happening again.\nIn the mean time, here is the full error. Save this well, since it is "
+                             "not saved elsewhere now. Ignore the part about the logging folder:\n" + message)
 
     def error(self, *params):
         """

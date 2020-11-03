@@ -20,7 +20,7 @@ v2.0 pre-1: First version of GUI v2.0: 15/10/2020
 v2.0: GUI v2.0 ready for release: 30/10/2020
 """
 
-__version__ = "2.0"
+__version__ = "2.0.1"
 __self_made__ = True
 
 # GENERAL IMPORTS
@@ -317,8 +317,16 @@ class EntrySlider(ttk.Entry):
         :param slider: slider to couple
         :param variable: variable to couple
         """
-        self.bind("<Return>", lambda event: slider.updater(start=variable.get()))
-        self.bind("<FocusOut>", lambda event: slider.updater(start=variable.get()))
+        def change_slider(_):
+            # if it is a number, it can become a int. If not, this will fail, and nothing will happen.
+            try:
+                int(variable.get())
+                slider.updater(start=variable.get())
+            except:
+                tk.messagebox.showerror("Error", "Please enter a number.")
+
+        self.bind("<Return>", change_slider)
+        self.bind("<FocusOut>", change_slider)
 
 
 class NormalButton:
