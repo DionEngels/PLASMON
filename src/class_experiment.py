@@ -129,12 +129,15 @@ class Experiment:
         file_dir = '/'.join(self.directory.split(".")[0].split("/")[:-1]) + '/'
 
         # get date
-        date = self.datasets[0].metadata.pop('date', None)
-        if date is None:
-            date = "XXXX-XX-XX"
-        else:
+        try:
+            date = self.datasets[0].metadata.pop('date')
             date_split = date.split(" ")[0].split("-")
+            # if not split on -, try slashes.
+            if len(date_split) == 1:
+                date_split = date_split[0].split("/")
             date = "{:04d}-{:02d}-{:02d}".format(int(date_split[2]), int(date_split[1]), int(date_split[0]))
+        except:
+            date = "XXXX-XX-XX"
 
         # add date to directory
         file_dir = file_dir + date + "_" + name
