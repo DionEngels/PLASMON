@@ -601,7 +601,7 @@ TOOLTIP_ROI_MAX_INTENSITY = "The maximum intensity of a particle to be valid to 
 TOOLTIP_ROI_MIN_SIGMA = "The minimum sigma of a particle to be valid to be selected.\n" \
                             "Found by fitting a 2D Gaussian to the particle."
 TOOLTIP_ROI_MAX_SIGMA = "The maximum sigma of a particle to be valid to be selected.\n" \
-                            "Found by fitting a 2D Gaussian to the particl."
+                            "Found by fitting a 2D Gaussian to the particle."
 TOOLTIP_ROI_SETTINGS = "General settings for finding the correct ROIs around particles.\n" \
                        "A ROI has to pass all tests otherwise it is not selected."
 TOOLTIP_ROI_ADVANCED_SETTINGS = "Advanced settings for finding the correct ROIS around particles.\n" \
