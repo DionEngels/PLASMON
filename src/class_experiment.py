@@ -253,7 +253,6 @@ class Experiment:
         for roi in self.rois:
             result_dict["ROI_{}".format(roi.index)] = roi.results
 
-        result_dict = {'Results': result_dict}
         return result_dict
 
     def metadata_to_dict(self):
@@ -266,7 +265,6 @@ class Experiment:
         for dataset in self.datasets:
             metadata_dict['meta_{}'.format(dataset.name)] = dataset.metadata
 
-        metadata_dict = {'Metadata': metadata_dict}
         return metadata_dict
 
     def settings_to_dict(self):
