@@ -263,7 +263,7 @@ class Experiment:
         """
         metadata_dict = {}
         for dataset in self.datasets:
-            metadata_dict['meta_{}'.format(dataset.name)] = dataset.metadata
+            metadata_dict['meta_{}'.format(dataset.name_result[4:])] = dataset.metadata
 
         return metadata_dict
 
