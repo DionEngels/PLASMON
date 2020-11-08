@@ -83,7 +83,7 @@ class ND2ReaderForMetadata(ND2Reader):
 
         # check timesteps and frame rate
         try:
-            metadata_dict['timesteps'] = self.timesteps
+            metadata_dict['timesteps'] = self.timesteps / 1000  # divide by 1000 to convert to seconds
             metadata_dict['frame_rate'] = self.frame_rate
         except Exception:
             if verbose:
