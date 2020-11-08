@@ -339,8 +339,9 @@ class HSMDataset(Dataset):
             hsm_result[1] = 1000 * result[3]  # linewidth
             hsm_result[2] = r_squared
 
-            result_dict = {"type": self.type, "result": hsm_result, "fit_parameters": result,
-                           "raw_intensity": raw_intensity, "intensity": intensity, "raw": frame_stack}
+            result_dict = {"type": self.type, 'wavelengths': self.wavelengths, "result": hsm_result,
+                           "fit_parameters": result, "raw_intensity": raw_intensity, "intensity": intensity,
+                           "raw": frame_stack}
             roi.results[self.name_result] = result_dict
 
             # progress update
