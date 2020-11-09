@@ -245,13 +245,16 @@ class Experiment:
 
     def rois_to_dict(self):
         """
-        Converts results to dictionary
+        Converts results to dictionary, also adds roi.x, roi.x, and roi.index
         --------------------
         :return: results_dict: dictionary of results
         """
         result_dict = {}
         for roi in self.rois:
             result_dict["ROI_{}".format(roi.index)] = roi.results
+            result_dict["ROI_{}".format(roi.index)]['x'] = roi.x
+            result_dict["ROI_{}".format(roi.index)]['y'] = roi.y
+            result_dict["ROI_{}".format(roi.index)]['index'] = roi.index
 
         return result_dict
 
