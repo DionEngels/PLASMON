@@ -28,7 +28,7 @@ TRANSLATOR_DICT = {'int_max': 'Maximum Intensity', 'int_min': 'Minimum Intensity
                    'roi_side': "Side spacing", 'inter_roi': "ROI spacing",
                    'max_its': "Maximum number of iterations for fitter", 'All Figures': "All Figures",
                    'rejection': "Rejection used", '#cores': "Number of cores used",
-                   'pixels_or_nm': "Pixels or nanometer output",
+                   'pixels_or_nm': "Pixels or nanometer output", "method": "Fitting method used",
                    'frame_begin': "First frame fitted", 'frame_end': 'Last frame fitted', 'Type': "Type of dataset",
                    'Offset': "Offset compared to ROI finding frame", 'correction_file': "HSM spectral correction",
                    'wavelengths': "HSM wavelengths", 'filename': "Filename"}
@@ -81,7 +81,7 @@ def save_settings(directory, settings, time_taken):
             text_file.write("\n {} \n------------\n".format(dataset_name))
             for key, value in dataset_settings.items():
                 if key == "method":
-                    text_file.write("Meaning of variables in Localizations output: \n")
+                    text_file.write("Meaning of variables in TT results: \n")
                     if value == "Phasor + Intensity":
                         text_file.write(
                             "Frame index | x position | y position | Pixel intensity peak | Background \n")
@@ -96,5 +96,4 @@ def save_settings(directory, settings, time_taken):
                     else:
                         text_file.write("Frame index | x position | y position | Integrated intensity | "
                                         "Sigma x | Sigma y | Background (estimate) | Iterations needed to converge \n")
-                else:
-                    text_file.write(str(TRANSLATOR_DICT[key]) + ": " + str(value) + "\n")
+                text_file.write(str(TRANSLATOR_DICT[key]) + ": " + str(value) + "\n")
