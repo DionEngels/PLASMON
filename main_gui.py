@@ -20,7 +20,7 @@ v2.0 pre-1: First version of GUI v2.0: 15/10/2020
 v2.0: GUI v2.0 ready for release: 30/10/2020
 """
 
-__version__ = "2.0.1"
+__version__ = "2.1.0"
 __self_made__ = True
 
 # GENERAL IMPORTS
