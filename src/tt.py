@@ -383,6 +383,10 @@ class TimeTrace(Dataset):
                     roi.results[self.name_result]['result'] = change_to_nm(roi.results[self.name_result]['result'],
                                                                            self.metadata, self.settings['method'])
 
+            # add nm or pixels to result
+            for roi in self.active_rois:
+                roi.results[self.name_result]['dimension'] = self.settings['pixels_or_nm']
+
             # correct for drift
             self.experiment.progress_updater.message("Starting drift correction")
             self.drift_corrector = DriftCorrector(self.settings['method'])
