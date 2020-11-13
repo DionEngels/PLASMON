@@ -614,7 +614,7 @@ TOOLTIP_ROI_EDGE_DIST = "Minimum distance (pixels) between a ROI center and the 
                         "A ROI has to pass all tests otherwise it is not selected."
 TOOLTIP_ROI_INTER_DIST = "Minimum distance (pixels) between different ROI centers.\n" \
                          "A ROI has to pass all tests otherwise it is not selected."
-TOOLTIP_ROI_OTHER_SETTINGS = "Other settings, not directly related to finding ROIs" \
+TOOLTIP_ROI_OTHER_SETTINGS = "Other settings, not directly related to finding ROIs\n" \
                              "but will be applied to the entire experiment"
 TOOLTIP_ROI_INDIVIDUAL_FIGURES = "For each experiment, an overview figure will be created.\n" \
                                  "If this is checked, individual figures for each ROI will also be created.\n" \
@@ -1242,9 +1242,9 @@ class ROIPage(BasePage):
         line = ttk.Separator(self, orient='horizontal')
         line.grid(row=13, column=0, rowspan=1, columnspan=40, sticky='we')
 
-        label_advanced_settings = tk.Label(self, text="Other settings", font=FONT_SUBHEADER, bg='white')
-        label_advanced_settings.grid(row=14, column=0, columnspan=40, sticky='EW', padx=PAD_SMALL)
-        create_tooltip(label_advanced_settings, TOOLTIP_ROI_ADVANCED_SETTINGS)
+        label_other_settings = tk.Label(self, text="Other settings", font=FONT_SUBHEADER, bg='white')
+        label_other_settings.grid(row=14, column=0, columnspan=40, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_other_settings, TOOLTIP_ROI_OTHER_SETTINGS)
 
         label_all_figures = tk.Label(self, text="Create individual figures", font=FONT_LABEL, bg='white')
         label_all_figures.grid(row=15, column=0, columnspan=15, sticky='EW', padx=PAD_SMALL)
