@@ -75,7 +75,12 @@ class TimeTrace(Dataset):
         background = median_filter(np.asarray(nd2[0]), size=9)
         self.frame_for_rois = np.asarray(nd2[0]).astype(self.data_type_signed) - background
         self.metadata = nd2.get_metadata()
-        self.time_axis = self.metadata['timesteps']
+        try:
+            self.time_axis = self.metadata['timesteps']
+            self.time_axis_dim = 't'
+        except:
+            self.time_axis = range(0, len(self.frames))
+            self.time_axis_dim = 'frames'
         self.drift_corrector = None
         # parts that the TT dataset is split into
         self.tt_parts = None
@@ -332,9 +337,13 @@ class TimeTrace(Dataset):
         :return: None. Edits results in experiment
         """
         if mp.current_process().name == "MainProcess":
-            # find frames to fit and time axis
-            self.time_axis = self.metadata['timesteps'][slice(self.tt_parts[0].slice.start,
-                                                              self.tt_parts[-1].slice.stop)]
+            # update time axis
+            if self.time_axis_dim == 't':
+                self.time_axis = self.metadata['timesteps'][slice(self.tt_parts[0].slice.start,
+                                                                  self.tt_parts[-1].slice.stop)]
+            else:
+                self.time_axis = np.asarray(range(self.tt_parts[0].slice.start, self.tt_parts[-1].slice.stop))
+
             # find correlation between tt_parts
             self.correlate_tt_parts()
             # run
@@ -383,9 +392,11 @@ class TimeTrace(Dataset):
                     roi.results[self.name_result]['result'] = change_to_nm(roi.results[self.name_result]['result'],
                                                                            self.metadata, self.settings['method'])
 
-            # add nm or pixels to result
+            # add nm or pixels and time axis to result
             for roi in self.active_rois:
                 roi.results[self.name_result]['dimension'] = self.settings['pixels_or_nm']
+                roi.results[self.name_result]['time_axis'] = self.time_axis
+                roi.results[self.name_result]['time_axis_dim'] = self.time_axis_dim
 
             # correct for drift
             self.experiment.progress_updater.message("Starting drift correction")

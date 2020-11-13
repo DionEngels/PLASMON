@@ -209,12 +209,13 @@ def set_range_and_ticks(ax, max_range):
     ax.yaxis.set_major_locator(plt.MaxNLocator(N_TICKS))
 
 
-def make_tt(ax, time_axis, result, method):
+def make_tt(ax, time_axis, time_axis_dim, result, method):
     """
     Makes line plot of TT
     --------------------
     :param ax: ax object to edit
     :param time_axis: time axis, the x-axis of the plot
+    :param time_axis_dim: the dimension of the x-axis of the plot
     :param result: results to plot
     :param method: method used to get results. Impacts labels
     :return: None. Edits ax object
@@ -226,11 +227,13 @@ def make_tt(ax, time_axis, result, method):
 
     # put in label depending on method
     if "Gaussian" in method:
-        ax.set_xlabel('Time (s)')
         ax.set_ylabel('Integrated intensity (counts)')
     else:
-        ax.set_xlabel('Time (s)')
         ax.set_ylabel('Summed intensity (counts)')
+    if time_axis_dim == 't':
+        ax.set_xlabel('Time (s)')
+    else:
+        ax.set_xlabel('Frames (-)')
 
 
 def save_overview(experiment):
@@ -360,6 +363,7 @@ def save_overview(experiment):
                         # and if possible, time trace
                         ax_tt = fig.add_subplot(gs[row + max(len(hsm), 1) + index_dataset, column + 1])
                         make_tt(ax_tt, experiment.datasets[n_dataset].time_axis,
+                                experiment.datasets[n_dataset].time_axis_dim,
                                 roi.results[experiment.datasets[n_dataset].name_result]['result'], method)
                         ax_tt.set_title('TT {}\nROI {}'.format(experiment.datasets[n_dataset].name, roi.index + 1))
                 except:
@@ -448,6 +452,7 @@ def individual_figures(experiment):
                     # and if possible, time trace
                     ax_tt = fig.add_subplot(per_roi_length, 2, 2 + index_dataset * 2 + max(len(hsm), 1) * 2)
                     make_tt(ax_tt, experiment.datasets[n_dataset].time_axis,
+                            experiment.datasets[n_dataset].time_axis_dim,
                             roi.results[experiment.datasets[n_dataset].name_result]['result'], method)
                     ax_tt.set_title('TT {}\nROI {}'.format(experiment.datasets[n_dataset].name, roi.index + 1))
             except:
