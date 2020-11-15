@@ -335,7 +335,7 @@ class HSMDataset(Dataset):
             result, r_squared = self.fit_lorentzian(intensity, self.wavelengths, verbose=verbose)
 
             result_dict = {"type": self.type, 'wavelengths': self.wavelengths, "lambda": 1240 / result[2],  # SP lambda
-                           "linewidth": 1000 * result[3], 'R^2': r_squared, "fit_parameters": result,  # linewidth
+                           "linewidth": 1000 * result[3], 'R2': r_squared, "fit_parameters": result,  # linewidth
                            "raw_intensity": raw_intensity, "intensity": intensity, "raw": frame_stack}
             roi.results[self.name_result] = result_dict
 
