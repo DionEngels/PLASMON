@@ -209,13 +209,11 @@ class RoiFinder:
 
         return beads, roi_locations
 
-    def adjacent_or_boundary_rois(self, roi_boolean):
+    def boundary_rois(self, roi_boolean):
         """
-        Takes boolean of correlation with 2D Gaussian and checks if ROIs are too close to each other or side of frame
-        ----------
-        :param: roi_boolean : Boolean value whether or not pixel is defined as ROI after correlation with 2D Gaussian
+        Takes boolean of correlation with 2D Gaussian and checks if ROIs are too close to the side of the frame
+        :param roi_boolean: Boolean value whether or not pixel is defined as ROI after correlation with 2D Gaussian
         :return: None officially. Adapts ROI locations
-
         """
         remove_list = []
 
@@ -224,13 +222,6 @@ class RoiFinder:
             if my_roi.shape != (self.side_distance * 2 + 1, self.side_distance * 2 + 1):
                 remove_list.append(roi_index)  # if this fails, the roi is on the boundary
                 continue
-
-            my_roi = roi.get_roi(roi_boolean, self.roi_distance, [0, 0])
-            # if other ROIs in ROI, remove
-            trues_in_roi = np.transpose(np.where(my_roi == True))
-
-            if trues_in_roi.shape[0] > 1:
-                remove_list.append(roi_index)
 
         # remove all bad ROIs from ROI list
         self.roi_locations = [roi for roi_index, roi in enumerate(self.roi_locations) if roi_index not in remove_list]
@@ -270,6 +261,42 @@ class RoiFinder:
                 remove_list.append(roi_index)
         self.roi_locations = [roi for roi_index, roi in enumerate(self.roi_locations) if roi_index not in remove_list]
 
+    def make_new_boolean(self):
+        """
+        Checks the current self.roi_locations and makes this into a boolean matrix for adjacent ROIs to use
+        :return: roi_boolean: matrix with ones at ROI locations
+        """
+        # make empty roi boolean
+        roi_boolean = np.zeros(self.frame_bg.shape, dtype=bool)
+        # for every ROI, set ROI location to true
+        for roi in self.roi_locations:
+            roi_boolean[roi.y, roi.x] = True
+
+        return roi_boolean
+
+    def adjacent_rois(self, roi_boolean):
+        """
+        Takes boolean of correlation with 2D Gaussian and checks if ROIs are too close to each other
+        ----------
+        :param: roi_boolean : Boolean value whether or not pixel is defined as ROI after correlation with 2D Gaussian
+        :return: None officially. Adapts ROI locations
+
+        """
+        remove_list = []
+
+        for roi_index, roi in enumerate(self.roi_locations):
+            my_roi = roi.get_roi(roi_boolean, self.roi_distance, [0, 0])
+            # if other ROIs in ROI, remove
+            trues_in_roi = np.transpose(np.where(my_roi == True))
+
+            if trues_in_roi.shape[0] > 1:
+                remove_list.append(roi_index)
+
+        # remove all bad ROIs from ROI list
+        self.roi_locations = [roi for roi_index, roi in enumerate(self.roi_locations) if roi_index not in remove_list]
+
+
+
     def main(self, return_int=False, return_sigmas=False,
              return_corr=False):
         """
@@ -303,10 +330,15 @@ class RoiFinder:
         # find particles
         roi_boolean, self.roi_locations = self.find_particles(return_corr)
 
-        # continue finding particles
-        self.adjacent_or_boundary_rois(roi_boolean)
+        # reject boundary ROIs
+        self.boundary_rois(roi_boolean)
 
+        # reject with intensity / sigma
         self.int_sigma_limit(return_int=return_int, return_sigmas=return_sigmas)
+
+        # reject if too close to each other
+        roi_boolean = self.make_new_boolean()
+        self.adjacent_rois(roi_boolean)
 
         # set final ROI number
         for roi_index, roi in enumerate(self.roi_locations):
