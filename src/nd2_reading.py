@@ -60,7 +60,6 @@ class ND2ReaderForMetadata(ND2Reader):
         # remove ROIs
         metadata_dict.pop('rois', None)
 
-        logger.warning("ND2: Z-levels missing from metadata")
         # try to find z levels
         try:
             metadata_dict['z_levels'] = list(metadata_dict.pop('z_levels'))
