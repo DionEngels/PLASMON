@@ -30,7 +30,8 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.lines import Line2D
 from matplotlib.gridspec import GridSpec
-from warnings import warn, simplefilter  # for throwing warnings
+import logging  # for logging warnings
+logger = logging.getLogger('main')
 
 __self_made__ = True
 DPI = 400
@@ -306,8 +307,7 @@ def save_overview(experiment):
         # if not enough full rois, just randomly sample all ROIs
         if len(full_rois) < 4:
             full_rois = experiment.rois
-            warn("Too few ROIs that are active in all datasets. Overview figure might have some empty slots",
-                 RuntimeWarning)
+            logger.warning("Too few ROIs that are active in all datasets. Overview figure might have some empty slots")
 
         # sample ROIs to put in overview
         roi_list = []
@@ -370,13 +370,14 @@ def save_overview(experiment):
                     pass  # if this ROI does not have results for that dataset, skip
 
         # save
-        plt.tight_layout()
+        plt.qtight_layout()
         fig.savefig(name, bbox_inches='tight')
         fig.clear()
         plt.close(fig)
-    except:
+    except Exception as e:
         # throw warning
-        warn("Overview figure creation failed", RuntimeWarning)
+        logger.error("Overview figure creation failed")
+        logger.info("Info about overview figure creation failed", exc_info=e)
         # in case of crash, just save what you got
         plt.tight_layout()
         fig.savefig(name, bbox_inches='tight')
@@ -391,8 +392,6 @@ def individual_figures(experiment):
     :param experiment: Experiment to make overview figure of
     :return: None. Saves figures to disk
     """
-    # set warnings to show
-    simplefilter('always', RuntimeWarning)
     # force agg backend. Otherwise breaks due to threading
     mpl.use('agg', force=True)
     from matplotlib import pyplot as plt

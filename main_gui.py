@@ -29,7 +29,8 @@ from tempfile import mkdtemp
 import sys
 import time  # for timekeeping
 import ctypes  # Get sys info
-import warnings  # for warning diversion
+import logging  # for logging warnings
+from traceback import format_exc  # for error handling
 import shelve
 
 environ['MPLCONFIGDIR'] = mkdtemp()
@@ -47,7 +48,7 @@ from tkinter import ttk  # GUI styling
 from tkinter.filedialog import askopenfilename  # for popup that asks to select .nd2's or folders
 
 # Own code
-from main import DivertError, ProgressUpdater
+from main import ProgressUpdater, logging_setup
 from src.class_experiment import Experiment
 import src.figure_making as figuring
 
@@ -131,33 +132,64 @@ def proceed_question(title, text):
     check = tk.messagebox.askokcancel(title, text)
     return check
 
+# %% Logging
+
+
+class GUIStream(logging.Handler):
+
+    def emit(self, record):
+        msg = self.format(record)
+        tk.messagebox.showwarning("Attention!", msg)
+
+
 # %% Divert errors
 
 
-class DivertorErrorsGUI(DivertError):
+class DivertorErrorsGUI:
     """
     GUI version of DivertorError
     """
+    def __init__(self, logger):
+        self.logger = logger
+
+    def error(self, *params):
+        """
+        Called when error is given
+        :param: All unused error info
+        :return: Calls show
+        """
+        traceback_details = self.extract_error()
+        logger.error(f"Critical error occurred! PROGRAM WILL STOP.\nCheck logging file for more info.\n"
+                     f"Short summary: {traceback_details}")
+        logger.info("More info about critical error: " + format_exc(10, params[2]))
+
     @staticmethod
-    def show(error, traceback_details):
+    def extract_error():
         """
-        Shows the actual error or warning in Tkinter
-        :param error: Boolean whether or not error or warning
-        :param traceback_details: Error details
-        :return: Prints out
+        Gets error info in detail
+        :return: traceback_details. Dict with info about error
         """
-        if error:
-            tk.messagebox.showerror("Error. Send screenshot to Dion. PROGRAM WILL STOP",
-                                    message="Summary of error:\n{}\n\n"
-                                            "For full error, check the log file with current time."
-                                            "This can be found in installation directory \Logging"
-                                    .format(traceback_details))
-        else:
-            tk.messagebox.showerror("Warning. Take note. PROGRAM WILL CONTINUE",
-                                    message="Summary of warning:\n{}\n\n"
-                                            "For full warning, check the log file with current time."
-                                            "This can be found in installation directory \Logging"
-                                    .format(traceback_details))
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        while True:
+            try:
+                self_made = exc_traceback.tb_next.tb_frame.f_globals['__self_made__']
+            except:
+                self_made = None
+            if self_made is None:
+                break
+            elif self_made:
+                exc_traceback = exc_traceback.tb_next
+            else:
+                break
+        traceback_details = {
+            'filename': exc_traceback.tb_frame.f_code.co_filename,
+            'lineno': exc_traceback.tb_lineno,
+            'name': exc_traceback.tb_frame.f_code.co_name,
+            'type': exc_type.__name__,
+            'message': exc_value
+        }
+        return traceback_details
+
 
 # %% Close GUI
 
@@ -1977,8 +2009,15 @@ class HSMPage(AnalysisPageTemplate):
 
 if __name__ == '__main__':
     mp.freeze_support()
-    divertor = DivertorErrorsGUI()
-    warnings.showwarning = divertor.warning
+    # setup logging
+    logger, formatter = logging_setup()
+    stream_handler = GUIStream()
+    stream_handler.setFormatter(formatter)
+    stream_handler.setLevel(logging.WARNING)
+    logger.addHandler(stream_handler)
+    logger.info("Started new run\n-----------------------------\n")
+    divertor = DivertorErrorsGUI(logger)
+
     gui = PLASMON(proceed_question=proceed_question)
 
     tk.Tk.report_callback_exception = divertor.error

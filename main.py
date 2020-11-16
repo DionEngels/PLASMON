@@ -35,11 +35,10 @@ v2.0: Program v2: 15/10/2020
  """
 # GENERAL IMPORTS
 import sys
-import warnings  # for warning diversion
+import logging
 
-from os import getcwd, path  # create directory and check path
+from os import getcwd, path, remove  # create directory, check path, and remove
 from datetime import datetime  # current time
-from traceback import format_exc  # for error handling
 
 # Numpy and matplotlib, for linear algebra and plotting respectively
 import numpy as np
@@ -70,7 +69,7 @@ REJECTION = True  # True or False
 CORRECTION = "SN_objTIRF_PFS_510-800"  # "Matej_670-890"
 NM_OR_PIXELS = "nm"
 FRAME_BEGIN = "Leave empty for start"  # number or "Leave empty for start"
-FRAME_END = "Leave empty for end"  # number or "Leave empty for end"
+FRAME_END = 300 #"Leave empty for end"  # number or "Leave empty for end"
 
 # %% Proceed question
 
@@ -218,111 +217,25 @@ class ProgressUpdater:
         else:
             print('{} of {} of current dataset done'.format(self.progress, self.total * self.dataset_parts))
 
-# %% Divert errors
+# %% Logging
 
 
-class DivertError:
-    """
-    Class to divert errors to user
-    """
-    def __init__(self):
-        self.log_file = getcwd() + "/Logging/" + "Error_" + datetime.now().strftime("%Y_%m_%d__%H_%M") + ".txt"
-
-    def write_to_log(self, error, message):
-        """
-        Writes the error or warning to log.
-        -------------------
-        :param error: Boolean if error or not
-        :param message: Message to write
-        :return:
-        """
+def logging_setup():
+    logger = logging.getLogger('main')
+    logger.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s: %(filename)s lineno: %(lineno)s:\n%(levelname)s: %(message)s\n')
+    # clear log
+    if path.isfile(getcwd() + '/Logging/logging.log'):
         try:
-            if path.exists(self.log_file):
-                text_file = open(self.log_file, 'a')
-            else:
-                text_file = open(self.log_file, 'w')
-            if error:
-                text_file.write("ERROR ({})\n --------------------------------------\n"
-                                .format(datetime.now().strftime("%H:%M")))
-            else:
-                text_file.write("WARNING ({})\n --------------------------------------\n"
-                                .format(datetime.now().strftime("%H:%M")))
-            text_file.write(message + "\n\n\n")
-            text_file.close()
+            remove(getcwd() + '/Logging/logging.log')
         except:
-            # if for some reason it fails.
-            self.show(error, "Error while saving to log file. Please clear your logging folder to prevent this from "
-                             "happening again.\nIn the mean time, here is the full error. Save this well, since it is "
-                             "not saved elsewhere now. Ignore the part about the logging folder:\n" + message)
+            pass
+    file_handler = logging.FileHandler('Logging/logging.log')
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
 
-    def error(self, *params):
-        """
-        Called when error is given
-        :param: All unused error info
-        :return: Calls show
-        """
-        self.write_to_log(True, format_exc(10, params[2]))
-        traceback_details = self.extract_error()
-        self.show(True, traceback_details)
-
-    def warning(self, message, category, filename, lineno, file=None, line=None):
-        """
-        Called when warning is given
-        :param message: warning message
-        :param category: warning category
-        :param filename: filename where warning occurred
-        :param lineno: line number of warning
-        :param file: file of warning
-        :param line: line of warning
-        :return: Calls show
-        """
-        if "Z-levels details missing in metadata" in str(message):
-            return  # Only called by metadata loader, which is annoying, thus, not show
-        else:
-            message = warnings.formatwarning(message, category, filename, lineno)
-            message = '\n'.join(message.split('\n')[:-2])
-            self.write_to_log(False, message)
-        self.show(False, message)
-
-    @staticmethod
-    def extract_error():
-        """
-        Gets error info in detail
-        :return: traceback_details. Dict with info about error
-        """
-        exc_type, exc_value, exc_traceback = sys.exc_info()
-        while True:
-            try:
-                self_made = exc_traceback.tb_next.tb_frame.f_globals['__self_made__']
-            except:
-                self_made = None
-            if self_made is None:
-                break
-            elif self_made:
-                exc_traceback = exc_traceback.tb_next
-            else:
-                break
-        traceback_details = {
-            'filename': exc_traceback.tb_frame.f_code.co_filename,
-            'lineno': exc_traceback.tb_lineno,
-            'name': exc_traceback.tb_frame.f_code.co_name,
-            'type': exc_type.__name__,
-            'message': exc_value
-        }
-        return traceback_details
-
-    @staticmethod
-    def show(error, traceback_details):
-        """
-        Shows the actual error or warning
-        :param error: Boolean whether or not error or warning
-        :param traceback_details: Error details
-        :return: Prints out
-        """
-        if error:
-            print("\033[91m {}\033[00m".format(traceback_details))
-        else:
-            print("\033[93m {}\033[00m".format(traceback_details))
+    return logger, formatter
 
 # %% Input error
 
@@ -375,10 +288,14 @@ def run(experiments, progress_updater):
 
 if __name__ == '__main__':
     # setup
-    divertor = DivertError()
+    logger, formatter = logging_setup()
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+    stream_handler.setLevel(logging.WARNING)
+    logger.addHandler(stream_handler)
+    logger.info("Started new run\n-----------------------------\n")
     progress_updater = ProgressUpdater()
     experiments = []
-    warnings.showwarning = divertor.warning
 
     # create experiment
     experiment = Experiment("TT", tt_name, proceed_question, input_error, progress_updater, show_rois)
@@ -405,7 +322,7 @@ if __name__ == '__main__':
     experiment.show_rois("Dataset")
 
     # finalize TT dataset
-    settings_runtime = {'method': METHOD, 'rejection': REJECTION, '#cores': 6, "pixels_or_nm": NM_OR_PIXELS,
+    settings_runtime = {'method': METHOD, 'rejection': REJECTION, '#cores': 1, "pixels_or_nm": NM_OR_PIXELS,
                         'roi_size': ROI_SIZE, 'name': '1nMimager_newGNRs_100mW_TT',
                         'frame_begin': FRAME_BEGIN, 'frame_end': FRAME_END}
     if experiment.add_to_queue(settings_runtime) is False:

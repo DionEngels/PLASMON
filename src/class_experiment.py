@@ -18,7 +18,8 @@ v2.0: part of v2.0: 15/10/2020
 """
 # GENERAL IMPORTS
 from os import mkdir  # to get standard usage
-from warnings import warn, simplefilter  # for throwing warnings
+import logging  # for logging warnings
+logger = logging.getLogger('main')
 import time  # for time keeping
 
 # OWN CODE
@@ -212,8 +213,6 @@ class Experiment:
         -------------------
         :return: None. Saves to disk
         """
-        # set warnings to show
-        simplefilter('always', RuntimeWarning)
         # save settings used to txt
         self.progress_updater.message("Starting saving")
         settings = self.settings_to_dict()
@@ -228,8 +227,9 @@ class Experiment:
             try:
                 self.progress_updater.message("Saving individual figures")
                 figuring.individual_figures(self)
-            except:
-                warn("Individual figure creation failed", RuntimeWarning)
+            except Exception as e:
+                logger.error("Individual figure creation failed")
+                logger.info("Info about individual figure creation failed", exc_info=e)
 
         # convert to matlab coordinates
         self.progress_updater.message("Converting to MATLAB coordinate system")
