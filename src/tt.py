@@ -120,12 +120,17 @@ class TimeTrace(Dataset):
 
         # set cores
         self.n_cores = settings['#cores']
-        # set correlation interval (TO BE IMPLEMENTED)
-        #  self.correlation_interval = settings['correlation_interval']
         # take slices and create TTParts
         slices_user, _ = self.parse_start_end(settings['frame_begin'], settings['frame_end'])
         if slices_user.stop is None:
             slices_user = slice(slices_user.start, len(self.frames))
+        # set correlation interval
+        if self.check_correlation_interval_validity(settings['correlation_interval'], slices_user.stop) is False:
+            self.experiment.error_func("Invalid correlation interval",
+                                       "This can only be 'Never' or an integer smaller than the last frame set."
+                                       " Non-integer number will be rounded.")
+            return False
+        # create TTParts
         self.tt_parts = self.slices_create_setup(slices_user)
 
         # set max its
@@ -144,6 +149,23 @@ class TimeTrace(Dataset):
             self.settings['max_its'] = max_its
         else:
             self.fitter = PhasorSum(settings, self.roi_offset)
+
+    @staticmethod
+    def check_correlation_interval_validity(correlation_interval, end_frame):
+        if correlation_interval == "Never":
+            # if never, keep it at none
+            return True
+        else:
+            try:
+                # try to convert to int
+                correlation_interval = int(correlation_interval)
+                if correlation_interval > end_frame:
+                    return False
+                else:
+                    self.correlation_interval = correlation_interval
+            except:
+                # if fails, return false
+                return False
 
     def slices_create_setup(self, slices_user):
         """
