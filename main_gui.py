@@ -1951,6 +1951,7 @@ class TTPage(AnalysisPageTemplate):
         self.variable_roi_size.set(roi_size_options[0])
         self.entry_begin_frame.updater()
         self.entry_end_frame.updater()
+        self.entry_correlation_interval.updater()
 
         self.button_add_to_queue.updater(state='disabled')
 
