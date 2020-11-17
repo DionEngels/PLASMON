@@ -38,7 +38,7 @@ DPI = 400
 N_TICKS = 4
 
 
-def plot_rois(ax, frame, roi_locations=None, roi_size=None, roi_offset=None, font_size=None):
+def plot_rois(ax, frame, roi_locations=None, roi_size=None, roi_offset=None, font_size=None, overwrite=False):
     """
     Plots a microscope with rois if deisred
     ----------
@@ -48,13 +48,15 @@ def plot_rois(ax, frame, roi_locations=None, roi_size=None, roi_offset=None, fon
     :param roi_size : Size of boxes to draw
     :param roi_offset: offset of the dataset compared to experiment ROIs
     :param font_size: size of font of roi number
+    :param overwrite: Only called by ROI page, when the figure needs to be updated with new ROIs but same frame.
     :returns None. Edits ax object
     """
     if roi_offset is None:
         roi_offset = [0, 0]  # if no offset given, set to 0
 
-    # show frame
-    ax.imshow(frame, extent=[0, frame.shape[1], frame.shape[0], 0], aspect='auto')
+    if not overwrite:
+        # show frame
+        ax.imshow(frame, extent=[0, frame.shape[1], frame.shape[0], 0], aspect='auto')
 
     # add ROIs if not None
     if roi_locations is not None and roi_size is not None:

@@ -253,7 +253,7 @@ def input_error(title, text):
 # %% General plot
 
 
-def show_rois(frame, figure=None, roi_locations=None, roi_size=None, roi_offset=None):
+def show_rois(frame, figure=None, roi_locations=None, roi_size=None, roi_offset=None, overwrite=False):
     """
     Shows ROIs within python
     :param frame: frame to make figure of
@@ -261,6 +261,7 @@ def show_rois(frame, figure=None, roi_locations=None, roi_size=None, roi_offset=
     :param roi_locations: ROI locations within frame
     :param roi_size: ROI size
     :param roi_offset: Offset of ROIs within dataset
+    :param overwrite: only used in GUI
     :return:
     """
     if roi_offset is None:

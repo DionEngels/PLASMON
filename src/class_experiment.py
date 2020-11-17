@@ -101,17 +101,18 @@ class Experiment:
         self.roi_finder.change_settings(settings)
         self.rois = self.roi_finder.main()
 
-    def show_rois(self, experiment_or_dataset, figure=None):
+    def show_rois(self, experiment_or_dataset, figure=None, overwrite=False):
         """
         Show ROIs function. Depending if you want to see experiment or dataset, shows either using show_rois func
         ----------------------------------------------------
         :param experiment_or_dataset: String determines if Experiment or Dataset is shown
         :param figure: GUI inputs a figure to show to
+        :param overwrite: Only called by ROI page, when the figure needs to be updated with new ROIs but same frame.
         :return: None. Calls show_rois_func which either plots to output or to figure given
         """
         if experiment_or_dataset == "Experiment":
             self.show_rois_func(self.frame_for_rois, roi_locations=self.rois,
-                                roi_size=self.roi_finder.roi_size, figure=figure)
+                                roi_size=self.roi_finder.roi_size, figure=figure, overwrite=overwrite)
         elif experiment_or_dataset == "Dataset":
             self.show_rois_func(self.datasets[-1].frame_for_rois,
                                 roi_locations=self.datasets[-1].active_rois, figure=figure,

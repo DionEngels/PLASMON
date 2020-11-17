@@ -274,7 +274,7 @@ class FigureFrame(tk.Frame):
         self.toolbar.update()
         self.toolbar.configure(background="White")
 
-    def updater(self, frame, roi_locations=None, roi_size=None, roi_offset=None):
+    def updater(self, frame, roi_locations=None, roi_size=None, roi_offset=None, overwrite=False):
         """
         Updater. Takes existing frame with figure and places new figure in it
 
@@ -284,6 +284,7 @@ class FigureFrame(tk.Frame):
         roi_locations : optional, possible ROI locations to be highlighted. The default is None.
         roi_size : optional, ROI size in case ROIs are highlighted. The default is None.
         roi_offset: offset compared to ROI frame
+        overwrite: Only called by ROI page, when the figure needs to be updated with new ROIs but same frame.
 
         Returns
         -------
@@ -292,11 +293,21 @@ class FigureFrame(tk.Frame):
         """
         if roi_offset is None:
             roi_offset = [0, 0]
-        self.fig.clear()
-        fig_sub = self.fig.add_subplot(111)
-        figuring.plot_rois(fig_sub, frame, roi_locations, roi_size, roi_offset)
+        # if you want to overwrite, clear patches and place new ones
+        if overwrite:
+            fig_sub = self.fig.axes[0]
+            fig_sub.patches = []
+            figuring.plot_rois(fig_sub, frame, roi_locations, roi_size, roi_offset, overwrite=True)
+        else:
+            # else make new figure
+            self.fig.clear()
+            fig_sub = self.fig.add_subplot(111)
+            figuring.plot_rois(fig_sub, frame, roi_locations, roi_size, roi_offset, overwrite=False)
+        # always draw
         self.canvas.draw()
-        self.toolbar.update()
+        # only update toolbar once
+        if not overwrite:
+            self.toolbar.update()
 
 
 class EntryPlaceholder(ttk.Entry):
@@ -810,7 +821,7 @@ class PLASMON(tk.Tk):
         self.deiconify()
 
     @staticmethod
-    def show_rois(frame, figure=None, roi_locations=None, roi_size=None, roi_offset=None):
+    def show_rois(frame, figure=None, roi_locations=None, roi_size=None, roi_offset=None, overwrite=False):
         """
         Shows ROIs within python
         :param frame: frame to make figure of
@@ -822,7 +833,7 @@ class PLASMON(tk.Tk):
         """
         if figure is None:
             figure = plt.subplots(1)
-        figure.updater(frame, roi_locations=roi_locations, roi_size=roi_size, roi_offset=roi_offset)
+        figure.updater(frame, roi_locations=roi_locations, roi_size=roi_size, roi_offset=roi_offset, overwrite=overwrite)
 
     def additional_settings(self):
         """
@@ -1545,7 +1556,7 @@ class ROIPage(BasePage):
 
         # change settings and show new ROIs
         self.experiment.change_rois(settings)
-        self.experiment.show_rois("Experiment", figure=self.figure)
+        self.experiment.show_rois("Experiment", figure=self.figure, overwrite=True)
         self.label_number_of_rois.updater(text="{} ROIs found".format(len(self.experiment.rois)))
 
         return True
