@@ -317,13 +317,14 @@ class TimeTrace(Dataset):
         # fit intensity
         mu, std = norm.fit(int_list)
         intensity_list2 = np.asarray(int_list)[int_list < mu]
-        mu, std = norm.fit(intensity_list2)
+        if len(intensity_list2) > 0:
+            mu, std = norm.fit(intensity_list2)
 
         # set max its depending on mean intensity
-        if mu >= 2000:
+        int_under_which_more_its_are_needed = 3000
+        if mu >= int_under_which_more_its_are_needed:
             max_its = 100
         else:
-            int_under_which_more_its_are_needed = 2000
             max_its = np.ceil((int_under_which_more_its_are_needed - mu) / 1000) * 100 + 100
 
         # final check
