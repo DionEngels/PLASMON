@@ -179,12 +179,12 @@ class ProgressUpdater:
                 self.progress % round(self.total * self.dataset_parts / 10, 0) == 0 and \
                 self.total * self.dataset_parts > 9:
             self.update(False, False, False)
+        # if complete, always update. Also call when only 19 or fewer ROIs
+        elif self.total == self.progress or self.total * self.dataset_parts < 20:
+            self.update(False, False, False)
         # if Gaussian, update every five, since it is slower than Phasor
         elif "Gaussian" in self.method and self.progress % round(self.total * self.dataset_parts / 20, 0) == 0 and \
                 self.total * self.dataset_parts > 19:
-            self.update(False, False, False)
-        # if complete, always update. Also call when only 19 or fewer ROIs
-        elif self.total == self.progress or self.total * self.dataset_parts < 20:
             self.update(False, False, False)
 
         # set to completed when all done
