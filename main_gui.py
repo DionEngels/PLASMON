@@ -158,10 +158,14 @@ class DivertorErrorsGUI:
         :param: All unused error info
         :return: Calls show
         """
-        traceback_details = self.extract_error()
-        logger.error(f"Critical error occurred! PROGRAM WILL STOP.\nCheck logging file for more info.\n"
-                     f"Short summary: {traceback_details}")
-        logger.info("More info about critical error: " + format_exc(10, params[2]))
+        # try to log. If fails, simply show on screen
+        try:
+            traceback_details = self.extract_error()
+            logger.error(f"Critical error occurred! PROGRAM WILL STOP.\nCheck logging file for more info.\n"
+                         f"Short summary: {traceback_details}")
+            logger.info("More info about critical error: " + format_exc(10, params[2]))
+        except:
+            self.show(format_exc(10, params[2]))
 
     @staticmethod
     def extract_error():
@@ -189,6 +193,16 @@ class DivertorErrorsGUI:
             'message': exc_value
         }
         return traceback_details
+
+    @staticmethod
+    def show(traceback_details):
+        """
+        Shows the actual error or warning in Tkinter. Only used if logging fails
+        :param traceback_details: Error details
+        :return: Prints out
+        """
+        tk.messagebox.showerror("Error. Send screenshot to Dion. PROGRAM WILL STOP",
+                                message=f"Logging failed. Full error:\n{traceback_details}")
 
 
 # %% Close GUI
