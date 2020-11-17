@@ -52,6 +52,16 @@ includes = ['tkinter']
 excludes = ['matplotlib.tests', 'numpy.random._examples']
 packages = ['numpy', 'matplotlib', 'multiprocessing', 'scipy', 'skimage']
 
+# import a backend module for shelve
+for dbmodule in ['dbhash', 'gdbm', 'dbm', 'dumbdbm']:
+    try:
+        __import__(dbmodule)
+    except ImportError:
+        pass
+    else:
+        # If we found the module, ensure it's copied to the build directory.
+        packages.append(dbmodule)
+
 setup(
     name='PLASMON',
     description='PLASMON',
