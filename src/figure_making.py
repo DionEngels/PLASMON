@@ -370,7 +370,7 @@ def save_overview(experiment):
                     pass  # if this ROI does not have results for that dataset, skip
 
         # save
-        plt.qtight_layout()
+        plt.tight_layout()
         fig.savefig(name, bbox_inches='tight')
         fig.clear()
         plt.close(fig)
