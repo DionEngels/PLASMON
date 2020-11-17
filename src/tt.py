@@ -150,8 +150,7 @@ class TimeTrace(Dataset):
         else:
             self.fitter = PhasorSum(settings, self.roi_offset)
 
-    @staticmethod
-    def check_correlation_interval_validity(correlation_interval, end_frame):
+    def check_correlation_interval_validity(self, correlation_interval, end_frame):
         if correlation_interval == "Never":
             # if never, keep it at none
             return True
@@ -163,6 +162,7 @@ class TimeTrace(Dataset):
                     return False
                 else:
                     self.correlation_interval = correlation_interval
+                    return True
             except:
                 # if fails, return false
                 return False
@@ -187,6 +187,7 @@ class TimeTrace(Dataset):
                 tt_parts = [TTPart(self.filename, self.frames, part_slice) for part_slice in slices]
                 while max_length_memory < split_length * self.n_cores:  # if it still doesn't fit in memory, split again
                     slices, tt_parts = self.slices_split_in_two(slices)
+                    split_length /= 2
             else:
                 # split in even parts for memory
                 slices = self.slices_create(slices_user, n_parts)
@@ -220,6 +221,7 @@ class TimeTrace(Dataset):
         new_tt_parts = []
         for one_slice in slices:
             new_slices_part = self.slices_create(one_slice, 2)
+            new_slices.extend(new_slices_part)
             new_tt_parts.append(TTPart(self.filename, self.frames, new_slices_part[0]))
             new_tt_parts.append(TTPart(self.filename, self.frames, new_slices_part[1], corr=False))
         return new_slices, new_tt_parts
@@ -263,7 +265,7 @@ class TimeTrace(Dataset):
         slices = []
         counter = 0
         for length in lengths:
-            slices.append(slice(counter, counter + length))
+            slices.append(slice(main_slice.start + counter, main_slice.start + counter + length))
             counter += length
 
         return slices
