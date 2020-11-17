@@ -688,6 +688,13 @@ TOOLTIP_TT_REJECTION = "Enable rejection or not.\nIf rejection is enabled, " \
 TOOLTIP_TT_CORES = "The number of cores used for analysis. More is faster.\n" \
                    "The maximum makes your pc unusable while running. 3rd option is advised for fast analysis"
 TOOLTIP_TT_PIXELS_OR_NM = "Do you want your output in pixels or in nm?\nPixelsize can be gathered from video metadata."
+TOOLTIP_TT_CORRELATION_INTERVAL = "If you expect a lot of drift,\nyou can have the program adjust the ROI positions.\n" \
+                                  "This will be done every X frame (with X being what you set below).\n" \
+                                  "At this point, the program wil correlate the entire FOV\n" \
+                                  " at that frame with X frames earlier,\nadjusting the ROI positions if need be.\n" \
+                                  "This way, the particles will never leave the ROIs.\n" \
+                                  "In short, a low value will prevent particles leaving ROIs,\n" \
+                                  "but will slow the program down."
 TOOLTIP_TT_USED_ROI_SPACING = "The ROI spacing you set for the experiment. For your information."
 TOOLTIP_TT_ROI_SIZE = "The ROI size you want to use. 7x7 works usually, and is fastest.\n" \
                       "Larger ROI size is slower, but might work better if you expected large PSFs."
@@ -1864,6 +1871,12 @@ class TTPage(AnalysisPageTemplate):
         drop_dimension = ttk.OptionMenu(self, self.variable_dimensions, dimension_options[0], *dimension_options)
         drop_dimension.grid(row=16, column=32, columnspan=8, sticky='EW', padx=PAD_BIG)
 
+        label_correlation_interval = tk.Label(self, text="Correlation interval", font=FONT_LABEL, bg='white')
+        label_correlation_interval.grid(row=15, column=40, columnspan=8, sticky='EW', padx=PAD_BIG)
+        create_tooltip(label_correlation_interval, TOOLTIP_TT_CORRELATION_INTERVAL)
+        self.entry_correlation_interval = EntryPlaceholder(self, "Never")
+        self.entry_correlation_interval.grid(row=16, column=40, rowspan=1, columnspan=8, padx=PAD_SMALL)
+
         label_used_roi_spacing = tk.Label(self, text="Used ROI spacing:", bg='white', font=FONT_LABEL)
         label_used_roi_spacing.grid(row=18, column=0, rowspan=1, columnspan=10, sticky='EW', padx=PAD_SMALL)
         create_tooltip(label_used_roi_spacing, TOOLTIP_TT_USED_ROI_SPACING)
@@ -1903,6 +1916,7 @@ class TTPage(AnalysisPageTemplate):
         frame_begin = self.entry_begin_frame.get()
         frame_end = self.entry_end_frame.get()
         roi_size = int(self.variable_roi_size.get()[0])
+        corr_int = self.entry_correlation_interval.get()
 
         # check validity inputs
         if self.check_invalid_input(frame_begin, True) or self.check_invalid_input(frame_end, False):
@@ -1912,7 +1926,7 @@ class TTPage(AnalysisPageTemplate):
         # make settings dict and set to input
         settings_runtime = {'method': method, 'rejection': rejection_type, '#cores': n_processes,
                             'roi_size': roi_size, "pixels_or_nm": dimension, 'name': name,
-                            'frame_begin': frame_begin, 'frame_end': frame_end}
+                            'frame_begin': frame_begin, 'frame_end': frame_end, 'correlation_interval': corr_int}
 
         if self.experiment.add_to_queue(settings_runtime) is False:
             return

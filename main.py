@@ -69,7 +69,8 @@ REJECTION = True  # True or False
 CORRECTION = "SN_objTIRF_PFS_510-800"  # "Matej_670-890"
 NM_OR_PIXELS = "nm"
 FRAME_BEGIN = "Leave empty for start"  # number or "Leave empty for start"
-FRAME_END = 300 #"Leave empty for end"  # number or "Leave empty for end"
+FRAME_END = 300  # number or "Leave empty for end"
+CORR_INT = 500  # "Never" or integer
 
 # %% Proceed question
 
@@ -323,7 +324,7 @@ if __name__ == '__main__':
 
     # finalize TT dataset
     settings_runtime = {'method': METHOD, 'rejection': REJECTION, '#cores': 1, "pixels_or_nm": NM_OR_PIXELS,
-                        'roi_size': ROI_SIZE, 'name': '1nMimager_newGNRs_100mW_TT',
+                        'roi_size': ROI_SIZE, 'name': '1nMimager_newGNRs_100mW_TT', "correlation_interval": CORR_INT,
                         'frame_begin': FRAME_BEGIN, 'frame_end': FRAME_END}
     if experiment.add_to_queue(settings_runtime) is False:
         sys.exit("Did not pass check")
