@@ -267,6 +267,19 @@ class HSMDataset(Dataset):
 
         return data_output, data_merged
 
+    def find_energy_width(self):
+        """
+        Finds the bandwidth of the filters in eV. Assumed a 10 nm bandwidth, calculates the lower bound (lb)
+        and upper bound (ub) and determines the bandwidth in eV.
+        :return: energy_width: the bandwidth in eV for each filter.
+        """
+        energy_width = np.zeros(len(self.wavelengths))
+        for index, wavelength in enumerate(self.wavelengths):
+            wavelength_ev_lb = 1240 / (wavelength - 5)
+            wavelength_ev_ub = 1240 / (wavelength + 5)
+            energy_width[index] = wavelength_ev_lb - wavelength_ev_ub
+        return energy_width
+
     # %% Run
     def run(self, verbose=False):
         """
@@ -285,6 +298,7 @@ class HSMDataset(Dataset):
 
         # find correct shape for wavelength
         shape = np.asarray([find_nearest(self.spec_wavelength, self.spec_shape, nu) for nu in self.wavelengths])
+        energy_width = self.find_energy_width()
         # if verbose, show ROIs after correction
         if verbose:
             fig, ax = plt.subplots(1)
@@ -306,7 +320,6 @@ class HSMDataset(Dataset):
         for roi_index, roi in enumerate(self.active_rois):
             raw_intensity = np.zeros(self.frames.shape[0])
             intensity = np.zeros(self.frames.shape[0])
-            hsm_result = np.zeros(3)
             frame_stack = roi.get_frame_stack(self.corrected, roi_size_1d, self.roi_offset)
             for frame_index, my_roi in enumerate(frame_stack):
                 # if verbose, show ROI
@@ -327,7 +340,8 @@ class HSMDataset(Dataset):
                     intensity[frame_index] = np.nan
                 else:
                     raw_intensity[frame_index] = 2 * np.pi * result[0] * result[3] * result[4]
-                    intensity[frame_index] = raw_intensity[frame_index] / shape[frame_index]
+                    # for intensity, divide by shape correction and energy_width normalization
+                    intensity[frame_index] = raw_intensity[frame_index] / shape[frame_index] / energy_width[frame_index]
 
             # %% Fit the total intensity of a single ROI over all frames with Lorentzian
             if verbose:
