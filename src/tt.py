@@ -280,7 +280,7 @@ class TimeTrace(Dataset):
         :return: slices: the new slices created from main_slice with length
         """
         total_length = (main_slice.stop - main_slice.start)
-        remainder = length % total_length
+        remainder = total_length % length
         parts = total_length // length
 
         slices = []
