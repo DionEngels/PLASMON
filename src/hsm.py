@@ -48,13 +48,14 @@ class HSMDataset(Dataset):
     """
     HSM Dataset. Inherits from base dataset
     """
-    def __init__(self, experiment, nd2, name):
+    def __init__(self, experiment, nd2, name, label=None):
         """
         Initialise HSM Dataset. Set base values and load nd2. Also create corrected frame.
         ------------------------
         :param experiment: parent experiment
         :param nd2: nd2 of HSM
         :param name: name of HSM
+        :param label: a label that you can add. If added, update percentages will be placed there
         """
         super().__init__(experiment, nd2, name)
         self.type = "HSM"
@@ -66,7 +67,7 @@ class HSMDataset(Dataset):
         self.spec_shape = None
 
         # create corrected merged frame and corrected frames
-        self.corrected, self.frame_for_rois = self.hsm_drift(verbose=False)
+        self.corrected, self.frame_for_rois = self.hsm_drift(verbose=False, label=label)
 
     def prepare_run(self, settings):
         """
@@ -174,11 +175,12 @@ class HSMDataset(Dataset):
             return False
 
     # %% Correct for drift between frames
-    def hsm_drift(self, verbose=False):
+    def hsm_drift(self, verbose=False, label=None):
         """
         Corrects the drift between the HSM frames and adds them up for a merged frame to compare to the laser frame.
         ----------------------------------------
         :param verbose: If true, you get figures
+        :param label: a label that you can add. If added, update percentages will be placed there
         :return: data_output: all the frames aligned (without background correction)
         :return: data_merged: all the frames aligned and added up (with background correction)
         """
@@ -208,6 +210,9 @@ class HSMDataset(Dataset):
                 offset[frame_index, :] = maxima - np.asarray(img_corrected.shape) + np.asarray([1, 1])
 
             img_corrected_previous = img_corrected
+            if label is not None:
+                label.updater(text=f'HSM frames are being merged. '
+                                   f'Progress {(frame_index + 1) / len(self.frames) * 100:.1f}%')
 
         # after all correlations, add up individual offsets to get offset from frame zero
         for index in range(self.frames.shape[0]):

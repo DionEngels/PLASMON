@@ -501,6 +501,16 @@ class NormalLabel:
         if text is None:
             text = self.text
         self._label['text'] = text
+        # update page
+        self.parent.update()
+
+    def grid(self):
+        self._label.grid()
+        self.parent.update()
+
+    def grid_remove(self):
+        self._label.grid_remove()
+        self.parent.update()
 
 # %% Progress Updater
 
@@ -1115,8 +1125,8 @@ class LoadPage(BasePage):
                             command=lambda: self.load_nd2("HSM"))
         button2.grid(row=10, column=25, columnspan=1, rowspan=1, padx=PAD_SMALL)
 
-        self.label_wait = tk.Label(self, text="HSM frames are being merged, please wait.", font=FONT_LABEL, bg='white')
-        self.label_wait.grid(row=11, column=24, columnspan=2, padx=PAD_SMALL)
+        self.label_wait = NormalLabel(self, text="HSM frames are being merged. Progress 0%", row=11, column=24,
+                                      columnspan=2, font=FONT_LABEL, padx=PAD_SMALL, sticky='EW')
         self.label_wait.grid_remove()
 
     def load_nd2(self, dataset_type):
@@ -1137,11 +1147,10 @@ class LoadPage(BasePage):
         if dataset_type == "HSM":
             # if datatype is HSM, show wait label
             self.label_wait.grid()
-            self.update()
         if self.controller.experiment_to_link_name is None:
             # if no experiment to link to, new experiment
             experiment = Experiment(dataset_type, filename, self.controller.proceed_question, tk.messagebox.showerror,
-                                    self.controller.progress_updater, self.controller.show_rois)
+                                    self.controller.progress_updater, self.controller.show_rois, label=self.label_wait)
             self.controller.experiments.append(experiment)
             # show ROIPage
             self.controller.show_page(ROIPage, experiment=experiment)
@@ -1153,12 +1162,13 @@ class LoadPage(BasePage):
                 experiment_to_link.init_new_tt(filename)
                 self.controller.show_page(TTPage, experiment=experiment_to_link)
             else:
-                experiment_to_link.init_new_hsm(filename)
+                experiment_to_link.init_new_hsm(filename, label=self.label_wait)
                 self.controller.show_page(HSMPage, experiment=experiment_to_link)
 
         # remove wait label
         if dataset_type == "HSM":
             self.label_wait.grid_remove()
+            self.label_wait.updater(text="HSM frames are being merged. Progress 0%")
 
 # %% ROIPage
 

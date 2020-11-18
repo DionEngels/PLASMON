@@ -40,7 +40,7 @@ class Experiment:
     """
     Experiment class. Holds datasets of same experiment and same ROIs.
     """
-    def __init__(self, created_by, filename, proceed_question, error_func, progress_updater, show_rois):
+    def __init__(self, created_by, filename, proceed_question, error_func, progress_updater, show_rois, label=None):
         """
         Initialises experiment. Sets some settings and calls first dataset initialization and ROI finder
         ----------------------
@@ -50,6 +50,7 @@ class Experiment:
         :param error_func: Error function. Also changes if GUI is used or not
         :param progress_updater: Progress updater. GUI changes this
         :param show_rois: Function to show ROIs. Also changes with GUI
+        :param label: a label that you can add. If added, update percentages will be placed there
         """
         self.created_by = created_by
         self.directory = filename
@@ -63,22 +64,23 @@ class Experiment:
         self.show_rois_func = show_rois
 
         if created_by == 'HSM':
-            self.init_new_hsm(filename)
+            self.init_new_hsm(filename, label=label)
         elif created_by == 'TT':
             self.init_new_tt(filename)
         self.frame_for_rois = self.datasets[-1].frame_for_rois
         self.roi_finder = RoiFinder(self.frame_for_rois, self.datasets[-1].data_type_signed)
         self.rois = self.roi_finder.main()
 
-    def init_new_hsm(self, filename):
+    def init_new_hsm(self, filename, label=None):
         """
         Add a new HSM to experiment. Loads nd2, initialises HSM class, appends to self.datasets
         -----------------------------------
         :param filename: filename of new HSM
+        :param label: a label that you can add. If added, update percentages will be placed there
         :return: None. Edits class.
         """
         nd2 = ND2ReaderSelf(filename)
-        hsm_object = HSMDataset(self, nd2, filename)
+        hsm_object = HSMDataset(self, nd2, filename, label=label)
         self.datasets.append(hsm_object)
 
     def init_new_tt(self, filename):
