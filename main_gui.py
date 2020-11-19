@@ -1025,7 +1025,7 @@ class MainPage(BasePage):
             name = selected.split(" ")[-1]
             # delete the correct experiment
             for index, experiment in enumerate(self.controller.experiments):
-                if name in experiment.name:
+                if name == experiment.name:
                     del self.controller.experiments[index]
                     break
             # update MainPage
@@ -1147,6 +1147,7 @@ class LoadPage(BasePage):
         if dataset_type == "HSM":
             # if datatype is HSM, show wait label
             self.label_wait.grid()
+
         if self.controller.experiment_to_link_name is None:
             # if no experiment to link to, new experiment
             experiment = Experiment(dataset_type, filename, self.controller.proceed_question, tk.messagebox.showerror,
@@ -1157,7 +1158,7 @@ class LoadPage(BasePage):
         else:
             # otherwise, link to experiment
             experiment_to_link = [experiment for experiment in self.controller.experiments if
-                                  self.controller.experiment_to_link_name in experiment.name][0]
+                                  self.controller.experiment_to_link_name == experiment.name][0]
             if dataset_type == "TT":
                 experiment_to_link.init_new_tt(filename)
                 self.controller.show_page(TTPage, experiment=experiment_to_link)
