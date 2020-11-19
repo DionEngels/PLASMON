@@ -382,9 +382,10 @@ class TimeTrace(Dataset):
                     q = mp.SimpleQueue()
                     manager = mp.Manager()
 
-                    while self.tt_parts_done < len(self.tt_parts):
+                    while tt_parts_created < len(self.tt_parts):
                         # create processes, each with its own shared_dict to prevent large amount of data to be shared
-                        for i in range(self.n_cores):
+                        # continue creating while the number of processes running is equal to n_cores
+                        while tt_parts_created - self.tt_parts_done < self.n_cores:
                             # break if enough parts created
                             if tt_parts_created == len(self.tt_parts):
                                 break
@@ -394,11 +395,15 @@ class TimeTrace(Dataset):
                             dicts_list.append(shared_dict)
                             tt_parts_created += 1
 
-                        # Check progress
-                        while not self.experiment.progress_updater.dataset_completed:
+                        # Check progress while not done creating processes yet
+                        while tt_parts_created - self.tt_parts_done == self.n_cores:
                             q.get()
                             self.experiment.progress_updater.update_progress()
 
+                    # check progress knowing that they should complete
+                    while not self.experiment.progress_updater.dataset_completed:
+                        q.get()
+                        self.experiment.progress_updater.update_progress()
                 else:
                     dicts_list = []
                     for _ in range(len(self.tt_parts)):
@@ -608,7 +613,6 @@ class BaseFitter:
                 dataset.experiment.progress_updater.update_progress()
             else:
                 q.put(1)
-
 
 # %% Gaussian fitter with estimated background
 
