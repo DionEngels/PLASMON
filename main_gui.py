@@ -20,7 +20,7 @@ v2.0 pre-1: First version of GUI v2.0: 15/10/2020
 v2.0: GUI v2.0 ready for release: 30/10/2020
 """
 
-__version__ = "2.0.1"
+__version__ = "2.1.0"
 __self_made__ = True
 
 # GENERAL IMPORTS
@@ -29,7 +29,8 @@ from tempfile import mkdtemp
 import sys
 import time  # for timekeeping
 import ctypes  # Get sys info
-import warnings  # for warning diversion
+import logging  # for logging warnings
+from traceback import format_exc  # for error handling
 import shelve
 
 environ['MPLCONFIGDIR'] = mkdtemp()
@@ -47,7 +48,7 @@ from tkinter import ttk  # GUI styling
 from tkinter.filedialog import askopenfilename  # for popup that asks to select .nd2's or folders
 
 # Own code
-from main import DivertError, ProgressUpdater
+from main import ProgressUpdater, logging_setup
 from src.class_experiment import Experiment
 import src.figure_making as figuring
 
@@ -131,33 +132,78 @@ def proceed_question(title, text):
     check = tk.messagebox.askokcancel(title, text)
     return check
 
+# %% Logging
+
+
+class GUIStream(logging.Handler):
+
+    def emit(self, record):
+        msg = self.format(record)
+        tk.messagebox.showwarning("Attention!", msg)
+
+
 # %% Divert errors
 
 
-class DivertorErrorsGUI(DivertError):
+class DivertorErrorsGUI:
     """
     GUI version of DivertorError
     """
-    @staticmethod
-    def show(error, traceback_details):
+    def __init__(self, logger):
+        self.logger = logger
+
+    def error(self, *params):
         """
-        Shows the actual error or warning in Tkinter
-        :param error: Boolean whether or not error or warning
+        Called when error is given
+        :param: All unused error info
+        :return: Calls show
+        """
+        # try to log. If fails, simply show on screen
+        try:
+            traceback_details = self.extract_error()
+            logger.error(f"Critical error occurred! PROGRAM WILL STOP.\nCheck logging file for more info.\n"
+                         f"Short summary: {traceback_details}")
+            logger.info("More info about critical error: " + format_exc(10, params[2]))
+        except:
+            self.show(format_exc(10, params[2]))
+
+    @staticmethod
+    def extract_error():
+        """
+        Gets error info in detail
+        :return: traceback_details. Dict with info about error
+        """
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        while True:
+            try:
+                self_made = exc_traceback.tb_next.tb_frame.f_globals['__self_made__']
+            except:
+                self_made = None
+            if self_made is None:
+                break
+            elif self_made:
+                exc_traceback = exc_traceback.tb_next
+            else:
+                break
+        traceback_details = {
+            'filename': exc_traceback.tb_frame.f_code.co_filename,
+            'lineno': exc_traceback.tb_lineno,
+            'name': exc_traceback.tb_frame.f_code.co_name,
+            'type': exc_type.__name__,
+            'message': exc_value
+        }
+        return traceback_details
+
+    @staticmethod
+    def show(traceback_details):
+        """
+        Shows the actual error or warning in Tkinter. Only used if logging fails
         :param traceback_details: Error details
         :return: Prints out
         """
-        if error:
-            tk.messagebox.showerror("Error. Send screenshot to Dion. PROGRAM WILL STOP",
-                                    message="Summary of error:\n{}\n\n"
-                                            "For full error, check the log file with current time."
-                                            "This can be found in installation directory \Logging"
-                                    .format(traceback_details))
-        else:
-            tk.messagebox.showerror("Warning. Take note. PROGRAM WILL CONTINUE",
-                                    message="Summary of warning:\n{}\n\n"
-                                            "For full warning, check the log file with current time."
-                                            "This can be found in installation directory \Logging"
-                                    .format(traceback_details))
+        tk.messagebox.showerror("Error. Send screenshot to Dion. PROGRAM WILL STOP",
+                                message=f"Logging failed. Full error:\n{traceback_details}")
+
 
 # %% Close GUI
 
@@ -228,7 +274,7 @@ class FigureFrame(tk.Frame):
         self.toolbar.update()
         self.toolbar.configure(background="White")
 
-    def updater(self, frame, roi_locations=None, roi_size=None, roi_offset=None):
+    def updater(self, frame, roi_locations=None, roi_size=None, roi_offset=None, overwrite=False):
         """
         Updater. Takes existing frame with figure and places new figure in it
 
@@ -238,6 +284,7 @@ class FigureFrame(tk.Frame):
         roi_locations : optional, possible ROI locations to be highlighted. The default is None.
         roi_size : optional, ROI size in case ROIs are highlighted. The default is None.
         roi_offset: offset compared to ROI frame
+        overwrite: Only called by ROI page, when the figure needs to be updated with new ROIs but same frame.
 
         Returns
         -------
@@ -246,11 +293,21 @@ class FigureFrame(tk.Frame):
         """
         if roi_offset is None:
             roi_offset = [0, 0]
-        self.fig.clear()
-        fig_sub = self.fig.add_subplot(111)
-        figuring.plot_rois(fig_sub, frame, roi_locations, roi_size, roi_offset)
+        # if you want to overwrite, clear patches and place new ones
+        if overwrite:
+            fig_sub = self.fig.axes[0]
+            fig_sub.patches = []
+            figuring.plot_rois(fig_sub, frame, roi_locations, roi_size, roi_offset, overwrite=True)
+        else:
+            # else make new figure
+            self.fig.clear()
+            fig_sub = self.fig.add_subplot(111)
+            figuring.plot_rois(fig_sub, frame, roi_locations, roi_size, roi_offset, overwrite=False)
+        # always draw
         self.canvas.draw()
-        self.toolbar.update()
+        # only update toolbar once
+        if not overwrite:
+            self.toolbar.update()
 
 
 class EntryPlaceholder(ttk.Entry):
@@ -444,6 +501,16 @@ class NormalLabel:
         if text is None:
             text = self.text
         self._label['text'] = text
+        # update page
+        self.parent.update()
+
+    def grid(self):
+        self._label.grid()
+        self.parent.update()
+
+    def grid_remove(self):
+        self._label.grid_remove()
+        self.parent.update()
 
 # %% Progress Updater
 
@@ -601,7 +668,7 @@ TOOLTIP_ROI_MAX_INTENSITY = "The maximum intensity of a particle to be valid to 
 TOOLTIP_ROI_MIN_SIGMA = "The minimum sigma of a particle to be valid to be selected.\n" \
                             "Found by fitting a 2D Gaussian to the particle."
 TOOLTIP_ROI_MAX_SIGMA = "The maximum sigma of a particle to be valid to be selected.\n" \
-                            "Found by fitting a 2D Gaussian to the particl."
+                            "Found by fitting a 2D Gaussian to the particle."
 TOOLTIP_ROI_SETTINGS = "General settings for finding the correct ROIs around particles.\n" \
                        "A ROI has to pass all tests otherwise it is not selected."
 TOOLTIP_ROI_ADVANCED_SETTINGS = "Advanced settings for finding the correct ROIS around particles.\n" \
@@ -614,7 +681,7 @@ TOOLTIP_ROI_EDGE_DIST = "Minimum distance (pixels) between a ROI center and the 
                         "A ROI has to pass all tests otherwise it is not selected."
 TOOLTIP_ROI_INTER_DIST = "Minimum distance (pixels) between different ROI centers.\n" \
                          "A ROI has to pass all tests otherwise it is not selected."
-TOOLTIP_ROI_OTHER_SETTINGS = "Other settings, not directly related to finding ROIs" \
+TOOLTIP_ROI_OTHER_SETTINGS = "Other settings, not directly related to finding ROIs\n" \
                              "but will be applied to the entire experiment"
 TOOLTIP_ROI_INDIVIDUAL_FIGURES = "For each experiment, an overview figure will be created.\n" \
                                  "If this is checked, individual figures for each ROI will also be created.\n" \
@@ -642,6 +709,13 @@ TOOLTIP_TT_REJECTION = "Enable rejection or not.\nIf rejection is enabled, " \
 TOOLTIP_TT_CORES = "The number of cores used for analysis. More is faster.\n" \
                    "The maximum makes your pc unusable while running. 3rd option is advised for fast analysis"
 TOOLTIP_TT_PIXELS_OR_NM = "Do you want your output in pixels or in nm?\nPixelsize can be gathered from video metadata."
+TOOLTIP_TT_CORRELATION_INTERVAL = "If you expect a lot of drift,\nyou can have the program adjust the ROI positions.\n" \
+                                  "This will be done every X frame (with X being what you set below).\n" \
+                                  "At this point, the program wil correlate the entire FOV\n" \
+                                  " at that frame with X frames earlier,\nadjusting the ROI positions if need be.\n" \
+                                  "This way, the particles will never leave the ROIs.\n" \
+                                  "In short, a low value will prevent particles leaving ROIs,\n" \
+                                  "but will slow the program down."
 TOOLTIP_TT_USED_ROI_SPACING = "The ROI spacing you set for the experiment. For your information."
 TOOLTIP_TT_ROI_SIZE = "The ROI size you want to use. 7x7 works usually, and is fastest.\n" \
                       "Larger ROI size is slower, but might work better if you expected large PSFs."
@@ -757,7 +831,7 @@ class PLASMON(tk.Tk):
         self.deiconify()
 
     @staticmethod
-    def show_rois(frame, figure=None, roi_locations=None, roi_size=None, roi_offset=None):
+    def show_rois(frame, figure=None, roi_locations=None, roi_size=None, roi_offset=None, overwrite=False):
         """
         Shows ROIs within python
         :param frame: frame to make figure of
@@ -769,7 +843,7 @@ class PLASMON(tk.Tk):
         """
         if figure is None:
             figure = plt.subplots(1)
-        figure.updater(frame, roi_locations=roi_locations, roi_size=roi_size, roi_offset=roi_offset)
+        figure.updater(frame, roi_locations=roi_locations, roi_size=roi_size, roi_offset=roi_offset, overwrite=overwrite)
 
     def additional_settings(self):
         """
@@ -951,7 +1025,7 @@ class MainPage(BasePage):
             name = selected.split(" ")[-1]
             # delete the correct experiment
             for index, experiment in enumerate(self.controller.experiments):
-                if name in experiment.name:
+                if name == experiment.name:
                     del self.controller.experiments[index]
                     break
             # update MainPage
@@ -1051,8 +1125,8 @@ class LoadPage(BasePage):
                             command=lambda: self.load_nd2("HSM"))
         button2.grid(row=10, column=25, columnspan=1, rowspan=1, padx=PAD_SMALL)
 
-        self.label_wait = tk.Label(self, text="HSM frames are being merged, please wait.", font=FONT_LABEL, bg='white')
-        self.label_wait.grid(row=11, column=24, columnspan=2, padx=PAD_SMALL)
+        self.label_wait = NormalLabel(self, text="HSM frames are being merged. Progress 0%", row=11, column=24,
+                                      columnspan=2, font=FONT_LABEL, padx=PAD_SMALL, sticky='EW')
         self.label_wait.grid_remove()
 
     def load_nd2(self, dataset_type):
@@ -1073,28 +1147,29 @@ class LoadPage(BasePage):
         if dataset_type == "HSM":
             # if datatype is HSM, show wait label
             self.label_wait.grid()
-            self.update()
+
         if self.controller.experiment_to_link_name is None:
             # if no experiment to link to, new experiment
             experiment = Experiment(dataset_type, filename, self.controller.proceed_question, tk.messagebox.showerror,
-                                    self.controller.progress_updater, self.controller.show_rois)
+                                    self.controller.progress_updater, self.controller.show_rois, label=self.label_wait)
             self.controller.experiments.append(experiment)
             # show ROIPage
             self.controller.show_page(ROIPage, experiment=experiment)
         else:
             # otherwise, link to experiment
             experiment_to_link = [experiment for experiment in self.controller.experiments if
-                                  self.controller.experiment_to_link_name in experiment.name][0]
+                                  self.controller.experiment_to_link_name == experiment.name][0]
             if dataset_type == "TT":
                 experiment_to_link.init_new_tt(filename)
                 self.controller.show_page(TTPage, experiment=experiment_to_link)
             else:
-                experiment_to_link.init_new_hsm(filename)
+                experiment_to_link.init_new_hsm(filename, label=self.label_wait)
                 self.controller.show_page(HSMPage, experiment=experiment_to_link)
 
         # remove wait label
         if dataset_type == "HSM":
             self.label_wait.grid_remove()
+            self.label_wait.updater(text="HSM frames are being merged. Progress 0%")
 
 # %% ROIPage
 
@@ -1242,9 +1317,9 @@ class ROIPage(BasePage):
         line = ttk.Separator(self, orient='horizontal')
         line.grid(row=13, column=0, rowspan=1, columnspan=40, sticky='we')
 
-        label_advanced_settings = tk.Label(self, text="Other settings", font=FONT_SUBHEADER, bg='white')
-        label_advanced_settings.grid(row=14, column=0, columnspan=40, sticky='EW', padx=PAD_SMALL)
-        create_tooltip(label_advanced_settings, TOOLTIP_ROI_ADVANCED_SETTINGS)
+        label_other_settings = tk.Label(self, text="Other settings", font=FONT_SUBHEADER, bg='white')
+        label_other_settings.grid(row=14, column=0, columnspan=40, sticky='EW', padx=PAD_SMALL)
+        create_tooltip(label_other_settings, TOOLTIP_ROI_OTHER_SETTINGS)
 
         label_all_figures = tk.Label(self, text="Create individual figures", font=FONT_LABEL, bg='white')
         label_all_figures.grid(row=15, column=0, columnspan=15, sticky='EW', padx=PAD_SMALL)
@@ -1492,7 +1567,7 @@ class ROIPage(BasePage):
 
         # change settings and show new ROIs
         self.experiment.change_rois(settings)
-        self.experiment.show_rois("Experiment", figure=self.figure)
+        self.experiment.show_rois("Experiment", figure=self.figure, overwrite=True)
         self.label_number_of_rois.updater(text="{} ROIs found".format(len(self.experiment.rois)))
 
         return True
@@ -1818,6 +1893,12 @@ class TTPage(AnalysisPageTemplate):
         drop_dimension = ttk.OptionMenu(self, self.variable_dimensions, dimension_options[0], *dimension_options)
         drop_dimension.grid(row=16, column=32, columnspan=8, sticky='EW', padx=PAD_BIG)
 
+        label_correlation_interval = tk.Label(self, text="Correlation interval", font=FONT_LABEL, bg='white')
+        label_correlation_interval.grid(row=15, column=40, columnspan=8, sticky='EW', padx=PAD_BIG)
+        create_tooltip(label_correlation_interval, TOOLTIP_TT_CORRELATION_INTERVAL)
+        self.entry_correlation_interval = EntryPlaceholder(self, "Never")
+        self.entry_correlation_interval.grid(row=16, column=40, rowspan=1, columnspan=8, padx=PAD_SMALL)
+
         label_used_roi_spacing = tk.Label(self, text="Used ROI spacing:", bg='white', font=FONT_LABEL)
         label_used_roi_spacing.grid(row=18, column=0, rowspan=1, columnspan=10, sticky='EW', padx=PAD_SMALL)
         create_tooltip(label_used_roi_spacing, TOOLTIP_TT_USED_ROI_SPACING)
@@ -1857,6 +1938,7 @@ class TTPage(AnalysisPageTemplate):
         frame_begin = self.entry_begin_frame.get()
         frame_end = self.entry_end_frame.get()
         roi_size = int(self.variable_roi_size.get()[0])
+        corr_int = self.entry_correlation_interval.get()
 
         # check validity inputs
         if self.check_invalid_input(frame_begin, True) or self.check_invalid_input(frame_end, False):
@@ -1866,7 +1948,7 @@ class TTPage(AnalysisPageTemplate):
         # make settings dict and set to input
         settings_runtime = {'method': method, 'rejection': rejection_type, '#cores': n_processes,
                             'roi_size': roi_size, "pixels_or_nm": dimension, 'name': name,
-                            'frame_begin': frame_begin, 'frame_end': frame_end}
+                            'frame_begin': frame_begin, 'frame_end': frame_end, 'correlation_interval': corr_int}
 
         if self.experiment.add_to_queue(settings_runtime) is False:
             return
@@ -1891,6 +1973,7 @@ class TTPage(AnalysisPageTemplate):
         self.variable_roi_size.set(roi_size_options[0])
         self.entry_begin_frame.updater()
         self.entry_end_frame.updater()
+        self.entry_correlation_interval.updater()
 
         self.button_add_to_queue.updater(state='disabled')
 
@@ -1977,8 +2060,15 @@ class HSMPage(AnalysisPageTemplate):
 
 if __name__ == '__main__':
     mp.freeze_support()
-    divertor = DivertorErrorsGUI()
-    warnings.showwarning = divertor.warning
+    # setup logging
+    logger, formatter = logging_setup()
+    stream_handler = GUIStream()
+    stream_handler.setFormatter(formatter)
+    stream_handler.setLevel(logging.WARNING)
+    logger.addHandler(stream_handler)
+    logger.info("Started new run\n-----------------------------\n")
+    divertor = DivertorErrorsGUI(logger)
+
     gui = PLASMON(proceed_question=proceed_question)
 
     tk.Tk.report_callback_exception = divertor.error

@@ -75,7 +75,12 @@ class TimeTrace(Dataset):
         background = median_filter(np.asarray(nd2[0]), size=9)
         self.frame_for_rois = np.asarray(nd2[0]).astype(self.data_type_signed) - background
         self.metadata = nd2.get_metadata()
-        self.time_axis = self.metadata['timesteps']
+        try:
+            self.time_axis = self.metadata['timesteps']
+            self.time_axis_dim = 't'
+        except:
+            self.time_axis = range(0, len(self.frames))
+            self.time_axis_dim = 'frames'
         self.drift_corrector = None
         # parts that the TT dataset is split into
         self.tt_parts = None
@@ -115,12 +120,17 @@ class TimeTrace(Dataset):
 
         # set cores
         self.n_cores = settings['#cores']
-        # set correlation interval (TO BE IMPLEMENTED)
-        #  self.correlation_interval = settings['correlation_interval']
         # take slices and create TTParts
         slices_user, _ = self.parse_start_end(settings['frame_begin'], settings['frame_end'])
         if slices_user.stop is None:
             slices_user = slice(slices_user.start, len(self.frames))
+        # set correlation interval
+        if self.check_correlation_interval_validity(settings['correlation_interval'], slices_user.stop) is False:
+            self.experiment.error_func("Invalid correlation interval",
+                                       "This can only be 'Never' or an integer smaller than the last frame set."
+                                       " Non-integer number will be rounded.")
+            return False
+        # create TTParts
         self.tt_parts = self.slices_create_setup(slices_user)
 
         # set max its
@@ -139,6 +149,23 @@ class TimeTrace(Dataset):
             self.settings['max_its'] = max_its
         else:
             self.fitter = PhasorSum(settings, self.roi_offset)
+
+    def check_correlation_interval_validity(self, correlation_interval, end_frame):
+        if correlation_interval == "Never":
+            # if never, keep it at none
+            return True
+        else:
+            try:
+                # try to convert to int
+                correlation_interval = int(correlation_interval)
+                if correlation_interval > end_frame:
+                    return False
+                else:
+                    self.correlation_interval = correlation_interval
+                    return True
+            except:
+                # if fails, return false
+                return False
 
     def slices_create_setup(self, slices_user):
         """
@@ -160,6 +187,7 @@ class TimeTrace(Dataset):
                 tt_parts = [TTPart(self.filename, self.frames, part_slice) for part_slice in slices]
                 while max_length_memory < split_length * self.n_cores:  # if it still doesn't fit in memory, split again
                     slices, tt_parts = self.slices_split_in_two(slices)
+                    split_length /= 2
             else:
                 # split in even parts for memory
                 slices = self.slices_create(slices_user, n_parts)
@@ -193,6 +221,7 @@ class TimeTrace(Dataset):
         new_tt_parts = []
         for one_slice in slices:
             new_slices_part = self.slices_create(one_slice, 2)
+            new_slices.extend(new_slices_part)
             new_tt_parts.append(TTPart(self.filename, self.frames, new_slices_part[0]))
             new_tt_parts.append(TTPart(self.filename, self.frames, new_slices_part[1], corr=False))
         return new_slices, new_tt_parts
@@ -236,7 +265,7 @@ class TimeTrace(Dataset):
         slices = []
         counter = 0
         for length in lengths:
-            slices.append(slice(counter, counter + length))
+            slices.append(slice(main_slice.start + counter, main_slice.start + counter + length))
             counter += length
 
         return slices
@@ -251,7 +280,7 @@ class TimeTrace(Dataset):
         :return: slices: the new slices created from main_slice with length
         """
         total_length = (main_slice.stop - main_slice.start)
-        remainder = length % total_length
+        remainder = total_length % length
         parts = total_length // length
 
         slices = []
@@ -288,13 +317,14 @@ class TimeTrace(Dataset):
         # fit intensity
         mu, std = norm.fit(int_list)
         intensity_list2 = np.asarray(int_list)[int_list < mu]
-        mu, std = norm.fit(intensity_list2)
+        if len(intensity_list2) > 0:
+            mu, std = norm.fit(intensity_list2)
 
         # set max its depending on mean intensity
-        if mu >= 2000:
+        int_under_which_more_its_are_needed = 3000
+        if mu >= int_under_which_more_its_are_needed:
             max_its = 100
         else:
-            int_under_which_more_its_are_needed = 2000
             max_its = np.ceil((int_under_which_more_its_are_needed - mu) / 1000) * 100 + 100
 
         # final check
@@ -313,7 +343,7 @@ class TimeTrace(Dataset):
         old_frame = None
         for index, tt_part in enumerate(self.tt_parts):
             if index == 0:
-                tt_part.offset_from_base = last_non_nan_offset
+                tt_part.offset_from_base = last_non_nan_offset.copy()
                 old_frame = np.asarray(tt_part.frame_zero)
                 background = median_filter(old_frame, size=9, mode='constant')
                 old_frame = old_frame.astype(self.data_type_signed) - background
@@ -324,7 +354,7 @@ class TimeTrace(Dataset):
                     new_frame = new_frame.astype(self.data_type_signed) - background
                     last_non_nan_offset += np.asarray(self.correlate_frames_same_size(old_frame, new_frame))
                     old_frame = new_frame
-                tt_part.offset_from_base = last_non_nan_offset
+                tt_part.offset_from_base = last_non_nan_offset.copy()
 
     def run(self):
         """
@@ -332,9 +362,13 @@ class TimeTrace(Dataset):
         :return: None. Edits results in experiment
         """
         if mp.current_process().name == "MainProcess":
-            # find frames to fit and time axis
-            self.time_axis = self.metadata['timesteps'][slice(self.tt_parts[0].slice.start,
-                                                              self.tt_parts[-1].slice.stop)]
+            # update time axis
+            if self.time_axis_dim == 't':
+                self.time_axis = self.metadata['timesteps'][slice(self.tt_parts[0].slice.start,
+                                                                  self.tt_parts[-1].slice.stop)]
+            else:
+                self.time_axis = np.asarray(range(self.tt_parts[0].slice.start, self.tt_parts[-1].slice.stop))
+
             # find correlation between tt_parts
             self.correlate_tt_parts()
             # run
@@ -348,9 +382,10 @@ class TimeTrace(Dataset):
                     q = mp.SimpleQueue()
                     manager = mp.Manager()
 
-                    while self.tt_parts_done < len(self.tt_parts):
+                    while tt_parts_created < len(self.tt_parts):
                         # create processes, each with its own shared_dict to prevent large amount of data to be shared
-                        for i in range(self.n_cores):
+                        # continue creating while the number of processes running is equal to n_cores
+                        while tt_parts_created - self.tt_parts_done < self.n_cores:
                             # break if enough parts created
                             if tt_parts_created == len(self.tt_parts):
                                 break
@@ -360,11 +395,15 @@ class TimeTrace(Dataset):
                             dicts_list.append(shared_dict)
                             tt_parts_created += 1
 
-                        # Check progress
-                        while not self.experiment.progress_updater.dataset_completed:
+                        # Check progress while not done creating processes yet
+                        while tt_parts_created - self.tt_parts_done == self.n_cores:
                             q.get()
                             self.experiment.progress_updater.update_progress()
 
+                    # check progress knowing that they should complete
+                    while not self.experiment.progress_updater.dataset_completed:
+                        q.get()
+                        self.experiment.progress_updater.update_progress()
                 else:
                     dicts_list = []
                     for _ in range(len(self.tt_parts)):
@@ -382,6 +421,12 @@ class TimeTrace(Dataset):
                 for roi in self.active_rois:
                     roi.results[self.name_result]['result'] = change_to_nm(roi.results[self.name_result]['result'],
                                                                            self.metadata, self.settings['method'])
+
+            # add nm or pixels and time axis to result
+            for roi in self.active_rois:
+                roi.results[self.name_result]['dimension'] = self.settings['pixels_or_nm']
+                roi.results[self.name_result]['time_axis'] = self.time_axis
+                roi.results[self.name_result]['time_axis_dim'] = self.time_axis_dim
 
             # correct for drift
             self.experiment.progress_updater.message("Starting drift correction")
@@ -568,7 +613,6 @@ class BaseFitter:
                 dataset.experiment.progress_updater.update_progress()
             else:
                 q.put(1)
-
 
 # %% Gaussian fitter with estimated background
 

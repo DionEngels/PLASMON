@@ -30,7 +30,7 @@ __self_made__ = True
 
 r'-b C:\Users\s150127\Downloads\___MBx\build'  # take this control location of build
 
-__version__ = '2.0.1'
+__version__ = '2.1.0'
 
 include_files = ['spectral_corrections/', 'ico.ico', 'Logging/']
 PYTHON_INSTALL_DIR = os.path.dirname(os.path.dirname(os.__file__))
@@ -51,6 +51,16 @@ if sys.platform == 'win32':
 includes = ['tkinter']
 excludes = ['matplotlib.tests', 'numpy.random._examples']
 packages = ['numpy', 'matplotlib', 'multiprocessing', 'scipy', 'skimage']
+
+# import a backend module for shelve
+for dbmodule in ['dbhash', 'gdbm', 'dbm', 'dumbdbm']:
+    try:
+        __import__(dbmodule)
+    except ImportError:
+        pass
+    else:
+        # If we found the module, ensure it's copied to the build directory.
+        packages.append(dbmodule)
 
 setup(
     name='PLASMON',

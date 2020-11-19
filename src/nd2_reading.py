@@ -20,9 +20,10 @@ from src.warnings import DataWarning
 from pims_nd2 import ND2_Reader
 from nd2reader import ND2Reader
 from nd2reader.parser import Parser
-from warnings import warn, simplefilter  # for throwing warnings
+import logging  # for logging warnings
 
 __self_made__ = True
+logger = logging.getLogger('main')
 
 
 class ND2ReaderForMetadata(ND2Reader):
@@ -53,8 +54,6 @@ class ND2ReaderForMetadata(ND2Reader):
         """
         Get metadata. Reads out nd2 and returns the metadata
         """
-        # set warnings to show
-        simplefilter('always', DataWarning)
         # get base metadata
         metadata_dict = self.metadata
 
@@ -67,7 +66,7 @@ class ND2ReaderForMetadata(ND2Reader):
             metadata_dict['z_coordinates'] = metadata_dict.pop('z_coordinates')
         except Exception:
             if verbose:
-                warn("Z-levels missing from metadata", DataWarning)
+                logger.warning("ND2: Z-levels missing from metadata")
 
         # remove frames and date (for now)
         metadata_dict.pop('frames', None)
@@ -79,15 +78,15 @@ class ND2ReaderForMetadata(ND2Reader):
             metadata_dict['pfs_offset'] = self._parser._raw_metadata.pfs_offset
         except Exception:
             if verbose:
-                warn("PFS data missing from metadata", DataWarning)
+                logger.warning("ND2: PFS data missing from metadata")
 
         # check timesteps and frame rate
         try:
-            metadata_dict['timesteps'] = self.timesteps
+            metadata_dict['timesteps'] = self.timesteps / 1000  # divide by 1000 to convert to seconds
             metadata_dict['frame_rate'] = self.frame_rate
         except Exception:
             if verbose:
-                warn("Timestep data missing from metadata", DataWarning)
+                logger.warning("ND2: Timestep data missing from metadata")
 
         # add more info
         try:
@@ -96,7 +95,7 @@ class ND2ReaderForMetadata(ND2Reader):
             metadata_dict = {**metadata_dict, **metadata_text_dict}
         except Exception:
             if verbose:
-                warn("Detailed metadata missing", DataWarning)
+                logger.warning("ND2: Detailed metadata missing")
 
         # add raw metadata
         try:
@@ -113,7 +112,7 @@ class ND2ReaderForMetadata(ND2Reader):
             metadata_dict['Others'] = metadata_dict_sequence
         except Exception:
             if verbose:
-                warn("Raw metadata missing", DataWarning)
+                logger.warning("ND2: Raw metadata missing")
 
         # prevent None values by making None string
         for key, value in metadata_dict.items():

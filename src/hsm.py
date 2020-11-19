@@ -48,13 +48,14 @@ class HSMDataset(Dataset):
     """
     HSM Dataset. Inherits from base dataset
     """
-    def __init__(self, experiment, nd2, name):
+    def __init__(self, experiment, nd2, name, label=None):
         """
         Initialise HSM Dataset. Set base values and load nd2. Also create corrected frame.
         ------------------------
         :param experiment: parent experiment
         :param nd2: nd2 of HSM
         :param name: name of HSM
+        :param label: a label that you can add. If added, update percentages will be placed there
         """
         super().__init__(experiment, nd2, name)
         self.type = "HSM"
@@ -66,7 +67,7 @@ class HSMDataset(Dataset):
         self.spec_shape = None
 
         # create corrected merged frame and corrected frames
-        self.corrected, self.frame_for_rois = self.hsm_drift(verbose=False)
+        self.corrected, self.frame_for_rois = self.hsm_drift(verbose=False, label=label)
 
     def prepare_run(self, settings):
         """
@@ -174,11 +175,12 @@ class HSMDataset(Dataset):
             return False
 
     # %% Correct for drift between frames
-    def hsm_drift(self, verbose=False):
+    def hsm_drift(self, verbose=False, label=None):
         """
         Corrects the drift between the HSM frames and adds them up for a merged frame to compare to the laser frame.
         ----------------------------------------
         :param verbose: If true, you get figures
+        :param label: a label that you can add. If added, update percentages will be placed there
         :return: data_output: all the frames aligned (without background correction)
         :return: data_merged: all the frames aligned and added up (with background correction)
         """
@@ -208,6 +210,9 @@ class HSMDataset(Dataset):
                 offset[frame_index, :] = maxima - np.asarray(img_corrected.shape) + np.asarray([1, 1])
 
             img_corrected_previous = img_corrected
+            if label is not None:
+                label.updater(text=f'HSM frames are being merged. '
+                                   f'Progress {(frame_index + 1) / len(self.frames) * 100:.1f}%')
 
         # after all correlations, add up individual offsets to get offset from frame zero
         for index in range(self.frames.shape[0]):
@@ -262,6 +267,19 @@ class HSMDataset(Dataset):
 
         return data_output, data_merged
 
+    def find_energy_width(self):
+        """
+        Finds the bandwidth of the filters in eV. Assumed a 10 nm bandwidth, calculates the lower bound (lb)
+        and upper bound (ub) and determines the bandwidth in eV.
+        :return: energy_width: the bandwidth in eV for each filter.
+        """
+        energy_width = np.zeros(len(self.wavelengths))
+        for index, wavelength in enumerate(self.wavelengths):
+            wavelength_ev_lb = 1240 / (wavelength - 5)
+            wavelength_ev_ub = 1240 / (wavelength + 5)
+            energy_width[index] = wavelength_ev_lb - wavelength_ev_ub
+        return energy_width
+
     # %% Run
     def run(self, verbose=False):
         """
@@ -280,6 +298,7 @@ class HSMDataset(Dataset):
 
         # find correct shape for wavelength
         shape = np.asarray([find_nearest(self.spec_wavelength, self.spec_shape, nu) for nu in self.wavelengths])
+        energy_width = self.find_energy_width()
         # if verbose, show ROIs after correction
         if verbose:
             fig, ax = plt.subplots(1)
@@ -301,7 +320,6 @@ class HSMDataset(Dataset):
         for roi_index, roi in enumerate(self.active_rois):
             raw_intensity = np.zeros(self.frames.shape[0])
             intensity = np.zeros(self.frames.shape[0])
-            hsm_result = np.zeros(3)
             frame_stack = roi.get_frame_stack(self.corrected, roi_size_1d, self.roi_offset)
             for frame_index, my_roi in enumerate(frame_stack):
                 # if verbose, show ROI
@@ -322,7 +340,8 @@ class HSMDataset(Dataset):
                     intensity[frame_index] = np.nan
                 else:
                     raw_intensity[frame_index] = 2 * np.pi * result[0] * result[3] * result[4]
-                    intensity[frame_index] = raw_intensity[frame_index] / shape[frame_index]
+                    # for intensity, divide by shape correction and energy_width normalization
+                    intensity[frame_index] = raw_intensity[frame_index] / shape[frame_index] / energy_width[frame_index]
 
             # %% Fit the total intensity of a single ROI over all frames with Lorentzian
             if verbose:
@@ -334,12 +353,8 @@ class HSMDataset(Dataset):
             # fit lorentzian to individual fits
             result, r_squared = self.fit_lorentzian(intensity, self.wavelengths, verbose=verbose)
 
-            # save fits
-            hsm_result[0] = 1240 / result[2]  # SP lambda
-            hsm_result[1] = 1000 * result[3]  # linewidth
-            hsm_result[2] = r_squared
-
-            result_dict = {"type": self.type, "result": hsm_result, "fit_parameters": result,
+            result_dict = {"type": self.type, 'wavelengths': self.wavelengths, "lambda": 1240 / result[2],  # SP lambda
+                           "linewidth": 1000 * result[3], 'R2': r_squared, "fit_parameters": result,  # linewidth
                            "raw_intensity": raw_intensity, "intensity": intensity, "raw": frame_stack}
             roi.results[self.name_result] = result_dict
 

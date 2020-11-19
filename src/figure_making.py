@@ -30,14 +30,15 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.lines import Line2D
 from matplotlib.gridspec import GridSpec
-from warnings import warn, simplefilter  # for throwing warnings
+import logging  # for logging warnings
+logger = logging.getLogger('main')
 
 __self_made__ = True
 DPI = 400
 N_TICKS = 4
 
 
-def plot_rois(ax, frame, roi_locations=None, roi_size=None, roi_offset=None, font_size=None):
+def plot_rois(ax, frame, roi_locations=None, roi_size=None, roi_offset=None, font_size=None, overwrite=False):
     """
     Plots a microscope with rois if deisred
     ----------
@@ -47,13 +48,15 @@ def plot_rois(ax, frame, roi_locations=None, roi_size=None, roi_offset=None, fon
     :param roi_size : Size of boxes to draw
     :param roi_offset: offset of the dataset compared to experiment ROIs
     :param font_size: size of font of roi number
+    :param overwrite: Only called by ROI page, when the figure needs to be updated with new ROIs but same frame.
     :returns None. Edits ax object
     """
     if roi_offset is None:
         roi_offset = [0, 0]  # if no offset given, set to 0
 
-    # show frame
-    ax.imshow(frame, extent=[0, frame.shape[1], frame.shape[0], 0], aspect='auto')
+    if not overwrite:
+        # show frame
+        ax.imshow(frame, extent=[0, frame.shape[1], frame.shape[0], 0], aspect='auto')
 
     # add ROIs if not None
     if roi_locations is not None and roi_size is not None:
@@ -209,12 +212,13 @@ def set_range_and_ticks(ax, max_range):
     ax.yaxis.set_major_locator(plt.MaxNLocator(N_TICKS))
 
 
-def make_tt(ax, time_axis, result, method):
+def make_tt(ax, time_axis, time_axis_dim, result, method):
     """
     Makes line plot of TT
     --------------------
     :param ax: ax object to edit
     :param time_axis: time axis, the x-axis of the plot
+    :param time_axis_dim: the dimension of the x-axis of the plot
     :param result: results to plot
     :param method: method used to get results. Impacts labels
     :return: None. Edits ax object
@@ -226,11 +230,13 @@ def make_tt(ax, time_axis, result, method):
 
     # put in label depending on method
     if "Gaussian" in method:
-        ax.set_xlabel('Time (s)')
         ax.set_ylabel('Integrated intensity (counts)')
     else:
-        ax.set_xlabel('Time (s)')
         ax.set_ylabel('Summed intensity (counts)')
+    if time_axis_dim == 't':
+        ax.set_xlabel('Time (s)')
+    else:
+        ax.set_xlabel('Frames (-)')
 
 
 def save_overview(experiment):
@@ -303,8 +309,7 @@ def save_overview(experiment):
         # if not enough full rois, just randomly sample all ROIs
         if len(full_rois) < 4:
             full_rois = experiment.rois
-            warn("Too few ROIs that are active in all datasets. Overview figure might have some empty slots",
-                 RuntimeWarning)
+            logger.warning("Too few ROIs that are active in all datasets. Overview figure might have some empty slots")
 
         # sample ROIs to put in overview
         roi_list = []
@@ -359,7 +364,8 @@ def save_overview(experiment):
                     if "Gaussian" in method or "Sum" in method:
                         # and if possible, time trace
                         ax_tt = fig.add_subplot(gs[row + max(len(hsm), 1) + index_dataset, column + 1])
-                        make_tt(ax_tt, experiment.datasets[n_dataset].time_axis / 1000,
+                        make_tt(ax_tt, experiment.datasets[n_dataset].time_axis,
+                                experiment.datasets[n_dataset].time_axis_dim,
                                 roi.results[experiment.datasets[n_dataset].name_result]['result'], method)
                         ax_tt.set_title('TT {}\nROI {}'.format(experiment.datasets[n_dataset].name, roi.index + 1))
                 except:
@@ -370,9 +376,10 @@ def save_overview(experiment):
         fig.savefig(name, bbox_inches='tight')
         fig.clear()
         plt.close(fig)
-    except:
+    except Exception as e:
         # throw warning
-        warn("Overview figure creation failed", RuntimeWarning)
+        logger.error("Overview figure creation failed")
+        logger.info("Info about overview figure creation failed", exc_info=e)
         # in case of crash, just save what you got
         plt.tight_layout()
         fig.savefig(name, bbox_inches='tight')
@@ -387,8 +394,6 @@ def individual_figures(experiment):
     :param experiment: Experiment to make overview figure of
     :return: None. Saves figures to disk
     """
-    # set warnings to show
-    simplefilter('always', RuntimeWarning)
     # force agg backend. Otherwise breaks due to threading
     mpl.use('agg', force=True)
     from matplotlib import pyplot as plt
@@ -447,7 +452,8 @@ def individual_figures(experiment):
                 if "Gaussian" in method or "Sum" in method:
                     # and if possible, time trace
                     ax_tt = fig.add_subplot(per_roi_length, 2, 2 + index_dataset * 2 + max(len(hsm), 1) * 2)
-                    make_tt(ax_tt, experiment.datasets[n_dataset].time_axis / 1000,  # convert from ms to s
+                    make_tt(ax_tt, experiment.datasets[n_dataset].time_axis,
+                            experiment.datasets[n_dataset].time_axis_dim,
                             roi.results[experiment.datasets[n_dataset].name_result]['result'], method)
                     ax_tt.set_title('TT {}\nROI {}'.format(experiment.datasets[n_dataset].name, roi.index + 1))
             except:

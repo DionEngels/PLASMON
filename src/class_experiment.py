@@ -18,7 +18,8 @@ v2.0: part of v2.0: 15/10/2020
 """
 # GENERAL IMPORTS
 from os import mkdir  # to get standard usage
-from warnings import warn, simplefilter  # for throwing warnings
+import logging  # for logging warnings
+logger = logging.getLogger('main')
 import time  # for time keeping
 
 # OWN CODE
@@ -39,7 +40,7 @@ class Experiment:
     """
     Experiment class. Holds datasets of same experiment and same ROIs.
     """
-    def __init__(self, created_by, filename, proceed_question, error_func, progress_updater, show_rois):
+    def __init__(self, created_by, filename, proceed_question, error_func, progress_updater, show_rois, label=None):
         """
         Initialises experiment. Sets some settings and calls first dataset initialization and ROI finder
         ----------------------
@@ -49,6 +50,7 @@ class Experiment:
         :param error_func: Error function. Also changes if GUI is used or not
         :param progress_updater: Progress updater. GUI changes this
         :param show_rois: Function to show ROIs. Also changes with GUI
+        :param label: a label that you can add. If added, update percentages will be placed there
         """
         self.created_by = created_by
         self.directory = filename
@@ -62,22 +64,23 @@ class Experiment:
         self.show_rois_func = show_rois
 
         if created_by == 'HSM':
-            self.init_new_hsm(filename)
+            self.init_new_hsm(filename, label=label)
         elif created_by == 'TT':
             self.init_new_tt(filename)
         self.frame_for_rois = self.datasets[-1].frame_for_rois
         self.roi_finder = RoiFinder(self.frame_for_rois, self.datasets[-1].data_type_signed)
         self.rois = self.roi_finder.main()
 
-    def init_new_hsm(self, filename):
+    def init_new_hsm(self, filename, label=None):
         """
         Add a new HSM to experiment. Loads nd2, initialises HSM class, appends to self.datasets
         -----------------------------------
         :param filename: filename of new HSM
+        :param label: a label that you can add. If added, update percentages will be placed there
         :return: None. Edits class.
         """
         nd2 = ND2ReaderSelf(filename)
-        hsm_object = HSMDataset(self, nd2, filename)
+        hsm_object = HSMDataset(self, nd2, filename, label=label)
         self.datasets.append(hsm_object)
 
     def init_new_tt(self, filename):
@@ -100,17 +103,18 @@ class Experiment:
         self.roi_finder.change_settings(settings)
         self.rois = self.roi_finder.main()
 
-    def show_rois(self, experiment_or_dataset, figure=None):
+    def show_rois(self, experiment_or_dataset, figure=None, overwrite=False):
         """
         Show ROIs function. Depending if you want to see experiment or dataset, shows either using show_rois func
         ----------------------------------------------------
         :param experiment_or_dataset: String determines if Experiment or Dataset is shown
         :param figure: GUI inputs a figure to show to
+        :param overwrite: Only called by ROI page, when the figure needs to be updated with new ROIs but same frame.
         :return: None. Calls show_rois_func which either plots to output or to figure given
         """
         if experiment_or_dataset == "Experiment":
             self.show_rois_func(self.frame_for_rois, roi_locations=self.rois,
-                                roi_size=self.roi_finder.roi_size, figure=figure)
+                                roi_size=self.roi_finder.roi_size, figure=figure, overwrite=overwrite)
         elif experiment_or_dataset == "Dataset":
             self.show_rois_func(self.datasets[-1].frame_for_rois,
                                 roi_locations=self.datasets[-1].active_rois, figure=figure,
@@ -212,8 +216,6 @@ class Experiment:
         -------------------
         :return: None. Saves to disk
         """
-        # set warnings to show
-        simplefilter('always', RuntimeWarning)
         # save settings used to txt
         self.progress_updater.message("Starting saving")
         settings = self.settings_to_dict()
@@ -228,8 +230,9 @@ class Experiment:
             try:
                 self.progress_updater.message("Saving individual figures")
                 figuring.individual_figures(self)
-            except:
-                warn("Individual figure creation failed", RuntimeWarning)
+            except Exception as e:
+                logger.error("Individual figure creation failed")
+                logger.info("Info about individual figure creation failed", exc_info=e)
 
         # convert to matlab coordinates
         self.progress_updater.message("Converting to MATLAB coordinate system")
@@ -245,15 +248,17 @@ class Experiment:
 
     def rois_to_dict(self):
         """
-        Converts results to dictionary
+        Converts results to dictionary, also adds roi.x, roi.x, and roi.index
         --------------------
         :return: results_dict: dictionary of results
         """
         result_dict = {}
         for roi in self.rois:
             result_dict["ROI_{}".format(roi.index)] = roi.results
+            result_dict["ROI_{}".format(roi.index)]['x'] = roi.x
+            result_dict["ROI_{}".format(roi.index)]['y'] = roi.y
+            result_dict["ROI_{}".format(roi.index)]['index'] = roi.index
 
-        result_dict = {'Results': result_dict}
         return result_dict
 
     def metadata_to_dict(self):
@@ -264,9 +269,8 @@ class Experiment:
         """
         metadata_dict = {}
         for dataset in self.datasets:
-            metadata_dict['meta_{}'.format(dataset.name)] = dataset.metadata
+            metadata_dict['meta_{}'.format(dataset.name_result[4:])] = dataset.metadata
 
-        metadata_dict = {'Metadata': metadata_dict}
         return metadata_dict
 
     def settings_to_dict(self):
