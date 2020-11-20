@@ -30,7 +30,7 @@ __self_made__ = True
 
 r'-b C:\Users\s150127\Downloads\___MBx\build'  # take this control location of build
 
-__version__ = '2.1.0'
+__version__ = '2.1.1'
 
 include_files = ['spectral_corrections/', 'ico.ico', 'Logging/']
 PYTHON_INSTALL_DIR = os.path.dirname(os.path.dirname(os.__file__))
