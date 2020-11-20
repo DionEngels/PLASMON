@@ -1009,8 +1009,7 @@ class MainPage(BasePage):
         try:
             # try to get experiment from listbox. If fail, none selected
             selected = self.listbox_loaded.get(self.listbox_loaded.curselection())
-            name = selected.split(" ")[-1]
-            self.controller.experiment_to_link_name = name
+            self.controller.experiment_to_link_name = selected[7:]
             self.controller.show_page(LoadPage)
         except:
             tk.messagebox.showerror("ERROR", "No experiment selected, please select one to link dataset to")
