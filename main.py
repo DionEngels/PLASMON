@@ -37,7 +37,7 @@ v2.0: Program v2: 15/10/2020
 import sys
 import logging
 
-from os import getcwd, path, remove  # create directory, check path, and remove
+from os import getcwd, path, remove, chmod  # create directory, check path, remove and change permissions
 from datetime import datetime  # current time
 
 # Numpy and matplotlib, for linear algebra and plotting respectively
@@ -222,16 +222,28 @@ class ProgressUpdater:
 
 
 def logging_setup():
+    """
+    Setup logging of file
+    :return: logger: logger with file
+    :return: formatter: the format used for the file
+    """
     logger = logging.getLogger('main')
     logger.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(asctime)s: %(filename)s lineno: %(lineno)s:\n%(levelname)s: %(message)s\n')
+    # change permissions
+    chmod(getcwd() + '/Logging', 0o777)
     # clear log
     if path.isfile(getcwd() + '/Logging/logging.log'):
         try:
             remove(getcwd() + '/Logging/logging.log')
         except:
             pass
+
     file_handler = logging.FileHandler('Logging/logging.log')
+    # double check permissions
+    chmod(getcwd() + '/Logging', 0o777)
+    chmod(getcwd() + '/Logging/logging.log', 0o777)
+    # add handler
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
