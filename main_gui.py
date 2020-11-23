@@ -20,7 +20,6 @@ v2.0 pre-1: First version of GUI v2.0: 15/10/2020
 v2.0: GUI v2.0 ready for release: 30/10/2020
 """
 
-__version__ = "2.1.1"
 __self_made__ = True
 
 # GENERAL IMPORTS
@@ -51,6 +50,7 @@ from tkinter.filedialog import askopenfilename  # for popup that asks to select 
 from main import ProgressUpdater, logging_setup
 from src.class_experiment import Experiment
 import src.figure_making as figuring
+from setup import __version__
 
 # Multiprocessing
 import multiprocessing as mp

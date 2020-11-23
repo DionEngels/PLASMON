@@ -18,6 +18,7 @@ v2.0: Part of program v2: 15/10/2020
 """
 from scipy.io import savemat  # to export for MATLAB
 from datetime import datetime
+from setup import __version__  # version number
 
 __self_made__ = True
 
@@ -59,7 +60,8 @@ def save_settings(directory, settings, time_taken):
     with open(directory + "/" + "Settings" + ".txt", mode='w') as text_file:
         # get current time and save that
         now = datetime.now()
-        text_file.write("Ran on: " + now.strftime('%d/%m/%Y %H:%M:%S') + "\n\n")
+        text_file.write("Ran on: " + now.strftime('%d/%m/%Y %H:%M:%S') + "\n")
+        text_file.write(f'Version used: {__version__}\n\n')
 
         # write experiment settings
         settings_experiment = settings.pop('Experiment')
