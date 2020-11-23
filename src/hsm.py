@@ -320,6 +320,7 @@ class HSMDataset(Dataset):
         for roi_index, roi in enumerate(self.active_rois):
             raw_intensity = np.zeros(self.frames.shape[0])
             intensity = np.zeros(self.frames.shape[0])
+            raw_fits = np.zeros((self.frames.shape[0], 5))
             frame_stack = roi.get_frame_stack(self.corrected, roi_size_1d, self.roi_offset)
             for frame_index, my_roi in enumerate(frame_stack):
                 # if verbose, show ROI
@@ -338,10 +339,12 @@ class HSMDataset(Dataset):
                         or result[3] < sig_min or result[3] > sig_max or result[4] < sig_min or result[4] > sig_max:
                     raw_intensity[frame_index] = np.nan
                     intensity[frame_index] = np.nan
+                    raw_fits[frame_index, :] = np.nan
                 else:
                     raw_intensity[frame_index] = 2 * np.pi * result[0] * result[3] * result[4]
                     # for intensity, divide by shape correction and energy_width normalization
                     intensity[frame_index] = raw_intensity[frame_index] / shape[frame_index] / energy_width[frame_index]
+                    raw_fits[frame_index, :] = result
 
             # %% Fit the total intensity of a single ROI over all frames with Lorentzian
             if verbose:
@@ -355,7 +358,8 @@ class HSMDataset(Dataset):
 
             result_dict = {"type": self.type, 'wavelengths': self.wavelengths, "lambda": 1240 / result[2],  # SP lambda
                            "linewidth": 1000 * result[3], 'R2': r_squared, "fit_parameters": result,  # linewidth
-                           "raw_intensity": raw_intensity, "intensity": intensity, "raw": frame_stack}
+                           "raw_intensity": raw_intensity, "raw_fits": raw_fits,  # raw gaussian fits
+                           "intensity": intensity, "raw": frame_stack}
             roi.results[self.name_result] = result_dict
 
             # progress update
