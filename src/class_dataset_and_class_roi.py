@@ -117,7 +117,7 @@ class Dataset:
             self.data_type_signed = np.int32
         else:
             self.data_type_signed = np.int64
-        self.name = name.split(".")[0].split("/")[-1]
+        self.name = name[:-4].split("/")[-1]
         self.filename = name
         self.name_result = self.set_result_name(self.name)
         self.frames = None

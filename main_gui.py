@@ -1149,7 +1149,7 @@ class LoadPage(BasePage):
             return
 
         # save directory
-        self.controller.dir_open = '/'.join(filename.split(".")[0].split("/")[:-1])
+        self.controller.dir_open = '/'.join(filename[:-4].split("/")[:-1])
 
         if dataset_type == "HSM":
             # if datatype is HSM, show wait label
