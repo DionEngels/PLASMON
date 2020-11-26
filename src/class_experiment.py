@@ -130,7 +130,7 @@ class Experiment:
         """
         self.name = name
         # get directory
-        file_dir = '/'.join(filename[:-4].split("/")[:-1]) + '/'
+        file_dir = '/'.join(self.directory[:-4].split("/")[:-1]) + '/'
 
         # get date
         try:
