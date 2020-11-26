@@ -37,7 +37,7 @@ v2.0: Program v2: 15/10/2020
 import sys
 import logging
 
-from os import getcwd, path, remove, chmod  # create directory, check path, remove and change permissions
+from os import path, remove, mkdir, environ  # check path, remove, create dir, and environment settings
 from datetime import datetime  # current time
 
 # Numpy and matplotlib, for linear algebra and plotting respectively
@@ -230,19 +230,23 @@ def logging_setup():
     logger = logging.getLogger('main')
     logger.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(asctime)s: %(filename)s lineno: %(lineno)s:\n%(levelname)s: %(message)s\n')
-    # change permissions
-    chmod(getcwd() + '/Logging', 0o777)
+    # check location in Documents
+    userprofile = environ['USERPROFILE']
+    dir_path = path.join(userprofile, "Documents", 'PLASMON')
+    # check dir path
+    if path.exists(dir_path):
+        pass
+    else:
+        mkdir(dir_path)
     # clear log
-    if path.isfile(getcwd() + '/Logging/logging.log'):
+    if path.isfile(dir_path + '/logging.log'):
         try:
-            remove(getcwd() + '/Logging/logging.log')
+            remove(dir_path + '/logging.log')
         except:
             pass
 
-    file_handler = logging.FileHandler('Logging/logging.log')
-    # double check permissions
-    chmod(getcwd() + '/Logging', 0o777)
-    chmod(getcwd() + '/Logging/logging.log', 0o777)
+    file_handler = logging.FileHandler(dir_path + '/logging.log')
+
     # add handler
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(formatter)

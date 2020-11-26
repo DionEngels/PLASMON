@@ -23,7 +23,7 @@ v2.0: GUI v2.0 ready for release: 30/10/2020
 __self_made__ = True
 
 # GENERAL IMPORTS
-from os import getcwd, environ, listdir, rmdir, remove  # to get standard usage
+from os import getcwd, environ, listdir, rmdir, remove, mkdir, path  # to get standard usage
 from tempfile import mkdtemp
 import sys
 import time  # for timekeeping
@@ -806,9 +806,17 @@ class PLASMON(tk.Tk):
         self.experiment_to_link_name = None
         self.thread_started = False
 
-        # working directory
+        # load in old working directory
+        # check location in Documents
+        userprofile = environ['USERPROFILE']
+        dir_path = path.join(userprofile, "Documents", 'PLASMON')
+        # check dir path
+        if path.exists(dir_path):
+            pass
+        else:
+            mkdir(dir_path)
 
-        self.shelve_file = getcwd() + "/Cache.out"
+        self.shelve_file = dir_path + "/Cache.out"
         try:
             my_shelve = shelve.open(self.shelve_file)
             self.dir_open = my_shelve['dir_open']
