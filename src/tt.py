@@ -238,7 +238,6 @@ class TimeTrace(Dataset):
         new_tt_parts = []
         for one_slice in slices:
             new_slices_part = self.slices_create(one_slice, self.n_cores)
-            new_tt_parts.append(TTPart(self.filename, self.frames, new_slices_part[0]))
             for index, new_slice_ind in enumerate(new_slices_part):
                 if index == 0:
                     new_tt_parts.append(TTPart(self.filename, self.frames, new_slice_ind))
