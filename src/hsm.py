@@ -41,6 +41,97 @@ from src.class_dataset_and_class_roi import Dataset, normxcorr2
 import matplotlib.pyplot as plt
 __self_made__ = True
 
+# %% HSM Fitter
+
+
+class HSMFit(fitting.GaussianBackground):
+
+    def __init__(self, roi_size_1d):
+        super().__init__({'roi_size': int(roi_size_1d * 2 + 1), 'rejection': True, 'method': "Gaussian - Fit bg"},
+                         100000, 6, [0, 0])
+        self.init_sig = 0.8
+
+    def gaussian(self, height, center_x, center_y, width_x, width_y, background):
+        """Returns a gaussian function with the given parameters"""
+        width_x = float(width_x)
+        width_y = float(width_y)
+        return lambda x, y: height * np.exp(
+            -(((center_x - x) / width_x) ** 2 + ((center_y - y) / width_y) ** 2) / 2) + background
+
+    def fit_gaussian(self, data):
+        """
+        Gathers parameter estimate and calls fit.
+
+        Parameters
+        ----------
+        data : ROI pixel values
+
+        Returns
+        -------
+        p.x: solution of parameters
+        p.nfev: number of iterations
+        p.success: success or failure
+
+        """
+        background = self.fun_calc_bg(data)
+        height = data[int(4.5), int(4.5)] - background
+        params = np.array([height, 4.5, 4.5, self.init_sig, self.init_sig, background])
+        p = self.least_squares(params, data, max_nfev=self.max_its)
+        res = p.x
+        # if bad fit, try again
+        if res[3] > 2 or res[4] > 2 or res[0]/max(res[3], res[4]) < 100 or p.success is False:
+            errorfunction = lambda p: self.fun_gaussian(p, data)
+            params = np.array([height, 4.5, 4.5, self.init_sig, self.init_sig, background])
+            p_new = least_squares(errorfunction, params, loss='soft_l1', f_scale=0.5)
+            res_new = p_new.x
+
+            # check bounds
+            pos_max, pos_min, int_max, int_min, sig_max, sig_min = self.define_fitter_bounds()
+            if res_new[2] < pos_min or res_new[2] > pos_max or res_new[1] < pos_min or res_new[1] > pos_max or \
+                    res_new[0] <= int_min or res_new[0] > int_max or \
+                    res_new[3] < sig_min or res_new[3] > sig_max or res_new[4] < sig_min or res_new[4] > sig_max:
+                p_new.success = False  # set to failed
+
+            if res_new[3] + res_new[4] < res[3] + res[4] and p_new.success:
+                p = p_new
+
+        return [p.x, p.nfev, p.success]
+
+    def fitter(self, frame_stack, shape, energy_width, *_):
+        """
+        Does Gaussian fitting for all frames for a single ROI
+        --------------------------------------------------------
+        :param frame_stack: HSM corrected frame stack for one ROI
+        :return: HSM results for a single ROI
+        """
+        # predefine
+        raw_intensity = np.zeros(frame_stack.shape[0])
+        intensity = np.zeros(frame_stack.shape[0])
+        raw_fits = np.zeros((frame_stack.shape[0], self.num_fit_params))
+
+        pos_max, pos_min, int_max, int_min, sig_max, sig_min = self.define_fitter_bounds()
+
+        # fit per frame
+        for frame_index, my_roi in enumerate(frame_stack):  
+            # fit
+            result, _, success = self.fit_gaussian(my_roi)
+            test = 3
+            # save fittings if success
+            if success == 0 or \
+                    result[2] < pos_min or result[2] > pos_max or result[1] < pos_min or result[1] > pos_max or \
+                    result[0] <= int_min or result[0] > int_max or \
+                    result[3] < sig_min or result[3] > sig_max or result[4] < sig_min or result[4] > sig_max:
+                raw_intensity[frame_index] = np.nan
+                intensity[frame_index] = np.nan
+                raw_fits[frame_index, :] = np.nan
+            else:
+                raw_intensity[frame_index] = 2 * np.pi * result[0] * result[3] * result[4]
+                # for intensity, divide by shape correction and energy_width normalization
+                intensity[frame_index] = raw_intensity[frame_index] / shape[frame_index] / energy_width[frame_index]
+                raw_fits[frame_index, :] = result
+
+        return raw_intensity, intensity, raw_fits
+
 # %% HSM Dataset v2
 
 
@@ -118,7 +209,7 @@ class HSMDataset(Dataset):
                 # for each split, get rid of spaces
                 split = split.replace(' ', '')
                 try:
-                    # try to make int, if succesful, add to list
+                    # try to make int, if successful, add to list
                     split_int = int(split)
                     wavelength_list.append(split_int)
                 except ValueError:
@@ -307,46 +398,16 @@ class HSMDataset(Dataset):
             plt.show()
 
         # prep for fitting
-        roi_size = 9
-        roi_size_1d = int((roi_size - 1) / 2)
-        fitter = fitting.GaussianBackground({'roi_size': roi_size, 'rejection': True, 'method': "Gaussian - Fit bg"},
-                                            600, 6, self)
-        pos_max = roi_size
-        pos_min = 0
-        sig_min = 0
-        sig_max = roi_size_1d + 1
+        roi_size_1d = 4
+        fitter = HSMFit(roi_size_1d)
 
         # %% Fit every ROI for every frame
         for roi_index, roi in enumerate(self.active_rois):
-            raw_intensity = np.zeros(self.frames.shape[0])
-            intensity = np.zeros(self.frames.shape[0])
-            raw_fits = np.zeros((self.frames.shape[0], 5))
             frame_stack = roi.get_frame_stack(self.corrected, roi_size_1d, self.roi_offset)
-            for frame_index, my_roi in enumerate(frame_stack):
-                # if verbose, show ROI
-                if verbose:
-                    fig, ax = plt.subplots(1)
-                    ax.imshow(my_roi, extent=[0, my_roi.shape[1], my_roi.shape[0], 0], aspect='auto')
-                    ax.set_xlabel('x (pixels)')
-                    ax.set_ylabel('y (pixels)')
-                    ax.set_title('Zoom-in ROI #{}, frame #{}'.format(roi.index, frame_index))
-                    plt.show()
-                # fit
-                result, _, success = fitter.fit_gaussian(my_roi)
-                # save fittings if success
-                if success == 0 or \
-                        result[2] < pos_min or result[2] > pos_max or result[1] < pos_min or result[1] > pos_max \
-                        or result[3] < sig_min or result[3] > sig_max or result[4] < sig_min or result[4] > sig_max:
-                    raw_intensity[frame_index] = np.nan
-                    intensity[frame_index] = np.nan
-                    raw_fits[frame_index, :] = np.nan
-                else:
-                    raw_intensity[frame_index] = 2 * np.pi * result[0] * result[3] * result[4]
-                    # for intensity, divide by shape correction and energy_width normalization
-                    intensity[frame_index] = raw_intensity[frame_index] / shape[frame_index] / energy_width[frame_index]
-                    raw_fits[frame_index, :] = result
+            # Fit with Gaussian fitter
+            raw_intensity, intensity, raw_fits = fitter.fitter(frame_stack, shape, energy_width)
 
-            # %% Fit the total intensity of a single ROI over all frames with Lorentzian
+            # Fit the total intensity of a single ROI over all frames with Lorentzian
             if verbose:
                 fig, ax = plt.subplots(1)
                 ax.plot(self.wavelengths, intensity)
