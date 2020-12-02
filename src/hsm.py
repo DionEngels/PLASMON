@@ -48,7 +48,7 @@ class HSMFit(fitting.GaussianBackground):
 
     def __init__(self, roi_size_1d):
         super().__init__({'roi_size': int(roi_size_1d * 2 + 1), 'rejection': True, 'method': "Gaussian - Fit bg"},
-                         100000, 6, [0, 0])
+                         1000, 6, [0, 0])
         self.init_sig = 0.8
 
     def gaussian(self, height, center_x, center_y, width_x, width_y, background):
@@ -75,27 +75,38 @@ class HSMFit(fitting.GaussianBackground):
         """
         background = self.fun_calc_bg(data)
         height = data[int(4.5), int(4.5)] - background
+        if height < 0:
+            height = 0
         params = np.array([height, 4.5, 4.5, self.init_sig, self.init_sig, background])
-        p = self.least_squares(params, data, max_nfev=self.max_its)
-        res = p.x
-        # if bad fit, try again
-        if res[3] > 2 or res[4] > 2 or res[0]/max(res[3], res[4]) < 100 or p.success is False:
-            errorfunction = lambda p: self.fun_gaussian(p, data)
-            params = np.array([height, 4.5, 4.5, self.init_sig, self.init_sig, background])
-            p_new = least_squares(errorfunction, params, loss='soft_l1', f_scale=0.5)
-            res_new = p_new.x
-
-            # check bounds
-            pos_max, pos_min, int_max, int_min, sig_max, sig_min = self.define_fitter_bounds()
-            if res_new[2] < pos_min or res_new[2] > pos_max or res_new[1] < pos_min or res_new[1] > pos_max or \
-                    res_new[0] <= int_min or res_new[0] > int_max or \
-                    res_new[3] < sig_min or res_new[3] > sig_max or res_new[4] < sig_min or res_new[4] > sig_max:
-                p_new.success = False  # set to failed
-
-            if res_new[3] + res_new[4] < res[3] + res[4] and p_new.success:
-                p = p_new
+        errorfunction = lambda p: self.fun_gaussian(p, data)
+        p = least_squares(errorfunction, params, method='dogbox', max_nfev=self.max_its,
+                          ftol=10e-12, gtol=10e-12, xtol=10e-12,
+                          bounds=([0, 0, 0, 0, 0, 0], [np.inf, self.roi_size, self.roi_size, 2.0, 2.0, np.inf]))
 
         return [p.x, p.nfev, p.success]
+
+    def define_fitter_bounds(self):
+        """
+        Defines fitter bounds, based on "Strict" bounds or not
+
+        Returns
+        -------
+        pos_max : Max position of fit
+        pos_min : Min position of fit
+        int_max : Max intensity of fit
+        int_min : Min intensity of fit
+        sig_max : Max sigma of fit
+        sig_min : Min sigma of fit
+
+        """
+        pos_max = self.roi_size
+        pos_min = 0
+        int_min = 0
+        int_max = ((2 ** 16) - 1) * 1.5  # 50% margin over maximum pixel value possible
+        sig_min = 0
+        sig_max = 2.0
+
+        return pos_max, pos_min, int_max, int_min, sig_max, sig_min
 
     def fitter(self, frame_stack, shape, energy_width, *_):
         """
@@ -115,12 +126,11 @@ class HSMFit(fitting.GaussianBackground):
         for frame_index, my_roi in enumerate(frame_stack):  
             # fit
             result, _, success = self.fit_gaussian(my_roi)
-            test = 3
             # save fittings if success
             if success == 0 or \
                     result[2] < pos_min or result[2] > pos_max or result[1] < pos_min or result[1] > pos_max or \
                     result[0] <= int_min or result[0] > int_max or \
-                    result[3] < sig_min or result[3] > sig_max or result[4] < sig_min or result[4] > sig_max:
+                    result[3] <= sig_min or result[3] >= sig_max or result[4] <= sig_min or result[4] >= sig_max:
                 raw_intensity[frame_index] = np.nan
                 intensity[frame_index] = np.nan
                 raw_fits[frame_index, :] = np.nan
