@@ -73,7 +73,7 @@ ax1.scatter([50, 100, 200, 300, 500, 750, 1000], total_error[step * 1:step * 2],
 ax1.scatter([50, 100, 200, 300, 500, 750, 1000], total_error[step * 2:step * 3], s=10, c='k', marker="o", label='Background = 2500')
 ax1.scatter([50, 100, 200, 300, 500, 750, 1000], total_error[step * 3:step * 4], s=10, c='y', marker="s", label='Background = 5000')
 plt.legend(loc='lower left')
-plt.title("Settings: Base. Averaged over 20")
+plt.title("Settings: 1 sigma. Averaged over 20")
 plt.xscale('log')
 plt.yscale('log')
 plt.grid(which='major')
