@@ -51,13 +51,6 @@ class HSMFit(fitting.GaussianBackground):
                          1000, 6, [0, 0])
         self.init_sig = 0.8
 
-    def gaussian(self, height, center_x, center_y, width_x, width_y, background):
-        """Returns a gaussian function with the given parameters"""
-        width_x = float(width_x)
-        width_y = float(width_y)
-        return lambda x, y: height * np.exp(
-            -(((center_x - x) / width_x) ** 2 + ((center_y - y) / width_y) ** 2) / 2) + background
-
     def fit_gaussian(self, data):
         """
         Gathers parameter estimate and calls fit.
@@ -73,17 +66,53 @@ class HSMFit(fitting.GaussianBackground):
         p.success: success or failure
 
         """
+        def extract_data(p=None):
+            if p is None:
+                return np.ones(5), None, False
+            else:
+                return p.x, p.nfev, p.success
+        # set bounds
+        pos_max, pos_min, int_max, int_min, sig_max, sig_min = self.define_fitter_bounds()
+
+        # set parameters
         background = self.fun_calc_bg(data)
         height = data[int(4.5), int(4.5)] - background
         if height < 0:
             height = 0
         params = np.array([height, 4.5, 4.5, self.init_sig, self.init_sig, background])
-        errorfunction = lambda p: self.fun_gaussian(p, data)
-        p = least_squares(errorfunction, params, method='dogbox', max_nfev=self.max_its,
-                          ftol=10e-12, gtol=10e-12, xtol=10e-12,
-                          bounds=([0, 0, 0, 0, 0, 0], [np.inf, self.roi_size, self.roi_size, 2.0, 2.0, np.inf]))
 
-        return [p.x, p.nfev, p.success]
+        # try first fit
+        try:
+            p = least_squares(lambda p: self.fun_gaussian(p, data), params, method='dogbox', max_nfev=self.max_its,
+                              ftol=10e-12, gtol=10e-12, xtol=10e-12,
+                              bounds=([int_min, pos_min, pos_min, sig_min, sig_min, 0],
+                                      [int_max, pos_max, pos_max, sig_max, sig_max, np.inf]))
+            res, its, success = extract_data(p)
+        except Exception as e:
+            # if exception, print and set comparison
+            print(e)
+            print(np.array([height, 4.5, 4.5, self.init_sig, self.init_sig, background]))
+            # extract data
+            res, its, success = extract_data(p=None)
+
+        # if fit is bad, do new fit with Cauchy loss (better at low SNR)
+        if success == 0 or \
+                res[2] < pos_min or res[2] > pos_max or res[1] < pos_min or res[1] > pos_max or \
+                res[0] <= int_min or res[0] > int_max or \
+                res[3] <= sig_min or res[3] >= sig_max or res[4] <= sig_min or res[4] >= sig_max:
+            params = np.array([height, 4.5, 4.5, self.init_sig, self.init_sig, background])
+            try:
+                p = least_squares(lambda p: self.fun_gaussian(p, data), params, method='dogbox', max_nfev=self.max_its,
+                                  ftol=10e-12, gtol=10e-12, xtol=10e-12, loss='cauchy', f_scale=0.1,
+                                  bounds=([int_min, pos_min, pos_min, sig_min, sig_min, 0],
+                                          [int_max, pos_max, pos_max, sig_max, sig_max, np.inf]))
+                # extract data
+                res, its, success = extract_data(p)
+            except Exception as e:
+                # if exception, print
+                print(e)
+                print(np.array([height, 4.5, 4.5, self.init_sig, self.init_sig, background]))
+        return [res, its, success]
 
     def define_fitter_bounds(self):
         """
@@ -100,10 +129,10 @@ class HSMFit(fitting.GaussianBackground):
 
         """
         pos_max = self.roi_size
-        pos_min = 0
-        int_min = 0
-        int_max = ((2 ** 16) - 1) * 1.5  # 50% margin over maximum pixel value possible
-        sig_min = 0
+        pos_min = 0.0
+        int_min = 0.0
+        int_max = np.inf
+        sig_min = 0.0
         sig_max = 2.0
 
         return pos_max, pos_min, int_max, int_min, sig_max, sig_min
@@ -139,6 +168,14 @@ class HSMFit(fitting.GaussianBackground):
                 # for intensity, divide by shape correction and energy_width normalization
                 intensity[frame_index] = raw_intensity[frame_index] / shape[frame_index] / energy_width[frame_index]
                 raw_fits[frame_index, :] = result
+
+        # reject very high sigma fits (50% above average)
+        raw_fits[(raw_fits[:, 3] > np.nanmean(raw_fits[:, 3]) * 1.5) |
+                 (raw_fits[:, 4] > np.nanmean(raw_fits[:, 4]) * 1.5), :] = np.nan
+        intensity[(raw_fits[:, 3] > np.nanmean(raw_fits[:, 3]) * 1.5) |
+                  (raw_fits[:, 4] > np.nanmean(raw_fits[:, 4]) * 1.5), :] = np.nan
+        raw_intensity[(raw_fits[:, 3] > np.nanmean(raw_fits[:, 3]) * 1.5) |
+                      (raw_fits[:, 4] > np.nanmean(raw_fits[:, 4]) * 1.5), :] = np.nan
 
         return raw_intensity, intensity, raw_fits
 
