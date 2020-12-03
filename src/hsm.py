@@ -472,13 +472,13 @@ class HSMDataset(Dataset):
             # progress update
             self.experiment.progress_updater.update_progress()
 
-    def fit_lorentzian(self, scattering, wavelength, split=False, verbose=False):
+    @staticmethod
+    def fit_lorentzian(scattering, wavelength, verbose=False):
         """
         Function to fit a lorentzian to the found intensities
         -----------------------------------------------
         :param scattering: the scattering intensities found
         :param wavelength: the wavelengths of the found intensities
-        :param split: if True, this function has been called recursively with only a part of the original array
         :param verbose: if True, you get a lot of images
         :return: result: resulting Lorentzian parameters
         :return r_squared: the r-squared of this fit
@@ -546,7 +546,6 @@ class HSMDataset(Dataset):
         max_sca = np.nanmax(scattering[scattering < np.nanmax(scattering)])
         idx_max = np.nanargmax(scattering[scattering < np.nanmax(scattering)])
         min_sca = np.nanmin(scattering)
-        idx_min = np.nanargmin(scattering)
 
         # init guess and first fit
         init_1w = abs(2 / (np.pi * max_sca) * np.trapz(scattering, wavelength_ev))
@@ -557,9 +556,9 @@ class HSMDataset(Dataset):
         result[3] = abs(result[3])
         r_squared = find_r_squared(lorentzian, result, wavelength_ev, scattering)
 
-        # if bad fit, try standard values
+        # if bad fit, try standard values of Matej
         if r_squared < 0.9:
-            result_full_std = least_squares(error_func, [-10, 100, 1240 / wavelength_ev[idx_max], 0.15],
+            result_full_std = least_squares(error_func, [min_sca, 100, 1240 / wavelength[idx_max], 0.15],
                                             args=(wavelength_ev, scattering))
             result_std = result_full_std.x
             result_std[3] = abs(result_std[3])
@@ -568,9 +567,10 @@ class HSMDataset(Dataset):
                 result = result_std
                 r_squared = r_squared_std
 
-        # random try if bad fit
+        # if bad fit still, try standard values of Sjoerd
         if r_squared < 0.9:
-            result_full_base = least_squares(error_func, [0, 1, 600, 1], args=(wavelength_ev, scattering))
+            result_full_base = least_squares(error_func, [min_sca, 10000, 1240 / wavelength[idx_max], 0.15],
+                                             args=(wavelength_ev, scattering))
             result_base = result_full_base.x
             result_base[3] = abs(result_base[3])
             r_squared_base = find_r_squared(lorentzian, result_base, wavelength_ev, scattering)
