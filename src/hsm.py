@@ -579,22 +579,6 @@ class HSMDataset(Dataset):
                 result = result_base
                 r_squared = r_squared_base
 
-        # if r_squared is too low, split
-        if r_squared < 0.9 and split is False:
-            wavelength_low = wavelength[:idx_min]
-            wavelength_high = wavelength[idx_min:]
-            scattering_low = scattering[:idx_min]
-            scattering_high = scattering[idx_min:]
-            result_low, r_squared_low = self.fit_lorentzian(scattering_low, wavelength_low, split=True)
-            result_high, r_squared_high = self.fit_lorentzian(scattering_high, wavelength_high, split=True)
-
-            if r_squared_high > r_squared and ~np.isnan(np.sum(result_high)):
-                result = result_high
-                r_squared = r_squared_high
-            if r_squared_low > r_squared and ~np.isnan(np.sum(result_low)):
-                result = result_low
-            r_squared = find_r_squared(lorentzian, result, wavelength_ev, scattering)
-
         # if verbose, show comparison
         if verbose:
             compare_plot(wavelength_ev, scattering, result)
