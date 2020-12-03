@@ -170,12 +170,12 @@ class HSMFit(fitting.GaussianBackground):
                 raw_fits[frame_index, :] = result
 
         # reject very high sigma fits (50% above average)
+        intensity[(raw_fits[:, 3] > np.nanmean(raw_fits[:, 3]) * 1.5) |
+                  (raw_fits[:, 4] > np.nanmean(raw_fits[:, 4]) * 1.5)] = np.nan
+        raw_intensity[(raw_fits[:, 3] > np.nanmean(raw_fits[:, 3]) * 1.5) |
+                      (raw_fits[:, 4] > np.nanmean(raw_fits[:, 4]) * 1.5)] = np.nan
         raw_fits[(raw_fits[:, 3] > np.nanmean(raw_fits[:, 3]) * 1.5) |
                  (raw_fits[:, 4] > np.nanmean(raw_fits[:, 4]) * 1.5), :] = np.nan
-        intensity[(raw_fits[:, 3] > np.nanmean(raw_fits[:, 3]) * 1.5) |
-                  (raw_fits[:, 4] > np.nanmean(raw_fits[:, 4]) * 1.5), :] = np.nan
-        raw_intensity[(raw_fits[:, 3] > np.nanmean(raw_fits[:, 3]) * 1.5) |
-                      (raw_fits[:, 4] > np.nanmean(raw_fits[:, 4]) * 1.5), :] = np.nan
 
         return raw_intensity, intensity, raw_fits
 
