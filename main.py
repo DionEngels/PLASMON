@@ -174,17 +174,17 @@ class ProgressUpdater:
         :return: Calls update when need be
         """
         self.progress += 1
-        # if HSM or Phasor, update every ten
-        if (self.method == "HSM" or "Phasor" in self.method) and \
+        # If Phasor, update every ten
+        if "Phasor" in self.method and \
                 self.progress % round(self.total * self.dataset_parts / 10, 0) == 0 and \
                 self.total * self.dataset_parts > 9:
             self.update(False, False, False)
         # if complete, always update. Also call when only 19 or fewer ROIs
         elif self.total == self.progress or self.total * self.dataset_parts < 20:
             self.update(False, False, False)
-        # if Gaussian, update every five, since it is slower than Phasor
-        elif "Gaussian" in self.method and self.progress % round(self.total * self.dataset_parts / 20, 0) == 0 and \
-                self.total * self.dataset_parts > 19:
+        # if Gaussian or HSM, update every five, since it is slower than Phasor
+        elif ("Gaussian" in self.method or self.method == "HSM") and self.total * self.dataset_parts > 19 \
+                and self.progress % round(self.total * self.dataset_parts / 20, 0) == 0:
             self.update(False, False, False)
 
         # set to completed when all done
