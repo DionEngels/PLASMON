@@ -336,9 +336,8 @@ class HSMDataset(Dataset):
         for frame_index, frame in enumerate(self.frames):
             background = median_filter(frame, size=9, mode='constant')
             frame = frame.astype(self.data_type_signed) - background
-            img_corrected = np.round((frame[int(frame.shape[0] * 0.25 - 1):int(frame.shape[0] * 0.75),
-                                      int(frame.shape[1] * 0.25 - 1):int(frame.shape[1] * 0.75)]),
-                                     0).astype(self.data_type_signed)
+            # crop 5 pixels for background correction
+            img_corrected = np.round((frame[5:-5, 5:-5]), 0).astype(self.data_type_signed)
             # save to data_merged_helper to prevent doing background correction again
             data_merged_helper[frame_index, :, :] = frame.astype(self.data_type_signed)
             # after first frame, correlate with previous frame
