@@ -23,7 +23,7 @@ v2.0: GUI v2.0 ready for release: 30/10/2020
 __self_made__ = True
 
 # GENERAL IMPORTS
-from os import getcwd, environ, listdir, rmdir, remove, mkdir, path  # to get standard usage
+from os import getcwd, environ, listdir, rmdir, mkdir, path  # to get standard usage
 from tempfile import mkdtemp
 import sys
 import time  # for timekeeping
