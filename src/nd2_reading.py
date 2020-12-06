@@ -16,7 +16,6 @@ v1.1: None prevention: 10/08/2020
 v2.0: Part of GUI v2.0: 15/10/2020
 
 """
-from src.warnings import DataWarning
 from pims_nd2 import ND2_Reader
 from nd2reader import ND2Reader
 from nd2reader.parser import Parser
