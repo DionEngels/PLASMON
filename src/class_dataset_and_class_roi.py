@@ -211,12 +211,13 @@ class Dataset:
         return offset
 
     @staticmethod
-    def correlate_frames_same_size(frame_old, frame_new):
+    def correlate_frames_same_size(frame_old, frame_new, range=None):
         """
         Correlates same sizes old frame and new frame and finds offset between the two
         -----------------------
         :param frame_old: Previous frame
         :param frame_new: New frame to correlate with
+        :param range: The maximum possible range of drift between the two frames
         :return: offset: the offset between the two frames
         """
         # if same matrix
@@ -224,7 +225,13 @@ class Dataset:
             offset = np.asarray([0, 0])
         else:
             corr = normxcorr2(frame_old, frame_new)
-            maxima = np.transpose(np.asarray(np.where(corr == np.amax(corr))))[0]
+            if range is None:
+                maxima = np.transpose(np.asarray(np.where(corr == np.amax(corr))))[0]
+            else:
+                # cut out center with range. Only check center for maximum value
+                small_corr = corr[frame_old.shape[0] - range:frame_old.shape[0] + range,
+                                  frame_old.shape[1] - range:frame_old.shape[1] + range]
+                maxima = np.transpose(np.asarray(np.where(corr == np.amax(small_corr))))[0]
             offset = maxima - np.asarray(frame_old.shape) + np.asarray([1, 1])
 
         return offset

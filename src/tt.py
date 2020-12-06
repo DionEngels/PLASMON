@@ -351,7 +351,9 @@ class TimeTrace(Dataset):
                     new_frame = np.asarray(tt_part.frame_zero)
                     background = median_filter(new_frame, size=9, mode='constant')
                     new_frame = new_frame.astype(self.data_type_signed) - background
-                    last_non_nan_offset += np.asarray(self.correlate_frames_same_size(old_frame, new_frame))
+                    # input roi_size as maximum possible drift
+                    last_non_nan_offset += np.asarray(self.correlate_frames_same_size(old_frame, new_frame,
+                                                                                      range=self.settings['roi_size']))
                     old_frame = new_frame
                 tt_part.offset_from_base = last_non_nan_offset.copy()
 
