@@ -39,7 +39,7 @@ from scipy.stats import norm
 
 import src.mbx_fortran as fortran_linalg  # for fast self-made operations for Gaussian fitter
 import src.mbx_fortran_tools as fortran_tools  # for fast self-made general operations
-from src.class_dataset_and_class_roi import Dataset, Roi  # base dataset
+from src.class_dataset_and_class_roi import Dataset  # base dataset
 from src.tools import change_to_nm
 from src.drift_correction import DriftCorrector
 from src.nd2_reading import ND2ReaderSelf
