@@ -204,7 +204,8 @@ class ND2ReaderForMetadata(ND2Reader):
                             value = ":".join(split_line[1:])
                         elif "not enough" in str(e):
                             continue
-                    if key == 'Metadata:' or key == '':  # remove emtpy stuff and the metadata header key
+                    if key == 'Metadata:' or key == '' or key.count(' ') == len(key):
+                        # remove emtpy stuff and the metadata header key. Last check is to see if only spaces
                         continue
                     key = key.lstrip()  # remove the spaces at the start of some keys
                     if type(value) is str:
