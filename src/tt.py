@@ -493,7 +493,7 @@ class TimeTrace(Dataset):
         frame_stacks = []
         total_offset = fitter.roi_offset + tt_part.offset_from_base
         for roi in rois:
-            if roi.in_frame(full_frame_stack[0].shape, total_offset, 0):
+            if roi.in_frame(full_frame_stack[0].shape, total_offset, fitter.roi_size_1D):
                 frame_stacks.append(roi.get_frame_stack(full_frame_stack, fitter.roi_size_1D, total_offset))
             else:
                 # if not in frame, append a None to ensure same length
@@ -543,7 +543,7 @@ class TTPart:
         frame_stacks = []
         total_offset = fitter.roi_offset + self.offset_from_base
         for roi in rois:
-            if roi.in_frame(full_frame_stack[0].shape, total_offset, 0):
+            if roi.in_frame(full_frame_stack[0].shape, total_offset, fitter.roi_size_1D):
                 frame_stacks.append(roi.get_frame_stack(full_frame_stack, fitter.roi_size_1D, total_offset))
             else:
                 # if not in frame, append a None to ensure same length
