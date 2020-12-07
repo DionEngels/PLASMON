@@ -1192,7 +1192,7 @@ class ROIPage(BasePage):
         self.histogram_fig = None
         self.to_hist = None
 
-        label_name = tk.Label(self, text="Name", font=FONT_SUBHEADER, bg='white')
+        label_name = tk.Label(self, text="Name Experiment", font=FONT_SUBHEADER, bg='white')
         label_name.grid(row=0, column=0, columnspan=8, sticky='EW', padx=PAD_BIG)
         create_tooltip(label_name, TOOLTIP_ROI_NAME_EXPERIMENT)
 
