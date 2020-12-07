@@ -50,6 +50,7 @@ from tkinter.filedialog import askopenfilename  # for popup that asks to select 
 from main import ProgressUpdater, logging_setup
 from src.class_experiment import Experiment
 import src.figure_making as figuring
+from src.nd2_reading import ND2ReaderSelf
 from setup import __version__
 
 # Multiprocessing
@@ -1152,6 +1153,8 @@ class LoadPage(BasePage):
         self.controller.dir_open = '/'.join(filename[:-4].split("/")[:-1])
 
         if dataset_type == "HSM":
+            if self.bad_hsm_size(filename):
+                return
             # if datatype is HSM, show wait label
             self.label_wait.grid()
 
@@ -1177,6 +1180,16 @@ class LoadPage(BasePage):
         if dataset_type == "HSM":
             self.label_wait.grid_remove()
             self.label_wait.updater(text="HSM frames are being merged. Progress 0%")
+
+    def bad_hsm_size(self, filename):
+        nd2 = ND2ReaderSelf(filename)
+        if len(nd2) >  50:
+            nd2.close()
+            return not self.controller.proceed_question("Are you sure?",
+                                                        "This HSM is over 50 frames, which is unusually long.")
+        else:
+            nd2.close()
+            return False
 
 # %% ROIPage
 
