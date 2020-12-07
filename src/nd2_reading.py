@@ -244,4 +244,28 @@ class ND2ReaderSelf(ND2_Reader):
         metadata_dict = metadata_nd2.get_metadata(verbose=verbose)
         metadata_nd2.close()
 
+        metadata_dict = self.check_length(metadata_dict)
+
         return metadata_dict
+
+    def check_length(self, metadata):
+        try:
+            if metadata['num_frames'] != metadata['total_images_per_channel']:
+                try:
+                    # if it can select it, it is fine
+                    test_frame = self[metadata['num_frames'] - 5]
+                    metadata['total_images_per_channel'] = metadata['num_frames']
+                except:
+                    # otherwise, change settings of nd2
+                    metadata['num_frames'] = metadata['total_images_per_channel']
+                    frame_shape = self.frame_shape
+                    self._clear_axes()
+                    self._init_axis('x', frame_shape[1])
+                    self._init_axis('y', frame_shape[0])
+                    self._init_axes('t', metadata['num_frames'])
+
+        except Exception as e:
+            logger.info("Could not compare both nd2 lengths", exc_info=e)
+            pass
+
+        return metadata
