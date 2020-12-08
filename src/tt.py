@@ -39,7 +39,7 @@ from scipy.stats import norm
 
 import src.mbx_fortran as fortran_linalg  # for fast self-made operations for Gaussian fitter
 import src.mbx_fortran_tools as fortran_tools  # for fast self-made general operations
-from src.class_dataset_and_class_roi import Dataset, Roi  # base dataset
+from src.class_dataset_and_class_roi import Dataset  # base dataset
 from src.tools import change_to_nm
 from src.drift_correction import DriftCorrector
 from src.nd2_reading import ND2ReaderSelf
@@ -238,7 +238,6 @@ class TimeTrace(Dataset):
         new_tt_parts = []
         for one_slice in slices:
             new_slices_part = self.slices_create(one_slice, self.n_cores)
-            new_tt_parts.append(TTPart(self.filename, self.frames, new_slices_part[0]))
             for index, new_slice_ind in enumerate(new_slices_part):
                 if index == 0:
                     new_tt_parts.append(TTPart(self.filename, self.frames, new_slice_ind))
@@ -352,7 +351,9 @@ class TimeTrace(Dataset):
                     new_frame = np.asarray(tt_part.frame_zero)
                     background = median_filter(new_frame, size=9, mode='constant')
                     new_frame = new_frame.astype(self.data_type_signed) - background
-                    last_non_nan_offset += np.asarray(self.correlate_frames_same_size(old_frame, new_frame))
+                    # input roi_size as maximum possible drift
+                    last_non_nan_offset += np.asarray(self.correlate_frames_same_size(old_frame, new_frame,
+                                                                                      range=self.settings['roi_size']))
                     old_frame = new_frame
                 tt_part.offset_from_base = last_non_nan_offset.copy()
 
@@ -494,7 +495,7 @@ class TimeTrace(Dataset):
         frame_stacks = []
         total_offset = fitter.roi_offset + tt_part.offset_from_base
         for roi in rois:
-            if roi.in_frame(full_frame_stack[0].shape, total_offset, 0):
+            if roi.in_frame(full_frame_stack[0].shape, total_offset, fitter.roi_size_1D):
                 frame_stacks.append(roi.get_frame_stack(full_frame_stack, fitter.roi_size_1D, total_offset))
             else:
                 # if not in frame, append a None to ensure same length
@@ -544,7 +545,7 @@ class TTPart:
         frame_stacks = []
         total_offset = fitter.roi_offset + self.offset_from_base
         for roi in rois:
-            if roi.in_frame(full_frame_stack[0].shape, total_offset, 0):
+            if roi.in_frame(full_frame_stack[0].shape, total_offset, fitter.roi_size_1D):
                 frame_stacks.append(roi.get_frame_stack(full_frame_stack, fitter.roi_size_1D, total_offset))
             else:
                 # if not in frame, append a None to ensure same length

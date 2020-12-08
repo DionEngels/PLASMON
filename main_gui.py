@@ -20,11 +20,10 @@ v2.0 pre-1: First version of GUI v2.0: 15/10/2020
 v2.0: GUI v2.0 ready for release: 30/10/2020
 """
 
-__version__ = "2.1.1"
 __self_made__ = True
 
 # GENERAL IMPORTS
-from os import getcwd, environ, listdir, rmdir, remove  # to get standard usage
+from os import getcwd, environ, listdir, rmdir, mkdir, path  # to get standard usage
 from tempfile import mkdtemp
 import sys
 import time  # for timekeeping
@@ -51,6 +50,8 @@ from tkinter.filedialog import askopenfilename  # for popup that asks to select 
 from main import ProgressUpdater, logging_setup
 from src.class_experiment import Experiment
 import src.figure_making as figuring
+from src.nd2_reading import ND2ReaderSelf
+from setup import __version__
 
 # Multiprocessing
 import multiprocessing as mp
@@ -806,9 +807,17 @@ class PLASMON(tk.Tk):
         self.experiment_to_link_name = None
         self.thread_started = False
 
-        # working directory
+        # load in old working directory
+        # check location in Documents
+        userprofile = environ['USERPROFILE']
+        dir_path = path.join(userprofile, "Documents", 'PLASMON')
+        # check dir path
+        if path.exists(dir_path):
+            pass
+        else:
+            mkdir(dir_path)
 
-        self.shelve_file = getcwd() + "/Cache.out"
+        self.shelve_file = dir_path + "/Cache.out"
         try:
             my_shelve = shelve.open(self.shelve_file)
             self.dir_open = my_shelve['dir_open']
@@ -839,6 +848,7 @@ class PLASMON(tk.Tk):
         :param roi_locations: ROI locations within frame
         :param roi_size: ROI size
         :param roi_offset: Offset of ROIs within dataset
+        :param overwrite: overwrite the previous figure or not. Basically, if true, it keeps the zoom
         :return:
         """
         if figure is None:
@@ -1141,9 +1151,11 @@ class LoadPage(BasePage):
             return
 
         # save directory
-        self.controller.dir_open = '/'.join(filename.split(".")[0].split("/")[:-1])
+        self.controller.dir_open = '/'.join(filename[:-4].split("/")[:-1])
 
         if dataset_type == "HSM":
+            if self.bad_hsm_size(filename):
+                return
             # if datatype is HSM, show wait label
             self.label_wait.grid()
 
@@ -1170,6 +1182,16 @@ class LoadPage(BasePage):
             self.label_wait.grid_remove()
             self.label_wait.updater(text="HSM frames are being merged. Progress 0%")
 
+    def bad_hsm_size(self, filename):
+        nd2 = ND2ReaderSelf(filename)
+        if len(nd2) >  50:
+            nd2.close()
+            return not self.controller.proceed_question("Are you sure?",
+                                                        "This HSM is over 50 frames, which is unusually long.")
+        else:
+            nd2.close()
+            return False
+
 # %% ROIPage
 
 
@@ -1192,7 +1214,7 @@ class ROIPage(BasePage):
         self.histogram_fig = None
         self.to_hist = None
 
-        label_name = tk.Label(self, text="Name", font=FONT_SUBHEADER, bg='white')
+        label_name = tk.Label(self, text="Name Experiment", font=FONT_SUBHEADER, bg='white')
         label_name.grid(row=0, column=0, columnspan=8, sticky='EW', padx=PAD_BIG)
         create_tooltip(label_name, TOOLTIP_ROI_NAME_EXPERIMENT)
 

@@ -130,7 +130,7 @@ class Experiment:
         """
         self.name = name
         # get directory
-        file_dir = '/'.join(self.directory.split(".")[0].split("/")[:-1]) + '/'
+        file_dir = '/'.join(self.directory[:-4].split("/")[:-1]) + '/'
 
         # get date
         try:
@@ -190,6 +190,9 @@ class Experiment:
         :return: None. Saves to disk
         """
         start_time = time.time()
+        # also save settings at start in case of crash
+        settings = self.settings_to_dict()
+        outputting.save_settings(self.directory, settings, 0)
         for dataset in self.datasets:
             # iterate through datasets and update progress
             if dataset.type == "TT":
@@ -218,8 +221,11 @@ class Experiment:
         """
         # save settings used to txt
         self.progress_updater.message("Starting saving")
-        settings = self.settings_to_dict()
-        outputting.save_settings(self.directory, settings, time_taken)
+        try:
+            settings = self.settings_to_dict()
+            outputting.save_settings(self.directory, settings, time_taken)
+        except:
+            pass
 
         # save overview
         self.progress_updater.message("Saving overview")

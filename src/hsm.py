@@ -41,6 +41,144 @@ from src.class_dataset_and_class_roi import Dataset, normxcorr2
 import matplotlib.pyplot as plt
 __self_made__ = True
 
+# %% HSM Fitter
+
+
+class HSMFit(fitting.GaussianBackground):
+
+    def __init__(self, roi_size_1d):
+        super().__init__({'roi_size': int(roi_size_1d * 2 + 1), 'rejection': True, 'method': "Gaussian - Fit bg"},
+                         1000, 6, [0, 0])
+        self.init_sig = 0.8
+
+    def fit_gaussian(self, data):
+        """
+        Gathers parameter estimate and calls fit.
+
+        Parameters
+        ----------
+        data : ROI pixel values
+
+        Returns
+        -------
+        p.x: solution of parameters
+        p.nfev: number of iterations
+        p.success: success or failure
+
+        """
+        def extract_data(p=None):
+            if p is None:
+                return np.ones(5), None, False
+            else:
+                return p.x, p.nfev, p.success
+        # set bounds
+        pos_max, pos_min, int_max, int_min, sig_max, sig_min = self.define_fitter_bounds()
+
+        # set parameters
+        background = self.fun_calc_bg(data)
+        height = data[int(4.5), int(4.5)] - background
+        if height < 0:
+            height = 0
+        params = np.array([height, 4.5, 4.5, self.init_sig, self.init_sig, background])
+
+        # try first fit
+        try:
+            p = least_squares(lambda p: self.fun_gaussian(p, data), params, method='dogbox', max_nfev=self.max_its,
+                              ftol=10e-12, gtol=10e-12, xtol=10e-12,
+                              bounds=([int_min, pos_min, pos_min, sig_min, sig_min, 0],
+                                      [int_max, pos_max, pos_max, sig_max, sig_max, np.inf]))
+            res, its, success = extract_data(p)
+        except Exception as e:
+            # if exception, print and set comparison
+            print(e)
+            print(np.array([height, 4.5, 4.5, self.init_sig, self.init_sig, background]))
+            # extract data
+            res, its, success = extract_data(p=None)
+
+        # if fit is bad, do new fit with Cauchy loss (better at low SNR)
+        if success == 0 or \
+                res[2] < pos_min or res[2] > pos_max or res[1] < pos_min or res[1] > pos_max or \
+                res[0] <= int_min or res[0] > int_max or \
+                res[3] <= sig_min or res[3] >= sig_max or res[4] <= sig_min or res[4] >= sig_max:
+            params = np.array([height, 4.5, 4.5, self.init_sig, self.init_sig, background])
+            try:
+                p = least_squares(lambda p: self.fun_gaussian(p, data), params, method='dogbox', max_nfev=self.max_its,
+                                  ftol=10e-12, gtol=10e-12, xtol=10e-12, loss='cauchy', f_scale=0.1,
+                                  bounds=([int_min, pos_min, pos_min, sig_min, sig_min, 0],
+                                          [int_max, pos_max, pos_max, sig_max, sig_max, np.inf]))
+                # extract data
+                res, its, success = extract_data(p)
+            except Exception as e:
+                # if exception, print
+                print(e)
+                print(np.array([height, 4.5, 4.5, self.init_sig, self.init_sig, background]))
+        return [res, its, success]
+
+    def define_fitter_bounds(self):
+        """
+        Defines fitter bounds, based on "Strict" bounds or not
+
+        Returns
+        -------
+        pos_max : Max position of fit
+        pos_min : Min position of fit
+        int_max : Max intensity of fit
+        int_min : Min intensity of fit
+        sig_max : Max sigma of fit
+        sig_min : Min sigma of fit
+
+        """
+        pos_max = self.roi_size
+        pos_min = 0.0
+        int_min = 0.0
+        int_max = np.inf
+        sig_min = 0.0
+        sig_max = 2.0
+
+        return pos_max, pos_min, int_max, int_min, sig_max, sig_min
+
+    def fitter(self, frame_stack, shape, energy_width, *_):
+        """
+        Does Gaussian fitting for all frames for a single ROI
+        --------------------------------------------------------
+        :param frame_stack: HSM corrected frame stack for one ROI
+        :return: HSM results for a single ROI
+        """
+        # predefine
+        raw_intensity = np.zeros(frame_stack.shape[0])
+        intensity = np.zeros(frame_stack.shape[0])
+        raw_fits = np.zeros((frame_stack.shape[0], self.num_fit_params))
+
+        pos_max, pos_min, int_max, int_min, sig_max, sig_min = self.define_fitter_bounds()
+
+        # fit per frame
+        for frame_index, my_roi in enumerate(frame_stack):  
+            # fit
+            result, _, success = self.fit_gaussian(my_roi)
+            # save fittings if success
+            if success == 0 or \
+                    result[2] < pos_min or result[2] > pos_max or result[1] < pos_min or result[1] > pos_max or \
+                    result[0] <= int_min or result[0] > int_max or \
+                    result[3] <= sig_min or result[3] >= sig_max or result[4] <= sig_min or result[4] >= sig_max:
+                raw_intensity[frame_index] = np.nan
+                intensity[frame_index] = np.nan
+                raw_fits[frame_index, :] = np.nan
+            else:
+                raw_intensity[frame_index] = 2 * np.pi * result[0] * result[3] * result[4]
+                # for intensity, divide by shape correction and energy_width normalization
+                intensity[frame_index] = raw_intensity[frame_index] / shape[frame_index] / energy_width[frame_index]
+                raw_fits[frame_index, :] = result
+
+        # reject very high sigma fits (50% above average)
+        intensity[(raw_fits[:, 3] > np.nanmean(raw_fits[:, 3]) * 1.5) |
+                  (raw_fits[:, 4] > np.nanmean(raw_fits[:, 4]) * 1.5)] = np.nan
+        raw_intensity[(raw_fits[:, 3] > np.nanmean(raw_fits[:, 3]) * 1.5) |
+                      (raw_fits[:, 4] > np.nanmean(raw_fits[:, 4]) * 1.5)] = np.nan
+        raw_fits[(raw_fits[:, 3] > np.nanmean(raw_fits[:, 3]) * 1.5) |
+                 (raw_fits[:, 4] > np.nanmean(raw_fits[:, 4]) * 1.5), :] = np.nan
+
+        return raw_intensity, intensity, raw_fits
+
 # %% HSM Dataset v2
 
 
@@ -118,7 +256,7 @@ class HSMDataset(Dataset):
                 # for each split, get rid of spaces
                 split = split.replace(' ', '')
                 try:
-                    # try to make int, if succesful, add to list
+                    # try to make int, if successful, add to list
                     split_int = int(split)
                     wavelength_list.append(split_int)
                 except ValueError:
@@ -198,9 +336,8 @@ class HSMDataset(Dataset):
         for frame_index, frame in enumerate(self.frames):
             background = median_filter(frame, size=9, mode='constant')
             frame = frame.astype(self.data_type_signed) - background
-            img_corrected = np.round((frame[int(frame.shape[0] * 0.25 - 1):int(frame.shape[0] * 0.75),
-                                      int(frame.shape[1] * 0.25 - 1):int(frame.shape[1] * 0.75)]),
-                                     0).astype(self.data_type_signed)
+            # crop 5 pixels for background correction
+            img_corrected = np.round((frame[5:-5, 5:-5]), 0).astype(self.data_type_signed)
             # save to data_merged_helper to prevent doing background correction again
             data_merged_helper[frame_index, :, :] = frame.astype(self.data_type_signed)
             # after first frame, correlate with previous frame
@@ -307,43 +444,16 @@ class HSMDataset(Dataset):
             plt.show()
 
         # prep for fitting
-        roi_size = 9
-        roi_size_1d = int((roi_size - 1) / 2)
-        fitter = fitting.GaussianBackground({'roi_size': roi_size, 'rejection': True, 'method': "Gaussian - Fit bg"},
-                                            600, 6, self)
-        pos_max = roi_size
-        pos_min = 0
-        sig_min = 0
-        sig_max = roi_size_1d + 1
+        roi_size_1d = 4
+        fitter = HSMFit(roi_size_1d)
 
         # %% Fit every ROI for every frame
         for roi_index, roi in enumerate(self.active_rois):
-            raw_intensity = np.zeros(self.frames.shape[0])
-            intensity = np.zeros(self.frames.shape[0])
             frame_stack = roi.get_frame_stack(self.corrected, roi_size_1d, self.roi_offset)
-            for frame_index, my_roi in enumerate(frame_stack):
-                # if verbose, show ROI
-                if verbose:
-                    fig, ax = plt.subplots(1)
-                    ax.imshow(my_roi, extent=[0, my_roi.shape[1], my_roi.shape[0], 0], aspect='auto')
-                    ax.set_xlabel('x (pixels)')
-                    ax.set_ylabel('y (pixels)')
-                    ax.set_title('Zoom-in ROI #{}, frame #{}'.format(roi.index, frame_index))
-                    plt.show()
-                # fit
-                result, _, success = fitter.fit_gaussian(my_roi)
-                # save fittings if success
-                if success == 0 or \
-                        result[2] < pos_min or result[2] > pos_max or result[1] < pos_min or result[1] > pos_max \
-                        or result[3] < sig_min or result[3] > sig_max or result[4] < sig_min or result[4] > sig_max:
-                    raw_intensity[frame_index] = np.nan
-                    intensity[frame_index] = np.nan
-                else:
-                    raw_intensity[frame_index] = 2 * np.pi * result[0] * result[3] * result[4]
-                    # for intensity, divide by shape correction and energy_width normalization
-                    intensity[frame_index] = raw_intensity[frame_index] / shape[frame_index] / energy_width[frame_index]
+            # Fit with Gaussian fitter
+            raw_intensity, intensity, raw_fits = fitter.fitter(frame_stack, shape, energy_width)
 
-            # %% Fit the total intensity of a single ROI over all frames with Lorentzian
+            # Fit the total intensity of a single ROI over all frames with Lorentzian
             if verbose:
                 fig, ax = plt.subplots(1)
                 ax.plot(self.wavelengths, intensity)
@@ -355,19 +465,20 @@ class HSMDataset(Dataset):
 
             result_dict = {"type": self.type, 'wavelengths': self.wavelengths, "lambda": 1240 / result[2],  # SP lambda
                            "linewidth": 1000 * result[3], 'R2': r_squared, "fit_parameters": result,  # linewidth
-                           "raw_intensity": raw_intensity, "intensity": intensity, "raw": frame_stack}
+                           "raw_intensity": raw_intensity, "raw_fits": raw_fits,  # raw gaussian fits
+                           "intensity": intensity, "raw": frame_stack}
             roi.results[self.name_result] = result_dict
 
             # progress update
             self.experiment.progress_updater.update_progress()
 
-    def fit_lorentzian(self, scattering, wavelength, split=False, verbose=False):
+    @staticmethod
+    def fit_lorentzian(scattering, wavelength, verbose=False):
         """
         Function to fit a lorentzian to the found intensities
         -----------------------------------------------
         :param scattering: the scattering intensities found
         :param wavelength: the wavelengths of the found intensities
-        :param split: if True, this function has been called recursively with only a part of the original array
         :param verbose: if True, you get a lot of images
         :return: result: resulting Lorentzian parameters
         :return r_squared: the r-squared of this fit
@@ -435,7 +546,6 @@ class HSMDataset(Dataset):
         max_sca = np.nanmax(scattering[scattering < np.nanmax(scattering)])
         idx_max = np.nanargmax(scattering[scattering < np.nanmax(scattering)])
         min_sca = np.nanmin(scattering)
-        idx_min = np.nanargmin(scattering)
 
         # init guess and first fit
         init_1w = abs(2 / (np.pi * max_sca) * np.trapz(scattering, wavelength_ev))
@@ -446,9 +556,9 @@ class HSMDataset(Dataset):
         result[3] = abs(result[3])
         r_squared = find_r_squared(lorentzian, result, wavelength_ev, scattering)
 
-        # if bad fit, try standard values
+        # if bad fit, try standard values of Matej
         if r_squared < 0.9:
-            result_full_std = least_squares(error_func, [-10, 100, 1240 / wavelength_ev[idx_max], 0.15],
+            result_full_std = least_squares(error_func, [min_sca, 100, 1240 / wavelength[idx_max], 0.15],
                                             args=(wavelength_ev, scattering))
             result_std = result_full_std.x
             result_std[3] = abs(result_std[3])
@@ -457,31 +567,16 @@ class HSMDataset(Dataset):
                 result = result_std
                 r_squared = r_squared_std
 
-        # random try if bad fit
+        # if bad fit still, try standard values of Sjoerd
         if r_squared < 0.9:
-            result_full_base = least_squares(error_func, [0, 1, 600, 1], args=(wavelength_ev, scattering))
+            result_full_base = least_squares(error_func, [min_sca, 10000, 1240 / wavelength[idx_max], 0.15],
+                                             args=(wavelength_ev, scattering))
             result_base = result_full_base.x
             result_base[3] = abs(result_base[3])
             r_squared_base = find_r_squared(lorentzian, result_base, wavelength_ev, scattering)
             if r_squared_base > r_squared:
                 result = result_base
                 r_squared = r_squared_base
-
-        # if r_squared is too low, split
-        if r_squared < 0.9 and split is False:
-            wavelength_low = wavelength[:idx_min]
-            wavelength_high = wavelength[idx_min:]
-            scattering_low = scattering[:idx_min]
-            scattering_high = scattering[idx_min:]
-            result_low, r_squared_low = self.fit_lorentzian(scattering_low, wavelength_low, split=True)
-            result_high, r_squared_high = self.fit_lorentzian(scattering_high, wavelength_high, split=True)
-
-            if r_squared_high > r_squared and ~np.isnan(np.sum(result_high)):
-                result = result_high
-                r_squared = r_squared_high
-            if r_squared_low > r_squared and ~np.isnan(np.sum(result_low)):
-                result = result_low
-            r_squared = find_r_squared(lorentzian, result, wavelength_ev, scattering)
 
         # if verbose, show comparison
         if verbose:

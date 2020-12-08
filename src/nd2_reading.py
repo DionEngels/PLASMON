@@ -16,7 +16,6 @@ v1.1: None prevention: 10/08/2020
 v2.0: Part of GUI v2.0: 15/10/2020
 
 """
-from src.warnings import DataWarning
 from pims_nd2 import ND2_Reader
 from nd2reader import ND2Reader
 from nd2reader.parser import Parser
@@ -205,7 +204,8 @@ class ND2ReaderForMetadata(ND2Reader):
                             value = ":".join(split_line[1:])
                         elif "not enough" in str(e):
                             continue
-                    if key == 'Metadata:' or key == '':  # remove emtpy stuff and the metadata header key
+                    if key == 'Metadata:' or key == '' or key.count(' ') == len(key):
+                        # remove emtpy stuff and the metadata header key. Last check is to see if only spaces
                         continue
                     key = key.lstrip()  # remove the spaces at the start of some keys
                     if type(value) is str:
@@ -244,4 +244,34 @@ class ND2ReaderSelf(ND2_Reader):
         metadata_dict = metadata_nd2.get_metadata(verbose=verbose)
         metadata_nd2.close()
 
+        metadata_dict = self.check_length(metadata_dict)
+
         return metadata_dict
+
+    def check_length(self, metadata):
+        """
+        Checks the length of the video in the metadata. If not the same, checks if the longest works, if not, corrects
+        to the shortest
+        :param metadata: Metadata to check with
+        :return: metadata: The new metadata, with the length adjusted
+        """
+        try:
+            if metadata['num_frames'] != metadata['total_images_per_channel']:
+                try:
+                    # if it can select it, it is fine
+                    test_frame = self[metadata['num_frames'] - 5]
+                    metadata['total_images_per_channel'] = metadata['num_frames']
+                except:
+                    # otherwise, change settings of nd2
+                    metadata['num_frames'] = metadata['total_images_per_channel']
+                    frame_shape = self.frame_shape
+                    self._clear_axes()
+                    self._init_axis('x', frame_shape[1])
+                    self._init_axis('y', frame_shape[0])
+                    self._init_axes('t', metadata['num_frames'])
+
+        except Exception as e:
+            logger.info("Could not compare both nd2 lengths", exc_info=e)
+            pass
+
+        return metadata
