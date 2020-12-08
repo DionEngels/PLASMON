@@ -848,6 +848,7 @@ class PLASMON(tk.Tk):
         :param roi_locations: ROI locations within frame
         :param roi_size: ROI size
         :param roi_offset: Offset of ROIs within dataset
+        :param overwrite: overwrite the previous figure or not. Basically, if true, it keeps the zoom
         :return:
         """
         if figure is None:

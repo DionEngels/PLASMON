@@ -249,6 +249,12 @@ class ND2ReaderSelf(ND2_Reader):
         return metadata_dict
 
     def check_length(self, metadata):
+        """
+        Checks the length of the video in the metadata. If not the same, checks if the longest works, if not, corrects
+        to the shortest
+        :param metadata: Metadata to check with
+        :return: metadata: The new metadata, with the length adjusted
+        """
         try:
             if metadata['num_frames'] != metadata['total_images_per_channel']:
                 try:
