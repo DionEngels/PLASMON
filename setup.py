@@ -19,6 +19,7 @@ v0.4: also copy spectral corrections
 v1.0: initial release done
 v1.2: icon
 v2.0: new GUI: 19/10/2020
+v2.0.1: put version into setup
 
 """
 
@@ -48,7 +49,6 @@ if __name__ == '__main__':
 
         for dependency in dependencies:
             include_files.append(os.path.join(DLLS_FOLDER, dependency))
-
 
     includes = ['tkinter']
     excludes = ['matplotlib.tests', 'numpy.random._examples']
