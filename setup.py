@@ -29,7 +29,7 @@ from cx_Freeze import setup, Executable
 
 __self_made__ = True
 
-r'-b C:\Users\s150127\Downloads\___MBx\build'  # take this control location of build
+r'-b C:\Users\dione\Documents\___MBx\build'  # take this control location of build
 
 __version__ = '2.1.2'
 
