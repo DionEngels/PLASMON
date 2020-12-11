@@ -259,7 +259,7 @@ class ND2ReaderSelf(ND2_Reader):
             if metadata['num_frames'] != metadata['total_images_per_channel']:
                 try:
                     # if it can select it, it is fine
-                    test_frame = self[metadata['num_frames'] - 5]
+                    test_frame = self[metadata['num_frames'] - 1]
                     metadata['total_images_per_channel'] = metadata['num_frames']
                 except:
                     # otherwise, change settings of nd2
@@ -268,7 +268,8 @@ class ND2ReaderSelf(ND2_Reader):
                     self._clear_axes()
                     self._init_axis('x', frame_shape[1])
                     self._init_axis('y', frame_shape[0])
-                    self._init_axes('t', metadata['num_frames'])
+                    self._init_axis('t', metadata['num_frames'])
+                    self.iter_axes = 't'
 
         except Exception as e:
             logger.info("Could not compare both nd2 lengths", exc_info=e)
