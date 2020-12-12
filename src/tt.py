@@ -413,9 +413,11 @@ class TimeTrace(Dataset):
                         tt_part.run(self.fitter, self.active_rois, res_dict=dicts_list[index], dataset=self)
 
                 # merge data
+                self.experiment.progress_updater.message("Finalizing data")
                 self.merge_data(dicts_list)
             else:
                 self.tt_parts[0].run(self.fitter, self.active_rois, dataset=self)
+                self.experiment.progress_updater.message("Finalizing data")
 
             # set to nm if desired
             if self.settings['pixels_or_nm'] == "nm":
