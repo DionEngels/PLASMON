@@ -92,7 +92,7 @@ class ND2ReaderForMetadata(ND2Reader):
             info_to_parse = self.parser._raw_metadata.image_text_info
             metadata_text_dict = self.parse_text_info(info_to_parse)
             metadata_dict = {**metadata_dict, **metadata_text_dict}
-        except Exception:
+        except Exception as e:
             if verbose:
                 logger.warning("ND2: Detailed metadata missing")
                 logger.info("ND2: Detailed metadata missing", exc_info=e)
@@ -161,7 +161,26 @@ class ND2ReaderForMetadata(ND2Reader):
         return metadata_text_dict
 
     @staticmethod
-    def parse_text_info(info_to_parse):
+    def _check_int(to_check):
+        """
+        Returns true if can be converted to integer, False if not
+        :param to_check: The thing to convert
+        :return: Can be converted or not
+        """
+        try:
+            result = int(to_check)
+            return True
+        except ValueError:
+            return False
+
+    @staticmethod
+    def _empty_string(to_check):
+        if to_check == '' or len(to_check) == to_check.count(' '):
+            return True
+        else:
+            return False
+
+    def parse_text_info(self, info_to_parse):
         """
         Parses the metadata info of the image
         --------------------------------------------
@@ -173,11 +192,10 @@ class ND2ReaderForMetadata(ND2Reader):
 
         for key, value in main_part.items():
             # decode
-            value_string = value.decode("utf-8")
+            value = value.decode("utf-8")
             key = key.decode("utf-8")
-            if value_string != '':
-                # if not empty, split
-                lines = value_string.split('\r\n')
+            if not self._empty_string(value):
+                lines = value.split('\r\n')  # if not empty, split
                 for line_number, line in enumerate(lines):
                     if line == '':
                         continue
