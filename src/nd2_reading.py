@@ -176,6 +176,12 @@ class ND2ReaderForMetadata(ND2Reader):
 
     @staticmethod
     def _convert_number(to_convert):
+        """
+        Do actual conversion to number. Checks if float or not by looking for a comma.
+        --------------------------------------------
+        :param to_convert: string to convert to float/integer
+        :return: converted to float/integer
+        """
         to_convert_with_dot = to_convert.replace(',', '.')
         if to_convert_with_dot == to_convert:
             # if not comma in string, integer.
@@ -186,6 +192,12 @@ class ND2ReaderForMetadata(ND2Reader):
 
     @staticmethod
     def _empty_string(to_check):
+        """
+        Check if string is empty or only spaces
+        --------------------------------------------
+        :param to_check: string to check
+        :return: boolean. Empty or not
+        """
         if to_check == '' or len(to_check) == to_check.count(' '):
             return True
         else:
@@ -193,6 +205,15 @@ class ND2ReaderForMetadata(ND2Reader):
 
     @staticmethod
     def _add_header(metadata_text_dict, key, value, lines):
+        """
+        Add the headers to metadata_text_dict
+        --------------------------------------------
+        :param metadata_text_dict: the dictionary to add to
+        :param key: key to potentially add
+        :param value: value to potentially add
+        :param lines: lines for that key/value
+        :return: metadata_text_dict with maybe a new key
+        """
         invalid_headers = ['5', '6']
         if any(value in key for value in invalid_headers):  # invalid headers, immediately return
             return metadata_text_dict
@@ -207,6 +228,12 @@ class ND2ReaderForMetadata(ND2Reader):
 
     @staticmethod
     def _line_split(line):
+        """
+        Split the lines. Checks for exceptions and returns key and values
+        --------------------------------------------
+        :param line: line to split
+        :return: key, values
+        """
         try:
             key, value = line.split(':')  # try to split, works for most
         except Exception as e:
@@ -215,6 +242,9 @@ class ND2ReaderForMetadata(ND2Reader):
                 key = split_line[0]
                 value = ":".join(split_line[1:])
             elif "not enough" in str(e):
+                key = ''
+                value = ''
+            else:
                 key = ''
                 value = ''
         return key, value
