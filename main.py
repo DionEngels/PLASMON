@@ -38,11 +38,10 @@ import sys
 import logging
 
 from os import path, remove, mkdir, environ  # check path, remove, create dir, and environment settings
-from datetime import datetime  # current time
 
-# Numpy and matplotlib, for linear algebra and plotting respectively
-import numpy as np
+# Matplotlib for plotting, numpy for lin alg.
 import matplotlib.pylab as plt
+from numpy import inf
 
 # Own code
 from src.class_experiment import Experiment
@@ -54,8 +53,8 @@ ROI_SIZE = 7  # 7 or 9
 
 # %% Initializations
 
-tt_name = "C:/Users/s150127/Downloads/___MBx/datasets/1nMimager_newGNRs_100mW.nd2"
-hsm_name = "C:/Users/s150127/Downloads/___MBx/datasets/_1nMimager_newGNRs_100mW_HSM/Merged Documents.nd2"
+tt_name = "C:/Users/dione/Documents/___MBx/datasets/1nMimager_newGNRs_100mW.nd2"
+hsm_name = "C:/Users/dione/Documents/___MBx/datasets/_1nMimager_newGNRs_100mW_HSM/Merged Documents.nd2"
 
 NAME = "test_v2"
 
@@ -69,7 +68,7 @@ CORRECTION = "SN_objTIRF_PFS_510-800"  # "Matej_670-890"
 NM_OR_PIXELS = "nm"
 FRAME_BEGIN = "Leave empty for start"  # number or "Leave empty for start"
 FRAME_END = 300  # number or "Leave empty for end"
-CORR_INT = 500  # "Never" or integer
+CORR_INT = "Never"  # "Never" or integer
 
 # %% Proceed question
 
@@ -319,14 +318,14 @@ if __name__ == '__main__':
     experiment.show_rois("Experiment")
 
     defaults = experiment.roi_finder.get_settings()
-    #settings_rois = {'int_max': np.inf, 'int_min': 0,
-    #                 'sigma_min': 0, 'sigma_max': int((ROI_SIZE - 1) / 2),
-    #                 'corr_min': 0.05, 'roi_size': ROI_SIZE, 'filter_size': 9,
-    #                 'roi_side': 11, 'inter_roi': 9}
+    settings_rois = {'int_max': inf, 'int_min': 0,
+                     'sigma_min': 0, 'sigma_max': int((ROI_SIZE - 1) / 2),
+                     'corr_min': 0.05, 'roi_size': ROI_SIZE, 'filter_size': 9,
+                     'roi_side': 11, 'inter_roi': 9}
 
     # change ROI settings
-    #experiment.change_rois(settings_rois)
-    #experiment.show_rois("Experiment")
+    experiment.change_rois(settings_rois)
+    experiment.show_rois("Experiment")
 
     # finalize experiment
     settings_experiment = {'All Figures': ALL_FIGURES}
@@ -346,20 +345,20 @@ if __name__ == '__main__':
         sys.exit("Did not pass check")
 
     # %% Add HSM
-    #experiment.init_new_hsm(hsm_name)
+    experiment.init_new_hsm(hsm_name)
 
     # correlate HSM ROIs
-    #settings_correlation_hsm = {'x_min': "Leave empty for start", 'x_max': "Leave empty for end",
-    #                            'y_min': "Leave empty for start", 'y_max': "Leave empty for end"}
-    #experiment.find_rois_dataset(settings_correlation_hsm)
-    #experiment.show_rois("Dataset")
+    settings_correlation_hsm = {'x_min': "Leave empty for start", 'x_max': "Leave empty for end",
+                                'y_min': "Leave empty for start", 'y_max': "Leave empty for end"}
+    experiment.find_rois_dataset(settings_correlation_hsm)
+    experiment.show_rois("Dataset")
 
     # finalize HSM dataset
-    #settings_runtime_hsm = {'correction_file': CORRECTION, 'wavelengths': '[510:10:740]',
-    #                        'name': '1nMimager_newGNRs_100mW_HSM'}
+    settings_runtime_hsm = {'correction_file': CORRECTION, 'wavelengths': '[510:10:740]',
+                            'name': '1nMimager_newGNRs_100mW_HSM'}
 
-    #if experiment.add_to_queue(settings_runtime_hsm) is False:
-    #    sys.exit("Did not pass check")
+    if experiment.add_to_queue(settings_runtime_hsm) is False:
+        sys.exit("Did not pass check")
 
     # finalize experiment by adding to experiment list and run
     experiments.append(experiment)
