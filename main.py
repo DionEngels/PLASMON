@@ -49,7 +49,6 @@ from src.class_experiment import Experiment
 import src.figure_making as figuring
 
 __self_made__ = True
-
 # %% Inputs
 ROI_SIZE = 7  # 7 or 9
 

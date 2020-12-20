@@ -18,7 +18,7 @@ v2.0: Part of program v2: 15/10/2020
 """
 from scipy.io import savemat  # to export for MATLAB
 from datetime import datetime
-from setup import __version__  # version number
+from src.version import __version__  # version number
 
 __self_made__ = True
 

@@ -51,7 +51,7 @@ from main import ProgressUpdater, logging_setup
 from src.class_experiment import Experiment
 import src.figure_making as figuring
 from src.nd2_reading import ND2ReaderSelf
-from setup import __version__
+from src.version import __version__
 
 # Multiprocessing
 import multiprocessing as mp
@@ -2092,6 +2092,6 @@ if __name__ == '__main__':
 
     gui = PLASMON(proceed_question=proceed_question)
 
-    tk.Tk.report_callback_exception = divertor.error
+    #tk.Tk.report_callback_exception = divertor.error
     plt.ioff()
     gui.mainloop()
