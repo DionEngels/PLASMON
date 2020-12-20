@@ -173,24 +173,24 @@ class ND2ReaderForMetadata(ND2Reader):
         for key, value in main_part.items():
             # decode
             value_string = value.decode("utf-8")
+            key = key.decode("utf-8")
             if value_string != '':
                 # if not empty, split
-                split_string = value_string.split('\r\n')
-                for line_number, line in enumerate(split_string):
+                lines = value_string.split('\r\n')
+                for line_number, line in enumerate(lines):
                     if line == '':
                         continue
                     if line_number == 0:  # these are the headers, they do not have a value, only key
-                        key = key.decode("utf-8")
                         # we do not want those
                         if '5' in key or '6' in key:
                             continue
                         elif '9' in key:
                             # this is the date
-                            value = value_string
+                            value = lines
                             key = 'date'
                         elif '13' in key:
                             # this is the objective
-                            value = value_string
+                            value = lines
                             key = 'Objective'
                         # otherwise just add
                         metadata_text_dict[key] = value
