@@ -133,7 +133,8 @@ if exist %directory%\venv (
 
 :PythonVirtualEnvActivate
 cd %directory%
-%directory%\venv\Scripts\activate.bat & pip install -r requirements.txt > NUL & color 07 & echo Success: Enabled virtual environment and updated packages. Installation complete. & pause
+echo Starting packages installation and updates
+%directory%\venv\Scripts\activate.bat & pip install -r requirements.txt & color 07 & echo Success: Enabled virtual environment and updated packages. Installation complete. & pause
 if not %errorLevel% == 0 (
 	echo Cannot enable or update virtual environment. Contact administrator. Check if you did not change the venv directory manually.
 	pause
