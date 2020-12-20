@@ -161,17 +161,28 @@ class ND2ReaderForMetadata(ND2Reader):
         return metadata_text_dict
 
     @staticmethod
-    def _check_int(to_check):
+    def _check_number(to_check):
         """
-        Returns true if can be converted to integer, False if not
+        Returns true if can be converted to number, False if not
         :param to_check: The thing to convert
         :return: Can be converted or not
         """
+        to_check = to_check.replace(',', '.')
         try:
-            result = int(to_check)
+            _ = float(to_check)
             return True
         except ValueError:
             return False
+
+    @staticmethod
+    def _convert_number(to_convert):
+        to_convert_with_dot = to_convert.replace(',', '.')
+        if to_convert_with_dot == to_convert:
+            # if not comma in string, integer.
+            return int(to_convert_with_dot)
+        else:
+            # else float
+            return float(to_convert_with_dot)
 
     @staticmethod
     def _empty_string(to_check):
@@ -179,6 +190,34 @@ class ND2ReaderForMetadata(ND2Reader):
             return True
         else:
             return False
+
+    @staticmethod
+    def _add_header(metadata_text_dict, key, value, lines):
+        invalid_headers = ['5', '6']
+        if any(value in key for value in invalid_headers):  # invalid headers, immediately return
+            return metadata_text_dict
+        elif '9' in key:  # this is the date
+            value = lines[0]
+            key = 'date'
+        elif '13' in key:  # this is the objective
+            value = lines[0]
+            key = 'Objective'
+        metadata_text_dict[key] = value  # otherwise just add
+        return metadata_text_dict
+
+    @staticmethod
+    def _line_split(line):
+        try:
+            key, value = line.split(':')  # try to split, works for most
+        except Exception as e:
+            if "too many" in str(e):
+                split_line = line.split(':')  # microscope name has a : in it
+                key = split_line[0]
+                value = ":".join(split_line[1:])
+            elif "not enough" in str(e):
+                key = ''
+                value = ''
+        return key, value
 
     def parse_text_info(self, info_to_parse):
         """
@@ -197,48 +236,24 @@ class ND2ReaderForMetadata(ND2Reader):
             if not self._empty_string(value):
                 lines = value.split('\r\n')  # if not empty, split
                 for line_number, line in enumerate(lines):
-                    if line == '':
-                        continue
                     if line_number == 0:  # these are the headers, they do not have a value, only key
-                        # we do not want those
-                        if '5' in key or '6' in key:
-                            continue
-                        elif '9' in key:
-                            # this is the date
-                            value = lines
-                            key = 'date'
-                        elif '13' in key:
-                            # this is the objective
-                            value = lines
-                            key = 'Objective'
-                        # otherwise just add
-                        metadata_text_dict[key] = value
-                        continue
-                    try:
-                        key, value = line.split(':')  # try to split, works for most
-                    except Exception as e:
-                        if "too many" in str(e):
-                            split_line = line.split(':')  # microscope name has a : in it
-                            key = split_line[0]
-                            value = ":".join(split_line[1:])
-                        elif "not enough" in str(e):
-                            continue
-                    if key == 'Metadata:' or key == '' or key.count(' ') == len(key):
-                        # remove emtpy stuff and the metadata header key. Last check is to see if only spaces
-                        continue
-                    key = key.lstrip()  # remove the spaces at the start of some keys
-                    if type(value) is str:
-                        value = value.lstrip()  # remove the spaces at the start of some value that are strings
-                    key = key.replace(", ", "_")
-                    key = key.replace(" ", "_")  # prevent spaces in key name, matlab does not like that
-                    if ',' in value:
-                        value = float(value.replace(',', '.'))
-                        metadata_text_dict[key] = value
-                    else:
-                        try:
-                            metadata_text_dict[key] = int(value)
-                        except Exception:
-                            metadata_text_dict[key] = value
+                        metadata_text_dict = self._add_header(metadata_text_dict, key, value, lines)
+                    elif not self._empty_string(line):
+                        line_key, line_value = self._line_split(line)
+                        # remove emtpy stuff and the metadata header key
+                        if line_key != 'Metadata: ' and not self._empty_string(line_key):
+                            line_key = line_key.lstrip()  # remove the spaces at the start of some keys
+                            if type(value) is str:
+                                # remove the spaces at the start of some value that are strings
+                                line_value = line_value.lstrip()
+                            # prevent spaces in key name, matlab does not like that
+                            line_key = line_key.replace(", ", "_")
+                            line_key = line_key.replace(" ", "_")
+
+                            if self._check_number(line_value):
+                                line_value = self._convert_number(line_value)
+
+                            metadata_text_dict[line_key] = line_value
 
         return metadata_text_dict
 
