@@ -95,6 +95,7 @@ class ND2ReaderForMetadata(ND2Reader):
         except Exception:
             if verbose:
                 logger.warning("ND2: Detailed metadata missing")
+                logger.info("ND2: Detailed metadata missing", exc_info=e)
 
         # add raw metadata
         try:
