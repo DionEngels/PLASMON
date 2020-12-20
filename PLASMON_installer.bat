@@ -97,10 +97,10 @@ if %errorLevel% == 0 (
 
 :PythonVirtualEnv
 for /f %%i in ('%py_call% -c "import sys; import os; print(os.path.dirname(sys.executable))"') do set py_dir=%%i
-%py_call% -m venv %py_dir%\PLASMON_venv
+%py_call% -m venv %directory%\venv
 REM powershell -Command "[Environment]::SetEnvironmentVariable('PATH', '${env:path};${%directory%\PLASMON\venv}', 'Machine')"
 if %errorLevel% == 0 (
-	echo Success: Virtual environment created in Python installation
+	echo Success: Virtual environment created in PLASMON directory.
 	goto PythonVirtualEnvActivate
 ) else (
 	echo Failure: Cannot create virtual environment. Contact administrator.
@@ -123,8 +123,7 @@ if %errorLevel% == 0 (
 
 :PythonCheckVirtualEnv
 for /f %%i in ('%py_call% -c "import sys; import os; print(os.path.dirname(sys.executable))"') do set py_dir=%%i
-
-if exist %py_dir%\PLASMON_venv (
+if exist %directory%\venv (
 	echo Virtual environment found. Will activate and update.
 	goto PythonVirtualEnvActivate
 ) else (
@@ -133,10 +132,10 @@ if exist %py_dir%\PLASMON_venv (
 )
 
 :PythonVirtualEnvActivate
-cd %directory%\PLASMON
-%py_dir%\PLASMON_venv\Scripts\activate.bat & pip install -r requirements.txt > NUL & color 07 & echo Success: Enabled virtual environment and updated packages. Installation complete. & pause
+cd %directory%
+%directory%\venv\Scripts\activate.bat & pip install -r requirements.txt > NUL & color 07 & echo Success: Enabled virtual environment and updated packages. Installation complete. & pause
 if not %errorLevel% == 0 (
-	echo Cannot enable virtual environment. Contact administrator.
+	echo Cannot enable or update virtual environment. Contact administrator. Check if you did not change the venv directory manually.
 	pause
 	exit /b 1
 )
