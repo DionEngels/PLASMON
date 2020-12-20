@@ -141,3 +141,6 @@ __pycache__/
 
 ## PyCharm
 .idea/
+
+# test codes
+/test codes/

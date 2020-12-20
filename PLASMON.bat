@@ -1,0 +1,1 @@
+wscript.exe "invisible.vbs" "PLASMON_with_terminal.bat"
